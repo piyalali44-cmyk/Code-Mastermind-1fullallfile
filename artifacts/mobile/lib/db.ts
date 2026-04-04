@@ -1,0 +1,759 @@
+import { supabase } from "./supabase";
+
+// ─── ENSURE USER ROWS EXIST (for users created before the trigger) ───────────
+export async function ensureUserRows(userId: string) {
+  try {
+    await Promise.all([
+      supabase.from("user_xp").upsert(
+        { user_id: userId },
+        { onConflict: "user_id", ignoreDuplicates: true }
+      ),
+      supabase.from("user_streaks").upsert(
+        { user_id: userId },
+        { onConflict: "user_id", ignoreDuplicates: true }
+      ),
+      supabase.from("user_settings").upsert(
+        { user_id: userId },
+        { onConflict: "user_id", ignoreDuplicates: true }
+      ),
+    ]);
+  } catch { /* fail silently */ }
+}
+
+// ─── XP ──────────────────────────────────────────────────────────────────────
+export async function addXp(userId: string, amount: number, reason: string) {
+  try {
+    // Ensure user_xp row exists first
+    await supabase.from("user_xp").upsert(
+      { user_id: userId, total_xp: 0, level: 1 },
+      { onConflict: "user_id", ignoreDuplicates: true }
+    );
+    // Insert xp log entry
+    await supabase.from("daily_xp_log").insert({ user_id: userId, xp_amount: amount, reason });
+    // Read current XP then update
+    const { data: existing } = await supabase
+      .from("user_xp")
+      .select("total_xp")
+      .eq("user_id", userId)
+      .single();
+    const currentXp = existing?.total_xp ?? 0;
+    const newXp = currentXp + amount;
+    const newLevel = Math.floor(newXp / 500) + 1;
+    await supabase.from("user_xp").upsert(
+      { user_id: userId, total_xp: newXp, level: newLevel, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
+  } catch { /* fail silently */ }
+}
+
+// ─── STREAKS ─────────────────────────────────────────────────────────────────
+export async function updateStreak(userId: string) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data } = await supabase.from("user_streaks").select("*").eq("user_id", userId).single();
+    if (!data) {
+      // Create streak row for users who signed up before the trigger
+      await supabase.from("user_streaks").upsert(
+        { user_id: userId, current_streak: 1, longest_streak: 1, last_activity_date: today },
+        { onConflict: "user_id" }
+      );
+      return;
+    }
+    const last = data.last_activity_date;
+    if (last === today) return;
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const newStreak = last === yesterday ? data.current_streak + 1 : 1;
+    const longest = Math.max(newStreak, data.longest_streak ?? 0);
+    await supabase.from("user_streaks").update({
+      current_streak: newStreak,
+      longest_streak: longest,
+      last_activity_date: today,
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", userId);
+  } catch { /* fail silently */ }
+}
+
+// ─── LISTENING PROGRESS ───────────────────────────────────────────────────────
+export async function saveProgress(userId: string, contentType: "surah" | "episode", contentId: string, positionMs: number, durationMs: number) {
+  try {
+    const completed = durationMs > 0 && positionMs / durationMs > 0.9;
+    await supabase.from("listening_progress").upsert({
+      user_id: userId,
+      content_type: contentType,
+      content_id: contentId,
+      position_ms: positionMs,
+      duration_ms: durationMs,
+      completed,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,content_type,content_id" });
+  } catch { /* fail silently */ }
+}
+
+export async function getProgress(userId: string, contentType: "surah" | "episode", contentId: string) {
+  try {
+    const { data } = await supabase.from("listening_progress").select("position_ms, duration_ms, completed").eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId).single();
+    return data;
+  } catch { return null; }
+}
+
+// ─── HISTORY ─────────────────────────────────────────────────────────────────
+export async function addToHistory(userId: string, entry: { contentType: "surah" | "episode"; contentId: string; title: string; seriesName?: string; seriesId?: string; durationMs?: number }) {
+  try {
+    await supabase.from("listening_history").insert({
+      user_id: userId,
+      content_type: entry.contentType,
+      content_id: entry.contentId,
+      title: entry.title,
+      series_name: entry.seriesName ?? null,
+      series_id: entry.seriesId ?? null,
+      duration_ms: entry.durationMs ?? 0,
+    });
+  } catch { /* fail silently */ }
+}
+
+export interface RecentlyPlayedItem {
+  contentType: string;
+  contentId: string;
+  title: string;
+  seriesName?: string;
+  seriesId?: string;
+  durationMs: number;
+  listenedAt: string;
+}
+
+export async function getRecentlyPlayed(userId: string, limit = 20): Promise<RecentlyPlayedItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from("listening_history")
+      .select("content_type, content_id, title, series_name, series_id, duration_ms, listened_at")
+      .eq("user_id", userId)
+      .order("listened_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    const seen = new Set<string>();
+    return (data ?? [])
+      .filter((r: any) => {
+        const key = r.series_id ?? r.content_id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((r: any) => ({
+        contentType: r.content_type,
+        contentId: r.content_id,
+        title: r.title,
+        seriesName: r.series_name ?? undefined,
+        seriesId: r.series_id ?? undefined,
+        durationMs: r.duration_ms ?? 0,
+        listenedAt: r.listened_at,
+      }));
+  } catch { return []; }
+}
+
+export async function getListeningHistory(userId: string, limit = 30): Promise<RecentlyPlayedItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from("listening_history")
+      .select("content_type, content_id, title, series_name, series_id, duration_ms, listened_at")
+      .eq("user_id", userId)
+      .order("listened_at", { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      contentType: r.content_type,
+      contentId: r.content_id,
+      title: r.title,
+      seriesName: r.series_name ?? undefined,
+      seriesId: r.series_id ?? undefined,
+      durationMs: r.duration_ms ?? 0,
+      listenedAt: r.listened_at,
+    }));
+  } catch { return []; }
+}
+
+export interface CompletedItem {
+  contentType: string;
+  contentId: string;
+  title: string;
+  seriesName?: string;
+  seriesId?: string;
+  durationMs: number;
+  completedAt: string;
+}
+
+export async function getCompletedContent(userId: string): Promise<CompletedItem[]> {
+  try {
+    // Get completed items from listening_progress, enriched with title from latest history entry
+    const { data: progressData, error: progressErr } = await supabase
+      .from("listening_progress")
+      .select("content_type, content_id, duration_ms, updated_at")
+      .eq("user_id", userId)
+      .eq("completed", true)
+      .order("updated_at", { ascending: false })
+      .limit(50);
+    if (progressErr) throw progressErr;
+    if (!progressData || progressData.length === 0) return [];
+
+    // For each completed item, fetch the most recent title from listening_history
+    const results: CompletedItem[] = await Promise.all(
+      (progressData as any[]).map(async (p) => {
+        const { data: histRow } = await supabase
+          .from("listening_history")
+          .select("title, series_name, series_id")
+          .eq("user_id", userId)
+          .eq("content_type", p.content_type)
+          .eq("content_id", p.content_id)
+          .order("listened_at", { ascending: false })
+          .limit(1)
+          .single();
+        return {
+          contentType: p.content_type,
+          contentId: p.content_id,
+          title: histRow?.title ?? (p.content_type === "surah" ? `Surah ${p.content_id}` : p.content_id),
+          seriesName: histRow?.series_name ?? undefined,
+          seriesId: histRow?.series_id ?? undefined,
+          durationMs: p.duration_ms ?? 0,
+          completedAt: p.updated_at,
+        };
+      })
+    );
+    return results;
+  } catch { return []; }
+}
+
+export async function getTotalHoursListened(userId: string): Promise<number> {
+  try {
+    const { data } = await supabase
+      .from("listening_history")
+      .select("duration_ms")
+      .eq("user_id", userId);
+    const totalMs = (data ?? []).reduce((sum, r: any) => sum + (r.duration_ms ?? 0), 0);
+    return Math.round((totalMs / 3_600_000) * 10) / 10;
+  } catch { return 0; }
+}
+
+// ─── LEADERBOARD ─────────────────────────────────────────────────────────────
+export interface LeaderboardEntry {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+  country: string | null;
+  xp: number;
+  level: number;
+  current_streak: number;
+  rank: number;
+}
+
+export async function getLeaderboardGlobal(limit = 50): Promise<LeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from("leaderboard")
+    .select("id, display_name, avatar_url, country, total_xp, level, current_streak, rank")
+    .order("rank")
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    display_name: r.display_name || "Anonymous",
+    avatar_url: r.avatar_url,
+    country: r.country,
+    xp: r.total_xp ?? 0,
+    level: r.level ?? 1,
+    current_streak: r.current_streak ?? 0,
+    rank: Number(r.rank),
+  }));
+}
+
+export async function getLeaderboardByCountry(country: string, limit = 50): Promise<LeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from("leaderboard")
+    .select("id, display_name, avatar_url, country, total_xp, level, current_streak, rank")
+    .eq("country", country)
+    .order("rank")
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    display_name: r.display_name || "Anonymous",
+    avatar_url: r.avatar_url,
+    country: r.country,
+    xp: r.total_xp ?? 0,
+    level: r.level ?? 1,
+    current_streak: r.current_streak ?? 0,
+    rank: Number(r.rank),
+  }));
+}
+
+export async function getLeaderboardWeekly(limit = 50): Promise<LeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from("leaderboard_weekly")
+    .select("id, display_name, avatar_url, country, weekly_xp, rank")
+    .order("rank")
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    display_name: r.display_name,
+    avatar_url: r.avatar_url,
+    country: r.country,
+    xp: r.weekly_xp,
+    level: 0,
+    current_streak: 0,
+    rank: Number(r.rank),
+  }));
+}
+
+export async function getLeaderboardMonthly(limit = 50): Promise<LeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from("leaderboard_monthly")
+    .select("id, display_name, avatar_url, country, monthly_xp, rank")
+    .order("rank")
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    display_name: r.display_name,
+    avatar_url: r.avatar_url,
+    country: r.country,
+    xp: r.monthly_xp,
+    level: 0,
+    current_streak: 0,
+    rank: Number(r.rank),
+  }));
+}
+
+// ─── BADGES ──────────────────────────────────────────────────────────────────
+export async function getEarnedBadgeSlugs(userId: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from("user_badges")
+      .select("badges(slug)")
+      .eq("user_id", userId);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => r.badges?.slug).filter(Boolean);
+  } catch { return []; }
+}
+
+export async function checkAndAwardBadges(userId: string): Promise<void> {
+  try {
+    await supabase.rpc("check_and_award_badges", { p_user_id: userId });
+  } catch { /* fail silently */ }
+}
+
+// ─── PROGRESS ANALYTICS ──────────────────────────────────────────────────────
+
+// Returns 7 values (Mon–Sun of current week), in minutes
+export async function getWeeklyListeningMinutes(userId: string): Promise<number[]> {
+  try {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Sun
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+
+    const { data } = await supabase
+      .from("listening_history")
+      .select("duration_ms, listened_at")
+      .eq("user_id", userId)
+      .gte("listened_at", monday.toISOString());
+
+    const days = [0, 0, 0, 0, 0, 0, 0]; // Mon–Sun
+    (data ?? []).forEach((r: any) => {
+      const d = new Date(r.listened_at);
+      const idx = (d.getDay() + 6) % 7; // 0 = Monday
+      days[idx] += Math.round((r.duration_ms ?? 0) / 60_000);
+    });
+    return days;
+  } catch { return [0, 0, 0, 0, 0, 0, 0]; }
+}
+
+// Returns 35 intensity values (0–1) oldest → newest for heatmap
+export async function getHeatmapActivity(userId: string, days = 35): Promise<number[]> {
+  try {
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    const { data } = await supabase
+      .from("daily_xp_log")
+      .select("xp_amount, earned_at")
+      .eq("user_id", userId)
+      .gte("earned_at", cutoff);
+
+    const dayMap: Record<string, number> = {};
+    (data ?? []).forEach((r: any) => {
+      const date = r.earned_at.slice(0, 10);
+      dayMap[date] = (dayMap[date] ?? 0) + r.xp_amount;
+    });
+
+    const result: number[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+      const xp = dayMap[d] ?? 0;
+      result.push(Math.min(1, xp / 80)); // 80 XP = full intensity
+    }
+    return result;
+  } catch { return Array(days).fill(0); }
+}
+
+// Returns journey summary
+export async function getJourneyCompletion(userId: string): Promise<{
+  completedChapters: number;
+  totalChapters: number;
+  currentChapter: number;
+  pct: number;
+}> {
+  try {
+    const { data } = await supabase
+      .from("journey_progress")
+      .select("chapter_number, completed, progress_pct")
+      .eq("user_id", userId)
+      .order("chapter_number");
+
+    const rows = data ?? [];
+    const completed = rows.filter((r: any) => r.completed).length;
+    const inProgress = rows.filter((r: any) => !r.completed);
+    const currentChapter = inProgress.length > 0
+      ? inProgress[0].chapter_number
+      : rows.length > 0 ? rows[rows.length - 1].chapter_number + 1 : 1;
+
+    const pct = Math.round((completed / 20) * 100);
+    return { completedChapters: completed, totalChapters: 20, currentChapter: Math.min(currentChapter, 20), pct };
+  } catch { return { completedChapters: 0, totalChapters: 20, currentChapter: 1, pct: 0 }; }
+}
+
+// ─── FAVOURITES ──────────────────────────────────────────────────────────────
+export async function addFavourite(userId: string, item: { contentType: "surah" | "episode" | "series"; contentId: string; title: string; seriesName?: string; coverColor?: string }) {
+  try {
+    await supabase.from("favourites").upsert({
+      user_id: userId,
+      content_type: item.contentType,
+      content_id: item.contentId,
+      title: item.title,
+      series_name: item.seriesName ?? null,
+      cover_color: item.coverColor ?? null,
+    }, { onConflict: "user_id,content_type,content_id" });
+  } catch { /* fail silently */ }
+}
+
+export async function removeFavourite(userId: string, contentType: string, contentId: string) {
+  try {
+    await supabase.from("favourites").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+  } catch { /* fail silently */ }
+}
+
+export async function getFavourites(userId: string) {
+  try {
+    const { data } = await supabase.from("favourites").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    return data ?? [];
+  } catch { return []; }
+}
+
+// ─── BOOKMARKS ───────────────────────────────────────────────────────────────
+export async function addBookmark(userId: string, item: { contentType: "surah" | "episode" | "series"; contentId: string; title: string; seriesName?: string; coverColor?: string }) {
+  try {
+    await supabase.from("bookmarks").upsert({
+      user_id: userId,
+      content_type: item.contentType,
+      content_id: item.contentId,
+      title: item.title,
+      series_name: item.seriesName ?? null,
+      cover_color: item.coverColor ?? null,
+    }, { onConflict: "user_id,content_type,content_id" });
+  } catch { /* fail silently */ }
+}
+
+export async function removeBookmark(userId: string, contentType: string, contentId: string) {
+  try {
+    await supabase.from("bookmarks").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+  } catch { /* fail silently */ }
+}
+
+export async function getBookmarks(userId: string) {
+  try {
+    const { data } = await supabase.from("bookmarks").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    return data ?? [];
+  } catch { return []; }
+}
+
+// ─── DOWNLOADS ───────────────────────────────────────────────────────────────
+export async function addDownload(userId: string, item: { contentType: "surah" | "episode"; contentId: string; title: string; fileSizeBytes?: number }) {
+  try {
+    await supabase.from("downloads").upsert({
+      user_id: userId,
+      content_type: item.contentType,
+      content_id: item.contentId,
+      title: item.title,
+      file_size_bytes: item.fileSizeBytes ?? null,
+    }, { onConflict: "user_id,content_type,content_id" });
+  } catch { /* fail silently */ }
+}
+
+export async function removeDownload(userId: string, contentType: string, contentId: string) {
+  try {
+    await supabase.from("downloads").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+  } catch { /* fail silently */ }
+}
+
+export async function getDownloads(userId: string) {
+  try {
+    const { data } = await supabase.from("downloads").select("*").eq("user_id", userId).order("downloaded_at", { ascending: false });
+    return data ?? [];
+  } catch { return []; }
+}
+
+// ─── REFERRALS ───────────────────────────────────────────────────────────────
+
+async function fetchReferralCodeWithRetry(userId: string, attempt = 0): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("referral_code")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      return fetchReferralCodeWithRetry(userId, attempt + 1);
+    }
+    console.error("[getUserReferralCode] Failed after retries:", error.message);
+    return null;
+  }
+  return data?.referral_code ?? null;
+}
+
+export async function getUserReferralCode(userId: string): Promise<string | null> {
+  try {
+    const existing = await fetchReferralCodeWithRetry(userId);
+    if (existing) return existing;
+
+    const generated = "SG" + userId.replace(/-/g, "").substring(0, 6).toUpperCase();
+    const { error: updateErr } = await supabase
+      .from("profiles")
+      .update({ referral_code: generated })
+      .eq("id", userId)
+      .is("referral_code", null);
+
+    if (updateErr) {
+      console.error("[getUserReferralCode] Failed to persist generated code:", updateErr.message);
+      return generated;
+    }
+    return generated;
+  } catch (err: any) {
+    console.error("[getUserReferralCode] Unexpected error:", err?.message ?? err);
+    return "SG" + userId.replace(/-/g, "").substring(0, 6).toUpperCase();
+  }
+}
+
+export interface ReferralStats {
+  friendsReferred: number;
+  xpEarned: number;
+}
+
+export async function getReferralStats(userId: string): Promise<ReferralStats> {
+  try {
+    const { data } = await supabase
+      .from("referrals")
+      .select("xp_awarded_referrer")
+      .eq("referrer_id", userId);
+    const rows = data ?? [];
+    return {
+      friendsReferred: rows.length,
+      xpEarned: rows.reduce((sum, r: any) => sum + (r.xp_awarded_referrer ?? 500), 0),
+    };
+  } catch { return { friendsReferred: 0, xpEarned: 0 }; }
+}
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL
+  || "https://2c674757-24e6-4f77-a319-e136047f4e8f-00-319jytwvw59q6.pike.replit.dev/api";
+
+export async function applyReferralCode(code: string): Promise<{
+  success: boolean;
+  error?: string;
+  xpBonus?: number;
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return { success: false, error: "not_authenticated" };
+
+    const resp = await fetch(`${API_BASE}/referral/apply`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ code: code.trim() }),
+    });
+
+    const result = await resp.json();
+    return {
+      success: result.success === true,
+      error: result.error,
+      xpBonus: result.xp_bonus ?? result.xpBonus,
+    };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Unknown error" };
+  }
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+export async function getUserSettings(userId: string) {
+  try {
+    const { data } = await supabase.from("user_settings").select("*").eq("user_id", userId).single();
+    return data;
+  } catch { return null; }
+}
+
+export async function updateUserSettings(userId: string, settings: Partial<{
+  quran_reciter: string;
+  quran_translation_edition: string;
+  quran_show_arabic: boolean;
+  quran_show_translation: boolean;
+  autoplay: boolean;
+  background_play: boolean;
+  download_wifi_only: boolean;
+  notifications_enabled: boolean;
+  streak_reminder: boolean;
+  auto_scroll: boolean;
+}>) {
+  try {
+    await supabase.from("user_settings").upsert({ user_id: userId, ...settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  } catch { /* fail silently */ }
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+export interface DbNotification {
+  id: string;
+  user_id: string;
+  title: string;
+  body: string | null;
+  type: string;
+  is_read: boolean;
+  action_type: string | null;
+  action_payload: Record<string, any> | null;
+  image_url: string | null;
+  created_at: string;
+}
+
+export async function getNotifications(userId: string): Promise<DbNotification[]> {
+  try {
+    const { data, error } = await supabase
+      .from("notifications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return (data ?? []) as DbNotification[];
+  } catch { return []; }
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  try {
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", notificationId);
+  } catch { /* fail silently */ }
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  try {
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+  } catch { /* fail silently */ }
+}
+
+export async function seedNotificationsIfEmpty(userId: string): Promise<DbNotification[]> {
+  try {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+
+    if ((count ?? 0) > 0) return [];
+
+    const seeds = [
+      {
+        user_id: userId,
+        title: "Welcome to StayGuided Me",
+        body: "Assalamu Alaikum! Start your Islamic audio journey today.",
+        type: "general",
+        action_type: "series",
+        action_payload: { seriesId: "s1" },
+        is_read: false,
+      },
+      {
+        user_id: userId,
+        title: "New Series Available",
+        body: "The Story of Musa (AS) is now available. Start listening today!",
+        type: "content",
+        action_type: "series",
+        action_payload: { seriesId: "s3" },
+        is_read: false,
+      },
+      {
+        user_id: userId,
+        title: "Journey Progress",
+        body: "You've completed Chapter 3 of Journey Through Islam. Keep going!",
+        type: "progress",
+        action_type: "journey",
+        action_payload: {},
+        is_read: true,
+      },
+      {
+        user_id: userId,
+        title: "Daily Qur'an Reminder",
+        body: "Don't forget your daily Qur'an listening. Al-Baqarah awaits you.",
+        type: "reminder",
+        action_type: "quran",
+        action_payload: { surahNumber: 2 },
+        is_read: true,
+      },
+      {
+        user_id: userId,
+        title: "Streak Milestone",
+        body: "Amazing! You've maintained a 7-day listening streak. Keep it up!",
+        type: "achievement",
+        action_type: "profile",
+        action_payload: {},
+        is_read: true,
+      },
+    ];
+
+    const { data, error } = await supabase
+      .from("notifications")
+      .insert(seeds)
+      .select();
+    if (error) throw error;
+    return (data ?? []) as DbNotification[];
+  } catch { return []; }
+}
+
+// ─── SUBSCRIPTIONS ───────────────────────────────────────────────────────────
+export async function getSubscription(userId: string) {
+  try {
+    const { data } = await supabase.from("subscriptions").select("*").eq("user_id", userId).single();
+    return data;
+  } catch { return null; }
+}
+
+// ─── COUNTRY / PROFILE ────────────────────────────────────────────────────────
+export async function getUserCountry(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("country")
+      .eq("id", userId)
+      .single();
+    return data?.country ?? null;
+  } catch { return null; }
+}
+
+export async function updateUserCountry(userId: string, country: string): Promise<void> {
+  try {
+    await supabase
+      .from("profiles")
+      .update({ country })
+      .eq("id", userId);
+  } catch { /* silent */ }
+}

@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "rQB1ZpdyLIWdXDfkNj-zh"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Pt2FrMgkqX7S8kIZ2Ejvc"
+uri = "file://artifacts/mobile/assets/images/splash-icon.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "KcREOrOvnm_q6qH8ybZav"
+uri = "file://artifacts/mobile/assets/images/quran_hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "PSoPd0-WUUE27tRYOVdCX"
+uri = "file://artifacts/mobile/assets/images/journey_hero.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "gxN4YrrnNGWFlf1rcKfK4"
+uri = "file://artifacts/mobile/assets/images/stories_hero.png"
+type = "image"
+title = "generated_image"

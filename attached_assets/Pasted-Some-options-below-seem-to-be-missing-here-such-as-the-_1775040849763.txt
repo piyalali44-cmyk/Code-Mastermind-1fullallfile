@@ -1,0 +1,23 @@
+Some options below seem to be missing here, such as the scroll view below, meaning I can scroll and all the stories will keep going down, scrolling continuously, new stories will keep appearing, random ones based on what kind of stories the user likes will keep scrolling below. Arrange everything professionally starting from the home page so that it looks professional.
+
+Then add the app name at the very top so that it looks professional.
+
+Design the search bar in a professional way; when entering the app without login, the notification option is not visible, it appears in place of the search when logged in.
+
+I have given PRD for both the main app and the admin so that there are no issues in the background or dashboard.
+
+When playing any story or sura, the footer bar below does not show; it should show, and when something is playing, if I go to home or anywhere else, it does not show; it should show at the bottom in a professional way like in different apps where it appears small at the bottom, like in yt music.
+
+Then the footer bar that has Home, Quran, Library, Profile should stay in that place all the time wherever I go, like it does not show when entering other options or when entering the player.
+
+Then after playing any story or sura, Description, Transcript, Reference are appearing, those are not needed much; instead, show the next episodes there like in professional audio apps such as Yt music and pocket FM.
+
+When something is playing or when entering something, if I scroll down, the top options do not show, and those should show; the arrow icon should appear at the top even when scrolled down.
+
+Then the skip option, meaning how many seconds it skips, is 30 seconds; change the skip option to 10 seconds.
+
+In the sura section, only English is available; add more languages there using API, and those languages can be selected from settings; in settings, add another option so that language can be selected, and add more options in settings such as password reset, and if any other options are needed to make it professional, add those.
+
+Then when clicking on the search bar or any input field, some unwanted option appears; that should not appear; fix everything professionally, fix all designs professionally, and make sure everything works, all designs should work, everything should work, every option should work properly; make everything fully functional.
+
+Besides settings, if any other options need to be added in other places, add them so that the whole app looks professional.
