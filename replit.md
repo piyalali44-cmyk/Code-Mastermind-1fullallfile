@@ -128,6 +128,21 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - `reset.sql` — Drops ALL tables/functions/views for clean slate (run before full_setup.sql)
 - `schema.sql` — DEPRECATED — use full_setup.sql instead
 
+### Environment Variables (all stored as Secrets)
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (mobile + admin)
+- `SUPABASE_ANON_KEY` — Same key, used by API server
+- `SUPABASE_SERVICE_ROLE_KEY` — Service role key (admin ops + API server)
+- `SUPABASE_DB_URL` — Direct PostgreSQL connection string
+- `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token
+- `EXPO_PUBLIC_API_BASE_URL` + `EXPO_PUBLIC_API_URL` — API server URL (both set to same value)
+- `EXPO_PUBLIC_SUPABASE_URL` / `VITE_SUPABASE_URL` / `SUPABASE_URL` — Supabase project URL
+
+### Workflow Status (all 4 running)
+- `artifacts/admin: web` — Port 23744, path /admin/
+- `artifacts/api-server: API Server` — Port 8080, path /api
+- `artifacts/mobile: expo` — Port 18115, path /
+- `artifacts/mockup-sandbox: Component Preview Server` — Port 8081, path /__mockup
+
 ### ⚠️ Database Functions NOT YET DEPLOYED
 The following Postgres functions do NOT exist in the database yet (must be run in Supabase SQL Editor):
 `apply_referral_code`, `check_and_award_badges`, `award_badge`, `admin_block_user`, `admin_unblock_user`, `admin_grant_premium`, `admin_revoke_premium`, `log_admin_action`, `handle_new_user` trigger
