@@ -70,7 +70,9 @@ export default function LibraryScreen() {
   const favouritedSeries = SERIES.filter((s) => favourites.has(`series:${s.id}`));
   const bookmarkedSeries = SERIES.filter((s) => bookmarks.has(`series:${s.id}`));
   const downloadedSeries = SERIES.filter((s) =>
-    (s.episodes ?? []).some((ep) => downloads.has(ep.id))
+    (s.episodes ?? []).some((ep) =>
+      downloads.has(`episode:${ep.id}`) || downloads.has(ep.id)
+    )
   );
 
   const loadContinue = useCallback(async () => {
@@ -395,9 +397,11 @@ export default function LibraryScreen() {
                 {downloadProgress.size > 0 && (
                   <>
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Downloading</Text>
-                    {Array.from(downloadProgress.entries()).map(([epId, pct]) => {
-                      const series = SERIES.find((s) => s.episodes?.some((ep) => ep.id === epId));
-                      const episode = series?.episodes?.find((ep) => ep.id === epId);
+                    {Array.from(downloadProgress.entries()).map(([epKey, pct]) => {
+                      const rawId = epKey.startsWith("episode:") ? epKey.slice(8) : epKey;
+                      const series = SERIES.find((s) => s.episodes?.some((ep) => ep.id === rawId));
+                      const episode = series?.episodes?.find((ep) => ep.id === rawId);
+                      const epId = epKey;
                       return (
                         <View key={epId} style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                           <View style={[styles.histCover, { backgroundColor: colors.surfaceHigh }]}>
@@ -419,7 +423,9 @@ export default function LibraryScreen() {
                   <>
                     <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Downloaded</Text>
                     {downloadedSeries.map((s) => {
-                      const dlEpisodes = (s.episodes ?? []).filter((ep) => downloads.has(ep.id));
+                      const dlEpisodes = (s.episodes ?? []).filter((ep) =>
+                        downloads.has(`episode:${ep.id}`) || downloads.has(ep.id)
+                      );
                       return (
                         <View key={s.id}>
                           <Pressable
@@ -444,12 +450,13 @@ export default function LibraryScreen() {
                               </View>
                               <Pressable
                                 onPress={() => {
+                                  const dlKey = downloads.has(`episode:${ep.id}`) ? `episode:${ep.id}` : ep.id;
                                   if (Platform.OS === "web") {
-                                    removeDownloadedFile(ep.id);
+                                    removeDownloadedFile(dlKey);
                                   } else {
                                     Alert.alert("Remove Download", `Remove "${ep.title}" from downloads?`, [
                                       { text: "Cancel", style: "cancel" },
-                                      { text: "Remove", style: "destructive", onPress: () => removeDownloadedFile(ep.id) },
+                                      { text: "Remove", style: "destructive", onPress: () => removeDownloadedFile(dlKey) },
                                     ]);
                                   }
                                 }}

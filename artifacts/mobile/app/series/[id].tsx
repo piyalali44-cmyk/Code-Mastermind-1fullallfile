@@ -48,7 +48,7 @@ export default function SeriesDetailScreen() {
   const { play, nowPlaying } = useAudio();
   const { user } = useAuth();
 
-  const { isFavourite, isBookmarked: isItemBookmarked, toggleFavourite, toggleBookmark } = useUserActions();
+  const { isFavourite, isBookmarked: isItemBookmarked, toggleFavourite, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
 
   const { getSeriesById, loading: contentLoading } = useContent();
   const series = getSeriesById(id!);
@@ -418,15 +418,50 @@ export default function SeriesDetailScreen() {
                   </View>
                 </View>
 
-                {/* Right action */}
-                {!isLocked && (
-                  <View style={[styles.epPlayWrap, {
-                    backgroundColor: isPlaying ? colors.gold : noAudio ? colors.surfaceHigh : colors.surfaceHigh,
-                    opacity: noAudio ? 0.4 : 1,
-                  }]}>
-                    <Icon name={isPlaying ? "pause" : noAudio ? "clock" : "play"} size={14} color={isPlaying ? "#fff" : noAudio ? colors.textMuted : colors.gold} />
-                  </View>
-                )}
+                {/* Right actions */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  {!isLocked && ep.hasAudio && (() => {
+                    const dlKey = `episode:${ep.id}`;
+                    const dlProgress = downloadProgress.get(dlKey);
+                    const downloaded = isEpisodeDownloaded(dlKey);
+                    if (dlProgress !== undefined && dlProgress < 1) {
+                      return (
+                        <View style={[styles.epDownloadWrap, { borderColor: colors.gold + "44", backgroundColor: colors.gold + "11" }]}>
+                          <Text style={{ color: colors.gold, fontSize: 9, fontWeight: "700" }}>
+                            {Math.round(dlProgress * 100)}%
+                          </Text>
+                        </View>
+                      );
+                    }
+                    return (
+                      <Pressable
+                        onPress={() => downloaded
+                          ? removeDownloadedFile(dlKey)
+                          : startDownload(dlKey, ep.audioUrl, { title: ep.title })
+                        }
+                        style={[styles.epDownloadWrap, {
+                          borderColor: downloaded ? colors.green + "55" : colors.border,
+                          backgroundColor: downloaded ? colors.green + "11" : "transparent",
+                        }]}
+                        hitSlop={8}
+                      >
+                        <Icon
+                          name={downloaded ? "check-circle" : "download"}
+                          size={13}
+                          color={downloaded ? colors.green : colors.textMuted}
+                        />
+                      </Pressable>
+                    );
+                  })()}
+                  {!isLocked && (
+                    <View style={[styles.epPlayWrap, {
+                      backgroundColor: isPlaying ? colors.gold : noAudio ? colors.surfaceHigh : colors.surfaceHigh,
+                      opacity: noAudio ? 0.4 : 1,
+                    }]}>
+                      <Icon name={isPlaying ? "pause" : noAudio ? "clock" : "play"} size={14} color={isPlaying ? "#fff" : noAudio ? colors.textMuted : colors.gold} />
+                    </View>
+                  )}
+                </View>
               </Pressable>
             );
           })}
@@ -805,6 +840,14 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  epDownloadWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
