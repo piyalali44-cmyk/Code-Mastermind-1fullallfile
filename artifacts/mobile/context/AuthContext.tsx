@@ -240,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signup = useCallback(async (email: string, password: string, name: string): Promise<{ userId: string | null }> => {
     const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-      || "https://2c674757-24e6-4f77-a319-e136047f4e8f-00-319jytwvw59q6.pike.replit.dev/api";
+      || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
