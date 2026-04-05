@@ -28,6 +28,7 @@ interface UserActionsState {
   isFavourite: (id: string) => boolean;
   isBookmarked: (id: string) => boolean;
   isDownloaded: (id: string) => boolean;
+  refreshFromStorage: () => Promise<void>;
 }
 
 const UserActionsContext = createContext<UserActionsState>({
@@ -44,6 +45,7 @@ const UserActionsContext = createContext<UserActionsState>({
   isFavourite: () => false,
   isBookmarked: () => false,
   isDownloaded: () => false,
+  refreshFromStorage: async () => {},
 });
 
 const STORAGE_KEYS = {
@@ -72,49 +74,62 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
   const [downloadPaths, setDownloadPaths] = useState<Record<string, string>>({});
   const loadedRef = useRef(false);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [fav, bk, dl, dp] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.favourites),
-          AsyncStorage.getItem(STORAGE_KEYS.bookmarks),
-          AsyncStorage.getItem(STORAGE_KEYS.downloads),
-          AsyncStorage.getItem(STORAGE_KEYS.downloadPaths),
-        ]);
-        if (fav) setFavourites(new Set(JSON.parse(fav)));
-        if (bk) setBookmarks(new Set(JSON.parse(bk)));
-        if (dl) setDownloads(new Set(JSON.parse(dl)));
-        if (dp) setDownloadPaths(JSON.parse(dp));
-      } catch (_) {}
+  // Core loader: reads AsyncStorage then merges with Supabase (never discards local-only items)
+  const loadFromStorageAndDB = useCallback(async (uid: string | null) => {
+    try {
+      const [fav, bk, dl, dp] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.favourites),
+        AsyncStorage.getItem(STORAGE_KEYS.bookmarks),
+        AsyncStorage.getItem(STORAGE_KEYS.downloads),
+        AsyncStorage.getItem(STORAGE_KEYS.downloadPaths),
+      ]);
+      const localFav: string[] = fav ? JSON.parse(fav) : [];
+      const localBk: string[]  = bk  ? JSON.parse(bk)  : [];
+      const localDl: string[]  = dl  ? JSON.parse(dl)   : [];
 
-      if (userId) {
+      // Start with local data so nothing is ever lost
+      const mergedFav = new Set<string>(localFav);
+      const mergedBk  = new Set<string>(localBk);
+      const mergedDl  = new Set<string>(localDl);
+
+      if (dp) setDownloadPaths(JSON.parse(dp));
+
+      if (uid) {
         try {
           const [favData, bkData, dlData] = await Promise.all([
-            getFavourites(userId),
-            getBookmarks(userId),
-            getDownloads(userId),
+            getFavourites(uid),
+            getBookmarks(uid),
+            getDownloads(uid),
           ]);
-          if (favData.length > 0) {
-            const favSet = new Set(favData.map((r: any) => `${r.content_type}:${r.content_id}`));
-            setFavourites(favSet);
-            await AsyncStorage.setItem(STORAGE_KEYS.favourites, JSON.stringify([...favSet]));
-          }
-          if (bkData.length > 0) {
-            const bkSet = new Set(bkData.map((r: any) => `${r.content_type}:${r.content_id}`));
-            setBookmarks(bkSet);
-            await AsyncStorage.setItem(STORAGE_KEYS.bookmarks, JSON.stringify([...bkSet]));
-          }
-          if (dlData.length > 0) {
-            const dlSet = new Set(dlData.map((r: any) => `${r.content_type}:${r.content_id}`));
-            setDownloads(dlSet);
-            await AsyncStorage.setItem(STORAGE_KEYS.downloads, JSON.stringify([...dlSet]));
-          }
+          // MERGE: add DB items into local set (never wipe local-only items)
+          favData.forEach((r: any) => mergedFav.add(`${r.content_type}:${r.content_id}`));
+          bkData.forEach((r: any)  => mergedBk.add(`${r.content_type}:${r.content_id}`));
+          dlData.forEach((r: any)  => mergedDl.add(`${r.content_type}:${r.content_id}`));
         } catch (_) {}
       }
-      loadedRef.current = true;
-    };
-    load();
-  }, [userId]);
+
+      setFavourites(mergedFav);
+      setBookmarks(mergedBk);
+      setDownloads(mergedDl);
+
+      // Persist the merged result back to AsyncStorage
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.favourites, JSON.stringify([...mergedFav])),
+        AsyncStorage.setItem(STORAGE_KEYS.bookmarks,  JSON.stringify([...mergedBk])),
+        AsyncStorage.setItem(STORAGE_KEYS.downloads,  JSON.stringify([...mergedDl])),
+      ]);
+    } catch (_) {}
+    loadedRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    loadFromStorageAndDB(userId);
+  }, [userId, loadFromStorageAndDB]);
+
+  // Exposed so Library (and other screens) can force a refresh when navigating back
+  const refreshFromStorage = useCallback(async () => {
+    await loadFromStorageAndDB(userId);
+  }, [userId, loadFromStorageAndDB]);
 
   const persistLocal = async (key: string, set: Set<string>) => {
     try {
@@ -324,6 +339,7 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
         toggleFavourite, toggleBookmark, toggleDownload,
         startDownload, removeDownloadedFile, getLocalFilePath,
         isFavourite, isBookmarked, isDownloaded,
+        refreshFromStorage,
       }}
     >
       {children}

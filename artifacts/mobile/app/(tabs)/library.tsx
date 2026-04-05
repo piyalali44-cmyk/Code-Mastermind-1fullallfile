@@ -6,7 +6,7 @@ import { useUserActions } from "@/context/UserActionsContext";
 import { useContent } from "@/context/ContentContext";
 import { useColors } from "@/hooks/useColors";
 import { CompletedItem, RecentlyPlayedItem, getCompletedContent, getListeningHistory, getRecentlyPlayed } from "@/lib/db";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,7 +52,7 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { user, isGuest, isLoading: authLoading } = useAuth();
   const { nowPlaying } = useAudio();
-  const { favourites, bookmarks, downloads, downloadProgress, removeDownloadedFile } = useUserActions();
+  const { favourites, bookmarks, downloads, downloadProgress, removeDownloadedFile, refreshFromStorage } = useUserActions();
   const { settings } = useAppSettings();
   const [activeTab, setActiveTab] = useState(0);
   const isWeb = Platform.OS === "web";
@@ -113,6 +113,11 @@ export default function LibraryScreen() {
     if (activeTab === 3) loadHistory();
     if (activeTab === 4) loadCompleted();
   }, [activeTab, loadContinue, loadHistory, loadCompleted]);
+
+  // Refresh favourites/bookmarks/downloads from storage every time the user navigates to Library
+  useFocusEffect(useCallback(() => {
+    refreshFromStorage();
+  }, [refreshFromStorage]));
 
   const historyGroups = groupByDate(historyItems);
 
