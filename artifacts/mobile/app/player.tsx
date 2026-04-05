@@ -12,6 +12,7 @@ import { useAudio } from "@/context/AudioContext";
 import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
 import { useUserActions } from "@/context/UserActionsContext";
+import { useAppSettings } from "@/context/AppSettingsContext";
 import { SURAHS } from "@/constants/surahs";
 import { useColors } from "@/hooks/useColors";
 import { LinearGradient } from "expo-linear-gradient";
@@ -150,6 +151,7 @@ export default function PlayerScreen() {
   const insets = useSafeAreaInsets();
   const { nowPlaying, isPlaying, isLoading, position, duration, playbackSpeed, repeatMode, setRepeatMode, pause, resume, seek, skipForward, skipBack, setSpeed, play } = useAudio();
   const { user } = useAuth();
+  const { settings } = useAppSettings();
   const { isFavourite, isBookmarked: isItemBookmarked, isDownloaded: isItemDownloaded, toggleFavourite, toggleBookmark, toggleDownload } = useUserActions();
   const [speedModal, setSpeedModal] = useState(false);
   const [sleepModal, setSleepModal] = useState(false);
@@ -229,39 +231,47 @@ export default function PlayerScreen() {
     setLangModal(false);
   };
 
-  // Canonical favourite key:
-  //   surah  → "surah:<number>"   (shows in Library Favourites as a Surah row)
-  //   series → "series:<seriesId>" (shows in Library Favourites as a Series card)
-  //   other  → raw id (fallback)
-  const itemId = nowPlaying?.surahNumber != null
+  // Favourite/Bookmark key — represents the parent content the user wants to save:
+  //   surah  → "surah:<number>"    → Library shows Surah row
+  //   series → "series:<seriesId>" → Library shows Series card
+  const favId = nowPlaying?.surahNumber != null
     ? `surah:${nowPlaying.surahNumber}`
     : nowPlaying?.seriesId
       ? `series:${nowPlaying.seriesId}`
       : (nowPlaying?.id ?? "");
 
-  const isLiked = isFavourite(itemId);
-  const isBookmarked = isItemBookmarked(itemId);
-  const isDownloaded = isItemDownloaded(nowPlaying?.id ?? "");
+  // Download key — represents the exact audio track (episode or surah) to save:
+  //   episode → "episode:<uuid>"   (matches Library Downloads + series/[id] checkmarks)
+  //   surah   → "surah:<number>"
+  const downloadId = nowPlaying?.surahNumber != null
+    ? `surah:${nowPlaying.surahNumber}`
+    : nowPlaying?.id
+      ? `episode:${nowPlaying.id}`
+      : "";
+
+  const isLiked = isFavourite(favId);
+  const isBookmarked = isItemBookmarked(favId);
+  const isDownloaded = isItemDownloaded(downloadId);
 
   const itemMeta = { title: nowPlaying?.title ?? "", coverColor: nowPlaying?.coverColor, audioUrl: nowPlaying?.audioUrl };
 
   const handleLike = () => {
-    const added = toggleFavourite(itemId, itemMeta);
+    const added = toggleFavourite(favId, itemMeta);
     showToast(added ? "Added to Favourites" : "Removed from Favourites", "heart", added ? colors.gold : colors.textSecondary);
   };
 
   const handleBookmark = () => {
-    const added = toggleBookmark(itemId, itemMeta);
+    const added = toggleBookmark(favId, itemMeta);
     showToast(added ? "Bookmarked" : "Bookmark Removed", "bookmark", added ? colors.gold : colors.textSecondary);
   };
 
   const handleDownload = () => {
-    if (!user?.isPremium) {
+    if (settings.subscription_enabled && !user?.isPremium) {
       showToast("Premium required for downloads", "lock", colors.gold);
       setTimeout(() => router.push("/subscription"), 1200);
       return;
     }
-    const added = toggleDownload(itemId, itemMeta);
+    const added = toggleDownload(downloadId, itemMeta);
     showToast(
       added ? "Added to Downloads" : "Removed from Downloads",
       added ? "check-circle" : "download",

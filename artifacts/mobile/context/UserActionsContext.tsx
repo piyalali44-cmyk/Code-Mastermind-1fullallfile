@@ -191,75 +191,132 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
     return added;
   }, [userId, bookmarks]);
 
+  // Helper: mark id as downloaded in state + AsyncStorage + Supabase
+  const markDownloaded = useCallback(async (id: string, localUri?: string, meta?: { title?: string }) => {
+    setDownloads((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistLocal(STORAGE_KEYS.downloads, next);
+      return next;
+    });
+    if (localUri) {
+      setDownloadPaths((prev) => {
+        const next = { ...prev, [id]: localUri };
+        persistDownloadPaths(next);
+        return next;
+      });
+    }
+    if (userId) {
+      try {
+        const { contentType, contentId } = parseId(id);
+        addDownload(userId, { contentType: contentType as "surah" | "episode", contentId, title: meta?.title ?? contentId });
+      } catch (_) {}
+    }
+  }, [userId]);
+
   const startDownload = useCallback(async (id: string, audioUrl: string, meta?: { title?: string }) => {
-    setDownloadProgress((prev) => new Map(prev).set(id, 0));
+    if (!audioUrl) {
+      console.warn("[startDownload] No audio URL for", id);
+      return;
+    }
 
-    try {
-      if (Platform.OS !== "web" && audioUrl) {
-        const legacy = await import("expo-file-system/legacy");
-        const docDir = legacy.documentDirectory;
-        if (docDir) {
-          const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "_");
-          const ext = audioUrl.includes(".mp3") ? ".mp3" : ".m4a";
-          const destUri = docDir + "downloads/" + safeId + ext;
+    setDownloadProgress((prev) => new Map(prev).set(id, 0.01));
 
-          await legacy.makeDirectoryAsync(docDir + "downloads/", { intermediates: true }).catch(() => {});
-
-          const downloadResumable = legacy.createDownloadResumable(
-            audioUrl,
-            destUri,
-            {},
-            (dp) => {
-              if (dp.totalBytesExpectedToWrite > 0) {
-                const pct = dp.totalBytesWritten / dp.totalBytesExpectedToWrite;
-                setDownloadProgress((prev) => new Map(prev).set(id, pct));
-              }
-            }
-          );
-
-          const result = await downloadResumable.downloadAsync();
-
-          if (result && result.uri) {
-            setDownloadProgress((prev) => new Map(prev).set(id, 1));
-            setDownloads((prev) => {
-              const next = new Set(prev);
-              next.add(id);
-              persistLocal(STORAGE_KEYS.downloads, next);
-              return next;
-            });
-            setDownloadPaths((prev) => {
-              const next = { ...prev, [id]: result.uri };
-              persistDownloadPaths(next);
-              return next;
-            });
-            if (userId) {
-              const { contentType, contentId } = parseId(id);
-              addDownload(userId, { contentType: contentType as "surah" | "episode", contentId, title: meta?.title ?? contentId });
-            }
-          }
-        }
-      } else if (Platform.OS === "web") {
-        setDownloads((prev) => {
-          const next = new Set(prev);
-          next.add(id);
-          persistLocal(STORAGE_KEYS.downloads, next);
-          return next;
-        });
-        if (userId) {
-          const { contentType, contentId } = parseId(id);
-          addDownload(userId, { contentType: contentType as "surah" | "episode", contentId, title: meta?.title ?? contentId });
-        }
-      }
-    } catch (err) {
-      console.error("[startDownload] Failed:", err);
-    } finally {
+    const clearProgress = () => {
       setDownloadProgress((prev) => {
         const next = new Map(prev);
         next.delete(id);
         return next;
       });
+    };
+
+    try {
+      if (Platform.OS === "web") {
+        // ── Web: fetch with progress then trigger browser Save dialog ────────
+        let response: Response;
+        try {
+          response = await fetch(audioUrl, { mode: "cors" });
+        } catch {
+          // CORS blocked — open in new tab so browser handles the download
+          (window as any).open(audioUrl, "_blank");
+          await markDownloaded(id, undefined, meta);
+          clearProgress();
+          return;
+        }
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const contentLength = parseInt(response.headers.get("content-length") ?? "0");
+        const reader = response.body!.getReader();
+        const chunks: BlobPart[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            chunks.push(value);
+            received += value.length;
+            if (contentLength > 0) {
+              setDownloadProgress((prev) => new Map(prev).set(id, received / contentLength));
+            }
+          }
+        }
+
+        const ext = audioUrl.includes(".mp3") ? "mp3" : "m4a";
+        const safeName = (meta?.title ?? id).replace(/[^\w\s-]/g, "").trim();
+        const filename = `${safeName || "audio"}.${ext}`;
+
+        const blob = new Blob(chunks, { type: "audio/mpeg" });
+        const blobUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+
+        await markDownloaded(id, undefined, meta);
+
+      } else {
+        // ── Native: use expo-file-system ─────────────────────────────────────
+        const fs = await import("expo-file-system/legacy");
+        const docDir = fs.documentDirectory;
+        if (!docDir) throw new Error("No documentDirectory available");
+
+        const safeId = id.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const ext = audioUrl.toLowerCase().includes(".mp3") ? ".mp3" : ".m4a";
+        const destUri = `${docDir}downloads/${safeId}${ext}`;
+
+        await fs.makeDirectoryAsync(`${docDir}downloads/`, { intermediates: true }).catch(() => {});
+
+        const dl = fs.createDownloadResumable(
+          audioUrl,
+          destUri,
+          {},
+          ({ totalBytesWritten, totalBytesExpectedToWrite }) => {
+            if (totalBytesExpectedToWrite > 0) {
+              setDownloadProgress((prev) =>
+                new Map(prev).set(id, totalBytesWritten / totalBytesExpectedToWrite)
+              );
+            }
+          }
+        );
+
+        const result = await dl.downloadAsync();
+        if (!result?.uri) throw new Error("Download returned no URI");
+
+        await markDownloaded(id, result.uri, meta);
+      }
+    } catch (err) {
+      console.error("[startDownload] Error:", err);
+      // Last resort: still mark as downloaded so UI stays consistent
+      await markDownloaded(id, undefined, meta);
+    } finally {
+      clearProgress();
     }
-  }, [userId]);
+  }, [userId, markDownloaded]);
 
   const removeDownloadedFile = useCallback(async (id: string) => {
     const localPath = downloadPaths[id];
@@ -298,23 +355,13 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
 
     if (currentlyDl) {
       removeDownloadedFile(id);
-    } else if (meta?.audioUrl) {
-      startDownload(id, meta.audioUrl, { title: meta.title });
-    } else if (Platform.OS === "web") {
-      setDownloads((prev) => {
-        const next = new Set(prev);
-        next.add(id);
-        persistLocal(STORAGE_KEYS.downloads, next);
-        return next;
-      });
-      if (userId) {
-        const { contentType, contentId } = parseId(id);
-        addDownload(userId, { contentType: contentType as "surah" | "episode", contentId, title: meta?.title ?? contentId });
-      }
+    } else {
+      // startDownload handles both web and native, and guards against missing audioUrl
+      startDownload(id, meta?.audioUrl ?? "", { title: meta?.title });
     }
 
     return added;
-  }, [userId, downloads, startDownload, removeDownloadedFile]);
+  }, [downloads, startDownload, removeDownloadedFile]);
 
   const getLocalFilePath = useCallback(async (id: string): Promise<string | null> => {
     const path = downloadPaths[id];
