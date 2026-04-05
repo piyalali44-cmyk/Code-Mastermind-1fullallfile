@@ -6,7 +6,7 @@ import { useUserActions } from "@/context/UserActionsContext";
 import { useContent } from "@/context/ContentContext";
 import { useColors } from "@/hooks/useColors";
 import { CompletedItem, RecentlyPlayedItem, getCompletedContent, getListeningHistory, getRecentlyPlayed } from "@/lib/db";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -55,7 +55,14 @@ export default function LibraryScreen() {
   const { nowPlaying, play } = useAudio();
   const { favourites, bookmarks, downloads, downloadProgress, removeDownloadedFile, refreshFromStorage } = useUserActions();
   const { settings } = useAppSettings();
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState(0);
+
+  useEffect(() => {
+    if (tabParam === "downloads") {
+      setActiveTab(5);
+    }
+  }, [tabParam]);
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
 
