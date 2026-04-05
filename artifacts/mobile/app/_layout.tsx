@@ -24,19 +24,63 @@ import { ContentProvider } from "@/context/ContentContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { UserActionsProvider } from "@/context/UserActionsContext";
 import { useColors } from "@/hooks/useColors";
+import { navigateDeepLink } from "@/lib/deeplink";
 
+// Prevent native splash from auto-hiding — we control timing
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 10,
+      gcTime:    1000 * 60 * 10,
       retry: 1,
     },
   },
 });
 
+// How long our custom splash stays visible (matches SplashLoader animation)
+const MIN_SPLASH_MS = 3400;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SplashOverlay — always mounts on first render, self-removes after animation
+// ─────────────────────────────────────────────────────────────────────────────
+function SplashOverlay() {
+  const [hidden, setHidden] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => setHidden(true));
+    }, MIN_SPLASH_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (hidden) return null;
+
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        top: 0, left: 0, right: 0, bottom: 0,
+        opacity: fadeAnim,
+        zIndex: 999,
+      }}
+      pointerEvents="none"
+    >
+      <SplashLoader />
+    </Animated.View>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Maintenance screen
+// ─────────────────────────────────────────────────────────────────────────────
 function MaintenanceScreen() {
   const colors = useColors();
   return (
@@ -48,14 +92,14 @@ function MaintenanceScreen() {
   );
 }
 
-import { navigateDeepLink } from "@/lib/deeplink";
-
+// ─────────────────────────────────────────────────────────────────────────────
+// RootLayoutNav
+// ─────────────────────────────────────────────────────────────────────────────
 function RootLayoutNav() {
   const colors = useColors();
   const router = useRouter();
   const { settings } = useAppSettings();
 
-  // Handle push notification taps — navigate to deep link
   useEffect(() => {
     if (Platform.OS === "web") return;
     let sub: { remove: () => void } | null = null;
@@ -85,30 +129,11 @@ function RootLayoutNav() {
           freezeOnBlur: true,
         }}
       >
-        <Stack.Screen
-          name="index"
-          options={{ animation: "none" }}
-        />
-        <Stack.Screen
-          name="onboarding"
-          options={{ animation: "fade", animationDuration: 320 }}
-        />
-        <Stack.Screen
-          name="login"
-          options={{ animation: "fade", animationDuration: 320 }}
-        />
-        <Stack.Screen
-          name="(tabs)"
-          options={{ animation: "fade", animationDuration: 250 }}
-        />
-        <Stack.Screen
-          name="player"
-          options={{
-            animation: "slide_from_bottom",
-            animationDuration: 380,
-            gestureDirection: "vertical",
-          }}
-        />
+        <Stack.Screen name="index"       options={{ animation: "none" }} />
+        <Stack.Screen name="onboarding"  options={{ animation: "fade", animationDuration: 320 }} />
+        <Stack.Screen name="login"       options={{ animation: "fade", animationDuration: 320 }} />
+        <Stack.Screen name="(tabs)"      options={{ animation: "fade", animationDuration: 250 }} />
+        <Stack.Screen name="player"      options={{ animation: "slide_from_bottom", animationDuration: 380, gestureDirection: "vertical" }} />
         <Stack.Screen name="quran/[id]" />
         <Stack.Screen name="series/[id]" />
         <Stack.Screen name="journey" />
@@ -125,8 +150,8 @@ function RootLayoutNav() {
         <Stack.Screen name="contact" />
         <Stack.Screen name="privacy-policy" />
         <Stack.Screen name="terms" />
-        <Stack.Screen name="hadith/index" options={{ headerShown: false }} />
-        <Stack.Screen name="hadith/[book]" options={{ headerShown: false }} />
+        <Stack.Screen name="hadith/index"     options={{ headerShown: false }} />
+        <Stack.Screen name="hadith/[book]"    options={{ headerShown: false }} />
         <Stack.Screen name="hadith/bookmarks" options={{ headerShown: false }} />
       </Stack>
       <PersistentChrome />
@@ -134,38 +159,9 @@ function RootLayoutNav() {
   );
 }
 
-const MIN_SPLASH_MS = 3400;
-
-function SplashOverlay() {
-  const [hidden, setHidden] = useState(false);
-  const fadeOut = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.timing(fadeOut, {
-        toValue: 0,
-        duration: 500,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => setHidden(true));
-    }, MIN_SPLASH_MS);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (hidden) return null;
-
-  return (
-    <Animated.View
-      style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        opacity: fadeOut, zIndex: 999, pointerEvents: "none",
-      }}
-    >
-      <SplashLoader />
-    </Animated.View>
-  );
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Root Layout — restructured so SplashOverlay is always the first thing shown
+// ─────────────────────────────────────────────────────────────────────────────
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
@@ -175,11 +171,12 @@ export default function RootLayout() {
     Ionicons: require("@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"),
   });
 
+  // Hide native splash immediately on first paint — our SplashOverlay takes over
+  // seamlessly with no black flash.
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
+    const t = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 60);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     import("@/lib/notifications").then(({ setupNotificationHandlers }) => {
@@ -187,33 +184,43 @@ export default function RootLayout() {
     });
   }, []);
 
-  if (!fontsLoaded && !fontError) {
-    return <View style={{ flex: 1, backgroundColor: "#0C3222" }} />;
-  }
+  const appReady = fontsLoaded || !!fontError;
 
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <AppSettingsProvider>
-                <UserActionsProvider>
-                  <ContentProvider>
-                    <AudioProvider>
-                      <GestureHandlerRootView style={{ flex: 1 }}>
-                        <KeyboardProvider>
-                          <RootLayoutNav />
-                        </KeyboardProvider>
-                      </GestureHandlerRootView>
-                    </AudioProvider>
-                    <SplashOverlay />
-                  </ContentProvider>
-                </UserActionsProvider>
-              </AppSettingsProvider>
-            </AuthProvider>
-          </QueryClientProvider>
-        </ThemeProvider>
+        {/*
+         * Main app tree — only renders once fonts are loaded.
+         * Hidden under SplashOverlay until it fades out.
+         */}
+        {appReady && (
+          <ThemeProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <AppSettingsProvider>
+                  <UserActionsProvider>
+                    <ContentProvider>
+                      <AudioProvider>
+                        <GestureHandlerRootView style={{ flex: 1 }}>
+                          <KeyboardProvider>
+                            <RootLayoutNav />
+                          </KeyboardProvider>
+                        </GestureHandlerRootView>
+                      </AudioProvider>
+                    </ContentProvider>
+                  </UserActionsProvider>
+                </AppSettingsProvider>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>
+        )}
+
+        {/*
+         * SplashOverlay — mounted immediately on first render (before fonts).
+         * Sits on top of everything (zIndex 999).
+         * Self-fades after MIN_SPLASH_MS and unmounts.
+         */}
+        <SplashOverlay />
       </ErrorBoundary>
     </SafeAreaProvider>
   );
