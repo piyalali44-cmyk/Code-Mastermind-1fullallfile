@@ -54,6 +54,7 @@ export default function ProfileScreen() {
   const [couponModal, setCouponModal]       = useState(false);
   const [couponCode, setCouponCode]         = useState("");
   const [couponLoading, setCouponLoading]   = useState(false);
+  const [couponError, setCouponError]       = useState<string | null>(null);
   const [myCode, setMyCode]                 = useState<string | null>(null);
   const [codeLoading, setCodeLoading]       = useState(false);
   const [refStats, setRefStats]             = useState<ReferralStats>({ friendsReferred: 0, xpEarned: 0 });
@@ -202,40 +203,40 @@ export default function ProfileScreen() {
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
     if (!user) {
-      showToast("Please sign in first", "alert-circle", colors.error);
+      setCouponError("Please sign in first.");
       return;
     }
     setCouponLoading(true);
+    setCouponError(null);
     try {
       const result = await applyReferralCode(couponCode.trim());
       if (result.success) {
         setCouponCode("");
         setCouponModal(false);
-        // Build success message based on reward type
+        setCouponError(null);
         let msg = "Code applied successfully!";
         if (result.type === "free_days" && result.freeDays) {
-          msg = `🎉 ${result.freeDays} days of Premium unlocked!`;
-        } else if (result.type === "xp_bonus" && result.xpBonus) {
-          msg = `+${result.xpBonus} XP bonus earned!`;
-        } else if (result.type === "referral") {
-          msg = `Referral code applied! +${result.xpBonus ?? 100} XP earned.`;
+          msg = `${result.freeDays} days of Premium unlocked!`;
+        } else if (result.type === "influencer" || result.type === "referral") {
+          msg = `Code applied! +${result.xpBonus ?? 100} XP earned.`;
         } else if (result.xpBonus) {
           msg = `Code applied! +${result.xpBonus} XP earned.`;
         }
         showToast(msg, "check-circle", colors.green);
-        // Refresh referral stats
+        refreshUser().catch(() => {});
         const stats = await getReferralStats(user.id);
         setRefStats(stats);
       } else {
         const msg =
-          result.error === "invalid_code"    ? "That code doesn't exist. Double-check and try again." :
-          result.error === "already_used"    ? "You've already used this code." :
-          result.error === "own_code"        ? "You cannot use your own referral code." :
-          result.error === "code_exhausted"  ? "This code has reached its maximum uses." :
-          result.error === "new_users_only"  ? "This code is for new users only." :
+          result.error === "invalid_code"      ? "That code doesn't exist or has expired." :
+          result.error === "already_used"      ? "You've already used this code." :
+          result.error === "own_code"          ? "You can't use your own referral code." :
+          result.error === "code_exhausted"    ? "This code has reached its maximum uses." :
+          result.error === "new_users_only"    ? "This code is for new users only." :
           result.error === "not_authenticated" ? "Please sign in first." :
+          result.error === "server_error"      ? "Server error. Please try again." :
           result.error || "Something went wrong. Please try again.";
-        showToast(msg, "alert-circle", colors.error);
+        setCouponError(msg);
       }
     } finally {
       setCouponLoading(false);
@@ -531,8 +532,13 @@ export default function ProfileScreen() {
       </Modal>
 
       {/* ── Redeem a Code Modal ── */}
-      <Modal visible={couponModal} transparent animationType="slide" onRequestClose={() => setCouponModal(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setCouponModal(false)}>
+      <Modal
+        visible={couponModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setCouponModal(false); setCouponError(null); setCouponCode(""); }}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => { setCouponModal(false); setCouponError(null); setCouponCode(""); }}>
           <Pressable
             style={[styles.modalSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => {}}
@@ -549,10 +555,17 @@ export default function ProfileScreen() {
 
             <ReferralCodeInput
               value={couponCode}
-              onChange={setCouponCode}
+              onChange={(v) => { setCouponCode(v); setCouponError(null); }}
               onSubmit={handleApplyCoupon}
               placeholder="e.g. SGA1B2C3"
             />
+
+            {!!couponError && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 10, backgroundColor: colors.error + "18", borderWidth: 1, borderColor: colors.error + "44" }}>
+                <Icon name="alert-circle" size={15} color={colors.error} />
+                <Text style={{ flex: 1, color: colors.error, fontSize: 13, lineHeight: 18 }}>{couponError}</Text>
+              </View>
+            )}
 
             <Pressable
               onPress={handleApplyCoupon}
