@@ -560,8 +560,10 @@ export async function getReferralStats(userId: string): Promise<ReferralStats> {
   } catch { return { friendsReferred: 0, xpEarned: 0 }; }
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL
-  || "https://2c674757-24e6-4f77-a319-e136047f4e8f-00-319jytwvw59q6.pike.replit.dev/api";
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
 
 export async function applyReferralCode(code: string): Promise<{
   success: boolean;

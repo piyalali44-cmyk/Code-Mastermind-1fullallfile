@@ -57,7 +57,7 @@ export default defineConfig({
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_KEY || ""
     ),
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
-      process.env.EXPO_PUBLIC_API_BASE_URL || "https://2c674757-24e6-4f77-a319-e136047f4e8f-00-319jytwvw59q6.pike.replit.dev/api"
+      process.env.EXPO_PUBLIC_API_BASE_URL || process.env.EXPO_PUBLIC_API_URL || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api"
     ),
   },
   resolve: {

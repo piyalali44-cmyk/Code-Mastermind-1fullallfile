@@ -15,28 +15,6 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=23744 BASE_PATH=/admin/ pnpm --filter @workspace/admin run dev"
-waitForPort = 23744
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -53,7 +31,8 @@ EXPO_PUBLIC_SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co"
 SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co"
 EXPO_PUBLIC_SUPABASE_PROJECT_REF = "tkruzfskhtcazjxdracm"
 VITE_SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co"
-EXPO_PUBLIC_API_BASE_URL = "https://2c674757-24e6-4f77-a319-e136047f4e8f-00-319jytwvw59q6.pike.replit.dev/api"
+EXPO_PUBLIC_API_BASE_URL = "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api"
+EXPO_PUBLIC_API_URL = "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api"
 
 [nix]
 channel = "stable-25_05"
