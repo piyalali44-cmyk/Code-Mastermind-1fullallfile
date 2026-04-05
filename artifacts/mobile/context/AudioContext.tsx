@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-import { addToHistory, addXp, saveProgress, updateStreak } from "@/lib/db";
+import { addToHistory, addXp, saveProgress, updateHistoryDuration, updateStreak } from "@/lib/db";
 import { SURAHS } from "@/constants/surahs";
 import { useContent } from "@/context/ContentContext";
 
@@ -63,6 +63,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const durationRef = useRef(0);
   const nowPlayingRef = useRef<NowPlaying | null>(null);
   const userIdRef = useRef<string | undefined>(undefined);
+  const historyIdRef = useRef<string | null>(null);
   const progressSaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const playNextRef = useRef<() => Promise<void>>(async () => {});
 
@@ -93,6 +94,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const contentType = np.type === "quran" ? "surah" : "episode";
       const contentId = np.surahNumber?.toString() ?? np.id;
       await saveProgress(userId, contentType, contentId, positionRef.current, durationRef.current);
+      if (historyIdRef.current && positionRef.current > 0) {
+        updateHistoryDuration(historyIdRef.current, positionRef.current);
+      }
     }, 15000);
   }, []);
 
@@ -117,6 +121,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       positionRef.current = 0;
       setIsPlaying(false);
 
+      historyIdRef.current = null;
       if (userId) {
         userIdRef.current = userId;
         addToHistory(userId, {
@@ -125,7 +130,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           title: content.title,
           seriesName: content.seriesName,
           seriesId: content.seriesId,
-        });
+        }).then((id) => { historyIdRef.current = id; });
         addXp(userId, 5, `Started: ${content.title}`);
         updateStreak(userId);
         startProgressSync(userId);
@@ -138,7 +143,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
           title: content.title,
           seriesName: content.seriesName,
           seriesId: content.seriesId,
-        });
+        }).then((id) => { historyIdRef.current = id; });
         addXp(uid, 5, `Started: ${content.title}`);
         updateStreak(uid);
         startProgressSync(uid);
@@ -181,6 +186,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             durationRef.current = dur;
             setIsPlaying(status.isPlaying ?? false);
             if (status.didJustFinish && !status.isLooping) {
+              if (historyIdRef.current && durationRef.current > 0) {
+                updateHistoryDuration(historyIdRef.current, durationRef.current);
+              }
               if (repeatModeRef.current === "one") {
                 soundRef.current?.setPositionAsync(0).then(() => soundRef.current?.playAsync());
               } else {
@@ -204,6 +212,9 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       const np = nowPlayingRef.current;
       const contentType = np.type === "quran" ? "surah" : "episode";
       saveProgress(userId, contentType, np.surahNumber?.toString() ?? np.id, positionRef.current, durationRef.current);
+    }
+    if (historyIdRef.current && positionRef.current > 0) {
+      updateHistoryDuration(historyIdRef.current, positionRef.current);
     }
   }, []);
 

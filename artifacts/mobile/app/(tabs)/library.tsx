@@ -52,7 +52,7 @@ export default function LibraryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, isGuest, isLoading: authLoading } = useAuth();
-  const { nowPlaying } = useAudio();
+  const { nowPlaying, play } = useAudio();
   const { favourites, bookmarks, downloads, downloadProgress, removeDownloadedFile, refreshFromStorage } = useUserActions();
   const { settings } = useAppSettings();
   const [activeTab, setActiveTab] = useState(0);
@@ -500,29 +500,53 @@ export default function LibraryScreen() {
                               <Icon name="check-circle" size={14} color={colors.green} />
                             </View>
                           </Pressable>
-                          {dlEpisodes.map((ep) => (
-                            <View key={ep.id} style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border, marginLeft: 20, marginTop: 4 }]}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{ep.title}</Text>
-                              </View>
+                          {dlEpisodes.map((ep) => {
+                            const epIndex = (s.episodes ?? []).findIndex((e) => e.id === ep.id);
+                            return (
                               <Pressable
-                                onPress={() => {
-                                  const dlKey = downloads.has(`episode:${ep.id}`) ? `episode:${ep.id}` : ep.id;
-                                  if (Platform.OS === "web") {
-                                    removeDownloadedFile(dlKey);
-                                  } else {
-                                    Alert.alert("Remove Download", `Remove "${ep.title}" from downloads?`, [
-                                      { text: "Cancel", style: "cancel" },
-                                      { text: "Remove", style: "destructive", onPress: () => removeDownloadedFile(dlKey) },
-                                    ]);
-                                  }
+                                key={ep.id}
+                                onPress={async () => {
+                                  await play({
+                                    id: ep.id,
+                                    title: ep.title,
+                                    seriesName: s.title,
+                                    seriesId: s.id,
+                                    coverColor: s.coverColor,
+                                    coverUrl: s.coverUrl,
+                                    audioUrl: ep.audioUrl,
+                                    type: "story",
+                                    episodeIndex: epIndex >= 0 ? epIndex : 0,
+                                  }, user?.id);
+                                  router.push("/player");
                                 }}
-                                style={{ padding: 8 }}
+                                style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border, marginLeft: 20, marginTop: 4 }]}
                               >
-                                <Icon name="trash-2" size={16} color={colors.error ?? "#EF4444"} />
+                                <View style={[styles.histCover, { backgroundColor: s.coverColor + "33", width: 28, height: 28, borderRadius: 6 }]}>
+                                  <Icon name="play" size={12} color={s.coverColor || colors.gold} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{ep.title}</Text>
+                                </View>
+                                <Pressable
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    const dlKey = downloads.has(`episode:${ep.id}`) ? `episode:${ep.id}` : ep.id;
+                                    if (Platform.OS === "web") {
+                                      removeDownloadedFile(dlKey);
+                                    } else {
+                                      Alert.alert("Remove Download", `Remove "${ep.title}" from downloads?`, [
+                                        { text: "Cancel", style: "cancel" },
+                                        { text: "Remove", style: "destructive", onPress: () => removeDownloadedFile(dlKey) },
+                                      ]);
+                                    }
+                                  }}
+                                  style={{ padding: 8 }}
+                                >
+                                  <Icon name="trash-2" size={16} color={colors.error ?? "#EF4444"} />
+                                </Pressable>
                               </Pressable>
-                            </View>
-                          ))}
+                            );
+                          })}
                         </View>
                       );
                     })}
@@ -534,7 +558,7 @@ export default function LibraryScreen() {
                     {downloadedSurahs.map((s) => (
                       <Pressable
                         key={s.number}
-                        onPress={() => router.push(`/quran?surah=${s.number}`)}
+                        onPress={() => router.push(`/quran/${s.number}`)}
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: colors.green + "33" }]}>
