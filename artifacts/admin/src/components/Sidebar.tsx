@@ -114,7 +114,7 @@ export function Sidebar() {
     {
       title: "Overview",
       items: [
-        { title: "Dashboard", href: "/", icon: LayoutDashboard, show: true },
+        { title: "Dashboard", href: "/", icon: LayoutDashboard, show: isAtLeast("content") },
       ],
     },
     {
