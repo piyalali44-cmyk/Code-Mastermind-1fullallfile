@@ -232,52 +232,9 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
 
     try {
       if (Platform.OS === "web") {
-        // ── Web: fetch with progress then trigger browser Save dialog ────────
-        let response: Response;
-        try {
-          response = await fetch(audioUrl, { mode: "cors" });
-        } catch {
-          // CORS blocked — mark as downloaded without opening external tab
-          await markDownloaded(id, undefined, meta);
-          clearProgress();
-          return;
-        }
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const contentLength = parseInt(response.headers.get("content-length") ?? "0");
-        const reader = response.body!.getReader();
-        const chunks: BlobPart[] = [];
-        let received = 0;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            chunks.push(value);
-            received += value.length;
-            if (contentLength > 0) {
-              setDownloadProgress((prev) => new Map(prev).set(id, received / contentLength));
-            }
-          }
-        }
-
-        const ext = audioUrl.includes(".mp3") ? "mp3" : "m4a";
-        const safeName = (meta?.title ?? id).replace(/[^\w\s-]/g, "").trim();
-        const filename = `${safeName || "audio"}.${ext}`;
-
-        const blob = new Blob(chunks, { type: "audio/mpeg" });
-        const blobUrl = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = blobUrl;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-
+        // ── Web: mark as downloaded immediately (audio streams from URL) ──────
+        setDownloadProgress((prev) => new Map(prev).set(id, 0.5));
         await markDownloaded(id, undefined, meta);
-
       } else {
         // ── Native: use expo-file-system ─────────────────────────────────────
         const fs = await import("expo-file-system/legacy");
