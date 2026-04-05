@@ -1,184 +1,212 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { Animated, Easing, Platform, StyleSheet, View } from "react-native";
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient,
+  Path,
+  Polygon,
+  Stop,
+} from "react-native-svg";
 
-const BG       = "#0C3222";
-const BG_DEEP  = "#081C14";
-const GOLD     = "#C9A84C";
-const GOLD_LT  = "#E8D5A0";
-const GOLD_DIM = "rgba(201,168,76,0.12)";
-const WHITE    = "#F5F5F5";
-const MUTED    = "rgba(255,255,255,0.38)";
+const BG    = "#0C3222";
+const GOLD  = "#C9A84C";
+const GOLD2 = "#F2DC8C";
+const GOLD3 = "#9A7228";
+const CREAM = "#E8D5A0";
+const CORE  = "#081C14";
+const WHITE = "#F5F5F5";
+const MUTED = "rgba(255,255,255,0.38)";
 
-/** Islamic crescent logo built entirely from View primitives */
-function IslamicEmblem({ scale, opacity }: { scale: Animated.AnimatedInterpolation<number> | Animated.Value; opacity: Animated.Value }) {
+const ND = Platform.OS !== "web";
+
+// ─── Islamic emblem SVG (120 × 120 viewBox, centre = 60, 60) ─────────────────
+//
+//  Layers (back → front):
+//    1. Outer decorative ring (r=57, thin gold stroke)
+//    2. 4 diamond accent marks at N/S/E/W
+//    3. Inner decorative ring (r=47, very faint)
+//    4. 8-pointed khatim star background (r_out=22, r_in=10, opacity 10%)
+//    5. Dark-green core (r=40 filled)
+//    6. Crescent moon (proper SVG arc path — mathematically exact)
+//    7. 5-pointed star
+//
+//  Crescent geometry:
+//    Gold arc circle: cx=48, cy=60, r=26
+//    Mask arc circle: cx=63, cy=60, r=22
+//    Intersection: x = (676-484-48²+63²) / (2*(63-48)) = 61.9
+//                  y = 60 ± 43.97/2  →  ≈ (61.9, 38.0) and (61.9, 82.0)
+//    Path: start at (61.9,38) → large CCW arc on r=26 circle → (61.9,82)
+//          → small CW arc on r=22 circle back → (61.9,38)
+//
+//  5-pointed star: centre (79,45), R=11, r=5
+//    Outer angles (deg): -90, -18, 54, 126, 198
+//    Inner angles (deg): -54,  18, 90, 162, 234
+
+function IslamicEmblem() {
+  // ── Khatim (8-pointed star) background ── centre (60,60), R=22, r=10
+  const khatim =
+    "60,38 63.83,50.76 75.56,44.44 69.24,56.17 82,60 69.24,63.83 " +
+    "75.56,75.56 63.83,69.24 60,82 56.17,69.24 44.44,75.56 50.76,63.83 " +
+    "38,60 50.76,56.17 44.44,44.44 56.17,50.76";
+
+  // ── 5-pointed star ── centre (79,45), R=11, r=5
+  const star =
+    "79,34 81.94,40.96 89.46,41.6 83.76,46.55 85.47,53.9 " +
+    "79,50 72.53,53.9 74.25,46.55 68.54,41.6 76.06,40.96";
+
+  // ── Crescent arc path (mathematically precise) ──
+  const crescent =
+    "M 61.9 38 A 26 26 0 1 0 61.9 82 A 22 22 0 0 1 61.9 38 Z";
+
   return (
-    <Animated.View style={[styles.emblemWrap, { opacity, transform: [{ scale }] }]}>
-      {/* Outer decorative ring */}
-      <View style={styles.ringOuter} />
-      {/* Middle decorative ring */}
-      <View style={styles.ringMid} />
-      {/* Filled core */}
-      <View style={styles.core}>
-        {/* 8-pointed star background (two overlapping rotated rects) */}
-        <View style={[styles.starBar, { transform: [{ rotate: "0deg" }] }]} />
-        <View style={[styles.starBar, { transform: [{ rotate: "45deg" }] }]} />
-        <View style={[styles.starBar, { transform: [{ rotate: "90deg" }] }]} />
-        <View style={[styles.starBar, { transform: [{ rotate: "135deg" }] }]} />
+    <Svg width={120} height={120} viewBox="0 0 120 120">
+      <Defs>
+        <LinearGradient id="gold" x1="0.1" y1="0" x2="0.9" y2="1">
+          <Stop offset="0%"   stopColor={GOLD2} />
+          <Stop offset="50%"  stopColor={GOLD}  />
+          <Stop offset="100%" stopColor={GOLD3} />
+        </LinearGradient>
+        <LinearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0%"   stopColor={GOLD2} stopOpacity={0.6} />
+          <Stop offset="100%" stopColor={GOLD3} stopOpacity={0.2} />
+        </LinearGradient>
+      </Defs>
 
-        {/* Crescent moon */}
-        <View style={styles.crescentWrap}>
-          <View style={styles.crescentFull} />
-          <View style={styles.crescentCut} />
-        </View>
+      {/* 1. Outer ring */}
+      <Circle cx="60" cy="60" r="57"
+        stroke="url(#ring)" strokeWidth="1.5" fill="none" />
 
-        {/* Small star to the right of crescent */}
-        <View style={styles.starDot}>
-          <View style={[styles.starPetal, { transform: [{ rotate: "0deg" }] }]} />
-          <View style={[styles.starPetal, { transform: [{ rotate: "90deg" }] }]} />
-        </View>
-      </View>
+      {/* 2. Diamond accents */}
+      <Polygon points="60,2   62.5,5.5  60,9   57.5,5.5"  fill={GOLD} opacity="0.7" />
+      <Polygon points="60,111 62.5,114.5 60,118 57.5,114.5" fill={GOLD} opacity="0.7" />
+      <Polygon points="2,60  5.5,62.5  9,60  5.5,57.5"   fill={GOLD} opacity="0.7" />
+      <Polygon points="111,60 114.5,62.5 118,60 114.5,57.5" fill={GOLD} opacity="0.7" />
 
-      {/* 4 corner dots on the outer ring */}
-      <View style={[styles.cornerDot, { top: -2, left: "50%", marginLeft: -2 }]} />
-      <View style={[styles.cornerDot, { bottom: -2, left: "50%", marginLeft: -2 }]} />
-      <View style={[styles.cornerDot, { left: -2, top: "50%", marginTop: -2 }]} />
-      <View style={[styles.cornerDot, { right: -2, top: "50%", marginTop: -2 }]} />
-    </Animated.View>
+      {/* 3. Inner ring */}
+      <Circle cx="60" cy="60" r="47"
+        stroke="url(#ring)" strokeWidth="0.7" fill="none" opacity="0.38" />
+
+      {/* 4. Khatim background */}
+      <Polygon points={khatim} fill="url(#gold)" opacity="0.12" />
+
+      {/* 5. Core */}
+      <Circle cx="60" cy="60" r="40" fill={CORE} />
+      <Circle cx="60" cy="60" r="40"
+        stroke="url(#gold)" strokeWidth="1.1" fill="none" opacity="0.38" />
+
+      {/* 6. Crescent (arc path) */}
+      <Path d={crescent} fill="url(#gold)" />
+
+      {/* 7. 5-pointed star */}
+      <Polygon points={star} fill="url(#gold)" />
+    </Svg>
   );
 }
 
+// ─── Main SplashLoader ───────────────────────────────────────────────────────
 export function SplashLoader() {
-  /* ── Animated values ── */
-  const bgValue        = useRef(new Animated.Value(0)).current;
-  const topOrnOp       = useRef(new Animated.Value(0)).current;
-  const topOrnY        = useRef(new Animated.Value(-18)).current;
-  const botOrnOp       = useRef(new Animated.Value(0)).current;
-  const botOrnY        = useRef(new Animated.Value(18)).current;
-  const bismillahOp    = useRef(new Animated.Value(0)).current;
-  const bismillahSc    = useRef(new Animated.Value(0.84)).current;
-  const glowOp         = useRef(new Animated.Value(0)).current;
-  const glowSc         = useRef(new Animated.Value(0.5)).current;
-  const emblemOp       = useRef(new Animated.Value(0)).current;
-  const emblemSc       = useRef(new Animated.Value(0.38)).current;
-  const nameOp         = useRef(new Animated.Value(0)).current;
-  const nameY          = useRef(new Animated.Value(22)).current;
-  const taglineOp      = useRef(new Animated.Value(0)).current;
-  const taglineY       = useRef(new Animated.Value(14)).current;
-  const barOp          = useRef(new Animated.Value(0)).current;
-  const barProg        = useRef(new Animated.Value(0)).current;
-  const pulse          = useRef(new Animated.Value(1)).current;
-  const shineOp        = useRef(new Animated.Value(0)).current;
+  const topY    = useRef(new Animated.Value(-20)).current;
+  const topOp   = useRef(new Animated.Value(0)).current;
+  const botY    = useRef(new Animated.Value(20)).current;
+  const botOp   = useRef(new Animated.Value(0)).current;
+  const bisOp   = useRef(new Animated.Value(0)).current;
+  const bisSc   = useRef(new Animated.Value(0.82)).current;
+  const glowOp  = useRef(new Animated.Value(0)).current;
+  const glowSc  = useRef(new Animated.Value(0.5)).current;
+  const logoOp  = useRef(new Animated.Value(0)).current;
+  const logoSc  = useRef(new Animated.Value(0.3)).current;
+  const nameOp  = useRef(new Animated.Value(0)).current;
+  const nameY   = useRef(new Animated.Value(22)).current;
+  const tagOp   = useRef(new Animated.Value(0)).current;
+  const tagY    = useRef(new Animated.Value(14)).current;
+  const barOp   = useRef(new Animated.Value(0)).current;
+  const barProg = useRef(new Animated.Value(0)).current;
+  const pulse   = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    const ease = Easing.out(Easing.cubic);
+    const t = (val: Animated.Value, to: number, dur: number, e = ease) =>
+      Animated.timing(val, { toValue: to, duration: dur, easing: e, useNativeDriver: ND });
+
     Animated.sequence([
-      /* Phase 1 — background (0–280ms) */
-      Animated.timing(bgValue, { toValue: 1, duration: 280, useNativeDriver: true }),
-
-      /* Phase 2 — ornaments slide in (280–620ms) */
+      // Phase 1 — ornaments (0–240ms)
       Animated.parallel([
-        Animated.timing(topOrnOp, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(topOrnY,  { toValue: 0,  duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(botOrnOp, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(botOrnY,  { toValue: 0,  duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        t(topOp, 1, 240), t(topY, 0, 240),
+        t(botOp, 1, 240), t(botY, 0, 240),
       ]),
-
-      /* Phase 3 — Bismillah (620–980ms) */
+      // Phase 2 — Bismillah (240–530ms)
       Animated.parallel([
-        Animated.timing(bismillahOp, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(bismillahSc, { toValue: 1, duration: 480, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true }),
+        t(bisOp, 1, 320),
+        t(bisSc, 1, 380, Easing.out(Easing.back(1.3))),
       ]),
-
-      /* Phase 4 — Glow burst then emblem (980–1520ms) */
+      // Phase 3 — Glow burst + logo spring (530–1010ms)
       Animated.parallel([
-        Animated.timing(glowOp, { toValue: 0.65, duration: 260, useNativeDriver: true }),
-        Animated.timing(glowSc, { toValue: 1.2,  duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
         Animated.sequence([
-          Animated.delay(100),
+          t(glowOp, 0.55, 200), t(glowSc, 1.15, 200, ease),
+          t(glowOp, 0.22, 280), t(glowSc, 1.04, 280, ease),
+        ]),
+        Animated.sequence([
+          Animated.delay(60),
           Animated.parallel([
-            Animated.timing(emblemOp, { toValue: 1, duration: 400, useNativeDriver: true }),
-            Animated.spring(emblemSc, { toValue: 1, tension: 110, friction: 6, useNativeDriver: true }),
+            t(logoOp, 1, 380),
+            Animated.spring(logoSc, { toValue: 1, tension: 120, friction: 6, useNativeDriver: ND }),
           ]),
         ]),
-        Animated.sequence([
-          Animated.delay(320),
-          Animated.timing(glowOp, { toValue: 0.28, duration: 300, useNativeDriver: true }),
-          Animated.timing(glowSc, { toValue: 1.05, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        ]),
       ]),
-
-      /* Phase 5 — App name slides up (1520–1860ms) */
+      // Phase 4 — App name (1010–1320ms)
+      Animated.parallel([t(nameOp, 1, 320), t(nameY, 0, 320)]),
+      // Phase 5 — Tagline (1320–1560ms)
+      Animated.parallel([t(tagOp, 1, 260), t(tagY, 0, 260)]),
+      // Phase 6 — Loading bar (1560–3400ms)
       Animated.parallel([
-        Animated.timing(nameOp, { toValue: 1, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(nameY,  { toValue: 0, duration: 360, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]),
-
-      /* Phase 6 — Tagline (1860–2100ms) */
-      Animated.parallel([
-        Animated.timing(taglineOp, { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(taglineY,  { toValue: 0, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]),
-
-      /* Phase 7 — Loading bar fills (2100–3400ms) */
-      Animated.parallel([
-        Animated.timing(barOp,   { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.timing(barProg, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
+        t(barOp, 1, 200),
+        Animated.timing(barProg, {
+          toValue: 1, duration: 1700,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: false,
+        }),
       ]),
     ]).start();
 
-    /* Pulse & shine loops (start after emblem appears) */
-    const t = setTimeout(() => {
+    // Logo pulse loop (starts after logo appears)
+    const timer = setTimeout(() => {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.06, duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1,    duration: 2000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1.055, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: ND }),
+          Animated.timing(pulse, { toValue: 1,     duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: ND }),
         ])
       ).start();
-
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(1400),
-          Animated.timing(shineOp, { toValue: 0.7, duration: 280, useNativeDriver: true }),
-          Animated.timing(shineOp, { toValue: 0,   duration: 380, useNativeDriver: true }),
-        ])
-      ).start();
-    }, 1300);
-
-    return () => clearTimeout(t);
+    }, 1100);
+    return () => clearTimeout(timer);
   }, []);
 
-  const barWidth = barProg.interpolate({ inputRange: [0, 1], outputRange: ["0%", "72%"] });
-  const emblemScale = Animated.multiply(emblemSc, pulse);
+  const barW      = barProg.interpolate({ inputRange: [0, 1], outputRange: ["0%", "68%"] });
+  const logoScale = Animated.multiply(logoSc, pulse);
 
   return (
-    <Animated.View style={[styles.root, { opacity: bgValue }]}>
+    <View style={styles.root}>
 
       {/* Top ornament */}
-      <Animated.View style={[styles.ornRow, { opacity: topOrnOp, transform: [{ translateY: topOrnY }] }]}>
-        <View style={styles.line} />
-        <View style={styles.dot} />
-        <View style={[styles.line, styles.lineShort]} />
-        <View style={styles.diamond} />
-        <View style={[styles.line, styles.lineShort]} />
-        <View style={styles.dot} />
-        <View style={styles.line} />
+      <Animated.View style={[styles.ornRow, { opacity: topOp, transform: [{ translateY: topY }] }]}>
+        <OrnRow />
       </Animated.View>
 
       {/* Bismillah */}
-      <Animated.Text style={[styles.bismillah, { opacity: bismillahOp, transform: [{ scale: bismillahSc }] }]}>
+      <Animated.Text style={[styles.bismillah, { opacity: bisOp, transform: [{ scale: bisSc }] }]}>
         بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ
       </Animated.Text>
 
-      {/* Glow halo */}
-      <Animated.View
-        style={[styles.glow, { opacity: glowOp, transform: [{ scale: glowSc }] }]}
-        pointerEvents="none"
-      />
-
-      {/* Islamic emblem */}
-      <IslamicEmblem scale={emblemScale} opacity={emblemOp} />
-
-      {/* Shine overlay on emblem */}
-      <Animated.View style={[styles.shineOverlay, { opacity: shineOp }]} pointerEvents="none" />
+      {/* Logo + glow */}
+      <View style={styles.logoOuter}>
+        <Animated.View
+          style={[styles.glow, { opacity: glowOp, transform: [{ scale: glowSc }] }]}
+          pointerEvents="none"
+        />
+        <Animated.View style={{ opacity: logoOp, transform: [{ scale: logoScale }] }}>
+          <IslamicEmblem />
+        </Animated.View>
+      </View>
 
       {/* App name */}
       <Animated.Text style={[styles.appName, { opacity: nameOp, transform: [{ translateY: nameY }] }]}>
@@ -186,28 +214,44 @@ export function SplashLoader() {
       </Animated.Text>
 
       {/* Tagline */}
-      <Animated.Text style={[styles.tagline, { opacity: taglineOp, transform: [{ translateY: taglineY }] }]}>
+      <Animated.Text style={[styles.tagline, { opacity: tagOp, transform: [{ translateY: tagY }] }]}>
         Your Islamic Audio Companion
       </Animated.Text>
 
       {/* Bottom ornament */}
-      <Animated.View style={[styles.ornRow, { opacity: botOrnOp, transform: [{ translateY: botOrnY }], marginTop: 40 }]}>
-        <View style={styles.line} />
-        <View style={styles.dot} />
-        <View style={[styles.line, styles.lineShort]} />
-        <View style={styles.diamond} />
-        <View style={[styles.line, styles.lineShort]} />
-        <View style={styles.dot} />
-        <View style={styles.line} />
+      <Animated.View style={[styles.ornRow, { opacity: botOp, transform: [{ translateY: botY }], marginTop: 36 }]}>
+        <OrnRow />
       </Animated.View>
 
       {/* Loading bar */}
       <Animated.View style={[styles.barTrack, { opacity: barOp }]}>
-        <Animated.View style={[styles.barFill, { width: barWidth }]} />
+        <Animated.View style={[styles.barFill, { width: barW }]} />
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
+
+// Ornament row
+function OrnRow() {
+  return (
+    <>
+      <View style={s.lineL} />
+      <View style={s.dot} />
+      <View style={s.lineSh} />
+      <View style={s.diamond} />
+      <View style={s.lineSh} />
+      <View style={s.dot} />
+      <View style={s.lineL} />
+    </>
+  );
+}
+
+const s = StyleSheet.create({
+  lineL:   { width: 40, height: 1, backgroundColor: CREAM, opacity: 0.24 },
+  lineSh:  { width: 22, height: 1, backgroundColor: CREAM, opacity: 0.20 },
+  dot:     { width: 3, height: 3, borderRadius: 1.5, backgroundColor: CREAM, opacity: 0.36 },
+  diamond: { width: 7, height: 7, backgroundColor: GOLD, transform: [{ rotate: "45deg" }], opacity: 0.72 },
+});
 
 const styles = StyleSheet.create({
   root: {
@@ -216,175 +260,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  /* ── Ornaments ── */
   ornRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 26,
-    gap: 9,
+    marginBottom: 22,
+    gap: 8,
   },
-  line: {
-    width: 46,
-    height: 1,
-    backgroundColor: GOLD_LT,
-    opacity: 0.28,
-  },
-  lineShort: { width: 28 },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: GOLD_LT,
-    opacity: 0.4,
-  },
-  diamond: {
-    width: 7,
-    height: 7,
-    backgroundColor: GOLD,
-    transform: [{ rotate: "45deg" }],
-    opacity: 0.7,
-  },
-
-  /* ── Bismillah ── */
   bismillah: {
-    fontSize: 21,
-    color: GOLD_LT,
-    marginBottom: 30,
+    fontSize: 20,
+    color: CREAM,
+    marginBottom: 26,
     letterSpacing: 2,
     textAlign: "center",
     paddingHorizontal: 24,
-    opacity: 0.9,
   },
-
-  /* ── Glow halo ── */
+  logoOuter: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   glow: {
     position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: GOLD,
-    /* Positioned via JS — it hovers at the emblem center */
-  },
-
-  /* ── Emblem ── */
-  emblemWrap: {
-    width: 110,
-    height: 110,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 2,
-  },
-  ringOuter: {
-    position: "absolute",
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 1.2,
-    borderColor: GOLD,
-    opacity: 0.45,
-  },
-  ringMid: {
-    position: "absolute",
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    borderWidth: 0.7,
-    borderColor: GOLD_LT,
-    opacity: 0.25,
-  },
-  core: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: BG_DEEP,
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-    borderWidth: 0.8,
-    borderColor: "rgba(201,168,76,0.3)",
-  },
-  /* 8-pointed star bars (background pattern, very low opacity) */
-  starBar: {
-    position: "absolute",
-    width: 68,
-    height: 8,
-    backgroundColor: GOLD_DIM,
-    borderRadius: 4,
-  },
-  /* Crescent */
-  crescentWrap: {
-    position: "absolute",
-    width: 36,
-    height: 36,
-    left: 10,
-    top: 19,
-  },
-  crescentFull: {
-    position: "absolute",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     backgroundColor: GOLD,
   },
-  crescentCut: {
-    position: "absolute",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: BG_DEEP,
-    top: 3,
-    left: 9,
-  },
-  /* 4-pointed star */
-  starDot: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-    top: 20,
-    right: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  starPetal: {
-    position: "absolute",
-    width: 2,
-    height: 10,
-    borderRadius: 1,
-    backgroundColor: GOLD,
-    opacity: 0.95,
-  },
-  /* Corner accent dots on the outer ring */
-  cornerDot: {
-    position: "absolute",
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: GOLD,
-    opacity: 0.5,
-  },
-
-  /* ── Shine sweep ── */
-  shineOverlay: {
-    position: "absolute",
-    width: 60,
-    height: 130,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    transform: [{ rotate: "30deg" }],
-    zIndex: 3,
-    borderRadius: 4,
-  },
-
-  /* ── App name ── */
   appName: {
-    fontSize: 26,
+    fontSize: 25,
     fontWeight: "700",
     color: WHITE,
-    letterSpacing: 1.4,
-    marginTop: 22,
+    letterSpacing: 1.3,
+    marginTop: 20,
   },
-
-  /* ── Tagline ── */
   tagline: {
     fontSize: 10,
     color: MUTED,
@@ -392,24 +301,18 @@ const styles = StyleSheet.create({
     letterSpacing: 3.5,
     textTransform: "uppercase",
   },
-
-  /* ── Loading bar ── */
   barTrack: {
     position: "absolute",
-    bottom: 56,
-    width: 130,
+    bottom: 58,
+    width: 120,
     height: 1.5,
     borderRadius: 1,
-    backgroundColor: "rgba(201,168,76,0.12)",
+    backgroundColor: "rgba(201,168,76,0.15)",
     overflow: "hidden",
   },
   barFill: {
     height: 1.5,
     borderRadius: 1,
     backgroundColor: GOLD,
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 5,
   },
 });
