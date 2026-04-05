@@ -30,7 +30,7 @@ export default function ProgressScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { nowPlaying } = useAudio();
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
@@ -45,7 +45,6 @@ export default function ProgressScreen() {
     if (!user) return;
     setStatsLoading(true);
     try {
-      // First check for newly earned badges, then load everything
       await checkAndAwardBadges(user.id);
       const [slugs, mins, heat, jour] = await Promise.all([
         getEarnedBadgeSlugs(user.id),
@@ -57,6 +56,7 @@ export default function ProgressScreen() {
       setWeekMins(mins);
       setHeatmap(heat);
       setJourney(jour);
+      refreshUser().catch(() => {});
     } catch { /* use defaults */ }
     finally { setStatsLoading(false); }
   }, [user?.id]);

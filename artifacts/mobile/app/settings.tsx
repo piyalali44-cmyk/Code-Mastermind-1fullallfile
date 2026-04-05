@@ -204,7 +204,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, refreshUser } = useAuth();
   const { nowPlaying } = useAudio();
   const { theme, setTheme } = useTheme();
   const { featureFlags } = useAppSettings();
@@ -307,6 +307,7 @@ export default function SettingsScreen() {
     if (!isGuest && user) {
       await updateUserCountry(user.id, code);
       showToast("Country updated", "check-circle", colors.green);
+      refreshUser().catch(() => {});
     }
   };
 
