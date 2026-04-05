@@ -184,18 +184,22 @@ function Router() {
 
         <Route path="/users">
           <RequireAuth>
-            <AdminLayout>
-              <UsersList />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <UsersList />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/users/:id">
           {(params) => (
             <RequireAuth>
-              <AdminLayout>
-                <UserDetail userId={params.id} />
-              </AdminLayout>
+              <RequirePermission minRole="admin">
+                <AdminLayout>
+                  <UserDetail userId={params.id} />
+                </AdminLayout>
+              </RequirePermission>
             </RequireAuth>
           )}
         </Route>
@@ -280,9 +284,11 @@ function Router() {
 
         <Route path="/analytics">
           <RequireAuth>
-            <AdminLayout>
-              <Analytics />
-            </AdminLayout>
+            <RequirePermission minRole="content">
+              <AdminLayout>
+                <Analytics />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 

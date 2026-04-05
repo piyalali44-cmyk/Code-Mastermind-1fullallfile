@@ -28,10 +28,10 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  support: "Support — User management & contact messages",
-  content: "Content — Manage content, series, episodes & hadith",
-  editor: "Editor — Full content + journey + feed editor",
-  admin: "Admin — All features except super admin settings",
+  support: "Support — Contact message replies only",
+  content: "Content — Content, series, episodes, hadith & analytics",
+  editor: "Editor — Content + journey + feed + gamification + notifications",
+  admin: "Admin — All features including user management & monetization",
 };
 
 const ROLE_HIERARCHY = ["support", "content", "editor", "admin", "super_admin"];
