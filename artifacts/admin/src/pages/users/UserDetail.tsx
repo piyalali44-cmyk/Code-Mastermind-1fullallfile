@@ -119,8 +119,8 @@ export default function UserDetail({ userId }: { userId: string }) {
 
   async function updateUserRole() {
     if (!user || !canManageRoles) return;
-    if (selectedRole === "super_admin" && !isSuperAdmin) return void toast.error("Super Admin role শুধুমাত্র Super Admin দিতে পারবেন");
-    if (selectedRole === (user.role || "user")) return void toast.info("Role পরিবর্তন হয়নি");
+    if (selectedRole === "super_admin" && !isSuperAdmin) return void toast.error("Only Super Admin can assign the Super Admin role");
+    if (selectedRole === (user.role || "user")) return void toast.info("No change — role is already set to this value");
     setRoleUpdating(true);
     try {
       const { error } = await supabase.from("profiles").update({ role: selectedRole }).eq("id", userId);
@@ -132,7 +132,7 @@ export default function UserDetail({ userId }: { userId: string }) {
         entity_id: userId,
         details: { old_role: user.role || "user", new_role: selectedRole },
       }).then(() => {}, () => {});
-      toast.success(`Role ${selectedRole} এ আপডেট করা হয়েছে`);
+      toast.success(`Role updated to "${selectedRole}"`);
       load();
     } catch (err: unknown) {
       toast.error((err as Error).message);
@@ -438,14 +438,14 @@ export default function UserDetail({ userId }: { userId: string }) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
               <Shield className="h-4 w-4 text-primary" />
-              Admin Role ও Permissions
+              Admin Role & Permissions
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs text-muted-foreground">বর্তমান Role</Label>
+                  <Label className="text-xs text-muted-foreground">Current Role</Label>
                   <div className="mt-1">
                     <Badge
                       variant="outline"
@@ -463,18 +463,18 @@ export default function UserDetail({ userId }: { userId: string }) {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label>নতুন Role দিন</Label>
+                  <Label>Assign Role</Label>
                   <Select value={selectedRole} onValueChange={setSelectedRole}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="user">User — সাধারণ ইউজার (কোনো admin access নেই)</SelectItem>
-                      <SelectItem value="support">Support — ইউজার ম্যানেজমেন্ট ও কন্টাক্ট মেসেজ</SelectItem>
-                      <SelectItem value="content">Content — কন্টেন্ট ও হাদীস ম্যানেজমেন্ট</SelectItem>
-                      <SelectItem value="editor">Editor — কন্টেন্ট + জার্নি + ফিড এডিটর</SelectItem>
-                      <SelectItem value="admin">Admin — সব ফিচার (সুপার সেটিংস ছাড়া)</SelectItem>
-                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin — সম্পূর্ণ নিয়ন্ত্রণ</SelectItem>}
+                      <SelectItem value="user">User — Standard app user (no admin access)</SelectItem>
+                      <SelectItem value="support">Support — User management & contact messages</SelectItem>
+                      <SelectItem value="content">Content — Manage content, series & hadith</SelectItem>
+                      <SelectItem value="editor">Editor — Content + journey + feed editor</SelectItem>
+                      <SelectItem value="admin">Admin — All features except super admin settings</SelectItem>
+                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin — Full control over everything</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -484,18 +484,18 @@ export default function UserDetail({ userId }: { userId: string }) {
                   disabled={roleUpdating || selectedRole === (user?.role || "user")}
                 >
                   <Shield className="h-4 w-4 mr-2" />
-                  {roleUpdating ? "সংরক্ষণ হচ্ছে…" : "Role আপডেট করুন"}
+                  {roleUpdating ? "Saving…" : "Update Role"}
                 </Button>
               </div>
 
               <div className="space-y-1.5 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
-                <p className="font-medium text-foreground text-sm mb-2">Role Permission সারাংশ</p>
+                <p className="font-medium text-foreground text-sm mb-2">Role Permission Summary</p>
                 {[
-                  { role: "support", label: "Support", perms: "ইউজার দেখা, কন্টাক্ট মেসেজ, Analytics" },
+                  { role: "support", label: "Support", perms: "View users, contact messages, analytics" },
                   { role: "content", label: "Content", perms: "Content + Hadith + Journey + Analytics" },
                   { role: "editor", label: "Editor", perms: "Content + Feed + Gamification + Notifications" },
-                  { role: "admin", label: "Admin", perms: "সব কিছু (Monetization সহ, Super settings ছাড়া)" },
-                  { role: "super_admin", label: "Super Admin", perms: "সম্পূর্ণ access, সব settings সহ" },
+                  { role: "admin", label: "Admin", perms: "All features including Monetization, except super settings" },
+                  { role: "super_admin", label: "Super Admin", perms: "Full access including all settings" },
                 ].map(({ role: r, label, perms }) => (
                   <div key={r} className={`flex gap-2 py-0.5 ${selectedRole === r ? "text-foreground font-medium" : ""}`}>
                     <span className="shrink-0 w-20">{label}</span>

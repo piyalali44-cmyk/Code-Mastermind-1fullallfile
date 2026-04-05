@@ -475,10 +475,28 @@
     .mobile-text-sm { font-size: 0.8125rem !important; }
   }
 
+  /* Professional focus-visible — buttons and interactive controls only */
   *:focus-visible {
-    outline: 2px solid hsl(var(--ring));
+    outline: none;
+  }
+  button:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="option"]:focus-visible,
+  [role="switch"]:focus-visible,
+  a:focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.6);
     outline-offset: 2px;
     border-radius: inherit;
+  }
+  /* Inputs use ring via Tailwind classes — no extra outline needed */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="combobox"]:focus-visible,
+  [role="searchbox"]:focus-visible,
+  [data-radix-select-trigger]:focus-visible {
+    outline: none;
   }
 
   input[type="date"],

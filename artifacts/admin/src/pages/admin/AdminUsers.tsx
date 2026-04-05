@@ -28,10 +28,10 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const ROLE_LABELS: Record<string, string> = {
-  support: "Support — ইউজার ম্যানেজমেন্ট ও কন্টাক্ট মেসেজ",
-  content: "Content — কন্টেন্ট ও হাদীস ম্যানেজমেন্ট",
-  editor: "Editor — কন্টেন্ট + জার্নি + ফিড এডিটর",
-  admin: "Admin — সব ফিচার (সুপার সেটিংস ছাড়া)",
+  support: "Support — User management & contact messages",
+  content: "Content — Manage content, series, episodes & hadith",
+  editor: "Editor — Full content + journey + feed editor",
+  admin: "Admin — All features except super admin settings",
 };
 
 const ROLE_HIERARCHY = ["support", "content", "editor", "admin", "super_admin"];
@@ -75,7 +75,7 @@ export default function AdminUsers() {
 
   async function searchUser() {
     const q = promoteSearch.trim();
-    if (!q) return void toast.error("Email বা নাম লিখুন");
+    if (!q) return void toast.error("Enter an email or name to search");
     setSearching(true);
     setFoundUser(null);
     setSearchError("");
@@ -89,12 +89,10 @@ export default function AdminUsers() {
 
       if (error) throw error;
       if (!data) {
-        setSearchError("কোনো ইউজার পাওয়া যায়নি। অন্য email বা নাম দিয়ে চেষ্টা করুন।");
+        setSearchError("No user found. Try a different email or name.");
       } else {
         setFoundUser(data as FoundUser);
-        setPromoteRole(
-          data.role && data.role !== "user" ? data.role : "editor"
-        );
+        setPromoteRole(data.role && data.role !== "user" ? data.role : "editor");
       }
     } catch (err: unknown) {
       setSearchError((err as Error).message);
@@ -105,8 +103,8 @@ export default function AdminUsers() {
 
   async function promoteUser() {
     if (!foundUser) return;
-    if (!isSuperAdmin && !isAdmin) return void toast.error("শুধুমাত্র Admin বা Super Admin এটি করতে পারবেন");
-    if (promoteRole === "super_admin" && !isSuperAdmin) return void toast.error("Super Admin role শুধুমাত্র Super Admin দিতে পারবেন");
+    if (!isSuperAdmin && !isAdmin) return void toast.error("Only Admin or Super Admin can assign roles");
+    if (promoteRole === "super_admin" && !isSuperAdmin) return void toast.error("Only Super Admin can assign the Super Admin role");
     setPromoting(true);
     try {
       const { error } = await supabase
@@ -123,7 +121,7 @@ export default function AdminUsers() {
         details: { old_role: foundUser.role || "user", new_role: promoteRole },
       }).then(() => {}, () => {});
 
-      toast.success(`${foundUser.display_name || foundUser.email} কে ${promoteRole} role দেওয়া হয়েছে`);
+      toast.success(`Role "${promoteRole}" assigned to ${foundUser.display_name || foundUser.email}`);
       setFoundUser(null);
       setPromoteSearch("");
       setSearchError("");
@@ -136,11 +134,11 @@ export default function AdminUsers() {
   }
 
   async function inviteAdmin() {
-    if (!inviteEmail.trim()) return void toast.error("Email আবশ্যক");
-    if (!isSuperAdmin) return void toast.error("শুধুমাত্র Super Admin এটি করতে পারবেন");
+    if (!inviteEmail.trim()) return void toast.error("Email is required");
+    if (!isSuperAdmin) return void toast.error("Only Super Admin can send invitations");
     setInviting(true);
     try {
-      if (!supabaseAdmin) throw new Error("Service key configured নেই — ইউজার invite করা যাচ্ছে না");
+      if (!supabaseAdmin) throw new Error("Service key not configured — cannot invite users");
       const { data: newUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(inviteEmail, {
         data: { role: inviteRole },
       });
@@ -154,7 +152,7 @@ export default function AdminUsers() {
         entity_type: "admin_user",
         details: { email: inviteEmail, role: inviteRole },
       }).then(() => {}, () => {});
-      toast.success(`${inviteEmail} এ invite পাঠানো হয়েছে`);
+      toast.success(`Invitation sent to ${inviteEmail}`);
       setInviteOpen(false);
       setInviteEmail("");
       load();
@@ -166,7 +164,7 @@ export default function AdminUsers() {
   }
 
   async function updateRole(user: AdminUser, newRole: string) {
-    if (!isSuperAdmin) return void toast.error("শুধুমাত্র Super Admin এটি করতে পারবেন");
+    if (!isSuperAdmin) return void toast.error("Only Super Admin can change roles");
     try {
       const { error } = await supabase.from("profiles").update({ role: newRole }).eq("id", user.id);
       if (error) throw error;
@@ -177,7 +175,7 @@ export default function AdminUsers() {
         entity_id: user.id,
         details: { old_role: user.role, new_role: newRole },
       }).then(() => {}, () => {});
-      toast.success("Role আপডেট করা হয়েছে");
+      toast.success("Role updated successfully");
       setEditUser(null);
       load();
     } catch (err: unknown) {
@@ -186,8 +184,8 @@ export default function AdminUsers() {
   }
 
   async function removeAdmin(user: AdminUser) {
-    if (!isSuperAdmin) return void toast.error("শুধুমাত্র Super Admin এটি করতে পারবেন");
-    if (user.id === profile?.id) return void toast.error("নিজের access নিজে remove করা যাবে না");
+    if (!isSuperAdmin) return void toast.error("Only Super Admin can remove admin access");
+    if (user.id === profile?.id) return void toast.error("You cannot remove your own access");
     try {
       await supabase.from("profiles").update({ role: "user" }).eq("id", user.id);
       supabase.from("admin_activity_log").insert({
@@ -196,7 +194,7 @@ export default function AdminUsers() {
         entity_type: "admin_user",
         entity_id: user.id,
       }).then(() => {}, () => {});
-      toast.success("Admin access সরিয়ে দেওয়া হয়েছে");
+      toast.success("Admin access removed");
       load();
     } catch (err: unknown) {
       toast.error((err as Error).message);
@@ -211,12 +209,12 @@ export default function AdminUsers() {
             <ShieldCheck className="h-6 w-6 text-primary" />
             Admin Team
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{users.length} জন admin team member</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{users.length} team member{users.length !== 1 ? "s" : ""}</p>
         </div>
         {isSuperAdmin && (
           <Button onClick={() => setInviteOpen(true)}>
             <Mail className="h-4 w-4 mr-2" />
-            Email Invite
+            Invite by Email
           </Button>
         )}
       </div>
@@ -238,14 +236,14 @@ export default function AdminUsers() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <UserCheck className="h-4 w-4 text-primary" />
-              Registered User কে Role দিন
+              Assign Role to Existing User
             </CardTitle>
-            <p className="text-sm text-muted-foreground">যে ইউজার ইতিমধ্যে App-এ রেজিস্টার করেছেন, তাকে email বা নাম দিয়ে খুঁজে Admin Panel-এ access দিন।</p>
+            <p className="text-sm text-muted-foreground">Search for any registered app user by email or name and grant them admin panel access.</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Email বা নাম লিখুন..."
+                placeholder="Search by email or name..."
                 value={promoteSearch}
                 onChange={e => { setPromoteSearch(e.target.value); setFoundUser(null); setSearchError(""); }}
                 onKeyDown={e => e.key === "Enter" && searchUser()}
@@ -253,7 +251,7 @@ export default function AdminUsers() {
               />
               <Button onClick={searchUser} disabled={searching || !promoteSearch.trim()}>
                 <Search className="h-4 w-4 mr-2" />
-                {searching ? "খোঁজা হচ্ছে…" : "খুঁজুন"}
+                {searching ? "Searching…" : "Search"}
               </Button>
             </div>
 
@@ -272,9 +270,9 @@ export default function AdminUsers() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-semibold text-sm">{foundUser.display_name || "নাম নেই"}</p>
+                      <p className="font-semibold text-sm">{foundUser.display_name || "No name"}</p>
                       <p className="text-xs text-muted-foreground">{foundUser.email}</p>
-                      <p className="text-xs text-muted-foreground">যোগ দিয়েছেন: {formatDate(foundUser.joined_at)}</p>
+                      <p className="text-xs text-muted-foreground">Joined: {formatDate(foundUser.joined_at)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -291,7 +289,7 @@ export default function AdminUsers() {
 
                 <div className="flex items-end gap-3">
                   <div className="flex-1 space-y-1">
-                    <Label>নতুন Role</Label>
+                    <Label>Assign Role</Label>
                     <Select value={promoteRole} onValueChange={setPromoteRole}>
                       <SelectTrigger>
                         <SelectValue />
@@ -301,7 +299,7 @@ export default function AdminUsers() {
                           <SelectItem key={r} value={r}>{label}</SelectItem>
                         ))}
                         {isSuperAdmin && (
-                          <SelectItem value="super_admin">Super Admin — সম্পূর্ণ নিয়ন্ত্রণ</SelectItem>
+                          <SelectItem value="super_admin">Super Admin — Full control over everything</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -312,12 +310,12 @@ export default function AdminUsers() {
                     className="shrink-0"
                   >
                     <UserCheck className="h-4 w-4 mr-2" />
-                    {promoting ? "সংরক্ষণ হচ্ছে…" : "Role দিন"}
+                    {promoting ? "Saving…" : "Assign Role"}
                   </Button>
                 </div>
 
                 {promoteRole === (foundUser.role || "user") && (
-                  <p className="text-xs text-muted-foreground">ইউজারের বর্তমান role-এর মতোই আছে। পরিবর্তন করতে ভিন্ন role বেছে নিন।</p>
+                  <p className="text-xs text-muted-foreground">User already has this role. Select a different role to make a change.</p>
                 )}
               </div>
             )}
@@ -330,10 +328,10 @@ export default function AdminUsers() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ইউজার</TableHead>
+                <TableHead>User</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>যোগ দিয়েছেন</TableHead>
+                <TableHead>Joined</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -349,7 +347,7 @@ export default function AdminUsers() {
               ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
-                    এখনো কোনো admin team member নেই
+                    No admin team members yet
                   </TableCell>
                 </TableRow>
               ) : users.map(u => (
@@ -362,9 +360,9 @@ export default function AdminUsers() {
                           {u.display_name?.[0]?.toUpperCase() || "?"}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-sm">{u.display_name || "নাম নেই"}</span>
+                      <span className="font-medium text-sm">{u.display_name || "No name"}</span>
                       {u.id === profile?.id && (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">আপনি</Badge>
+                        <Badge variant="outline" className="text-xs text-muted-foreground">You</Badge>
                       )}
                     </div>
                   </TableCell>
@@ -392,8 +390,8 @@ export default function AdminUsers() {
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Email দিয়ে Invite করুন</DialogTitle>
-            <DialogDescription>নতুন team member কে email invitation পাঠান। তারা signup করলে automatically role পাবেন।</DialogDescription>
+            <DialogTitle>Invite by Email</DialogTitle>
+            <DialogDescription>Send an email invitation to add a new team member. They will receive a signup link with the assigned role.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
@@ -413,10 +411,10 @@ export default function AdminUsers() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteOpen(false)}>বাতিল</Button>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
             <Button onClick={inviteAdmin} disabled={inviting}>
               <Mail className="h-4 w-4 mr-2" />
-              {inviting ? "পাঠানো হচ্ছে…" : "Invite পাঠান"}
+              {inviting ? "Sending…" : "Send Invite"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -425,26 +423,26 @@ export default function AdminUsers() {
       <Dialog open={!!editUser} onOpenChange={o => !o && setEditUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Role পরিবর্তন</DialogTitle>
-            <DialogDescription>{editUser?.display_name || editUser?.email}-এর role আপডেট করুন</DialogDescription>
+            <DialogTitle>Change Role</DialogTitle>
+            <DialogDescription>Update role for {editUser?.display_name || editUser?.email}</DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            <Label>নতুন Role</Label>
+            <Label>New Role</Label>
             <Select value={editRole} onValueChange={setEditRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ROLE_HIERARCHY.map(r => (
-                  <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>
+                  <SelectItem key={r} value={r} className="capitalize">{r.replace("_", " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditUser(null)}>বাতিল</Button>
+            <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
             <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => editUser && removeAdmin(editUser)}>
-              Access সরান
+              Remove Access
             </Button>
-            <Button onClick={() => editUser && updateRole(editUser, editRole)}>আপডেট করুন</Button>
+            <Button onClick={() => editUser && updateRole(editUser, editRole)}>Update Role</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
