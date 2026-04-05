@@ -97,9 +97,9 @@ export async function getProgress(userId: string, contentType: "surah" | "episod
 }
 
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
-export async function addToHistory(userId: string, entry: { contentType: "surah" | "episode"; contentId: string; title: string; seriesName?: string; seriesId?: string; durationMs?: number }) {
+export async function addToHistory(userId: string, entry: { contentType: "surah" | "episode"; contentId: string; title: string; seriesName?: string; seriesId?: string; durationMs?: number }): Promise<string | null> {
   try {
-    await supabase.from("listening_history").insert({
+    const { data } = await supabase.from("listening_history").insert({
       user_id: userId,
       content_type: entry.contentType,
       content_id: entry.contentId,
@@ -107,7 +107,15 @@ export async function addToHistory(userId: string, entry: { contentType: "surah"
       series_name: entry.seriesName ?? null,
       series_id: entry.seriesId ?? null,
       duration_ms: entry.durationMs ?? 0,
-    });
+    }).select("id").single();
+    return data?.id ?? null;
+  } catch { return null; }
+}
+
+export async function updateHistoryDuration(historyId: string, durationMs: number): Promise<void> {
+  if (!historyId || durationMs <= 0) return;
+  try {
+    await supabase.from("listening_history").update({ duration_ms: durationMs }).eq("id", historyId);
   } catch { /* fail silently */ }
 }
 
