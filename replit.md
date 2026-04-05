@@ -218,6 +218,11 @@ context/
 - Guest access: controlled remotely via `guest_access_enabled` setting — hides guest button + forces logout if disabled
 - Settings > Subscription in admin redirects to Monetization > Plans (single source of truth)
 
+### SQL Migrations
+- `artifacts/mobile/supabase/complete_setup.sql` — full DB schema (run first if DB is fresh)
+- `artifacts/mobile/supabase/master_migration.sql` — **CONSOLIDATED** migration: library tables, coupon_redemptions, admin RLS policies, redeem_code() RPC function, push_token column, referral_code backfill (run this after complete_setup)
+- Individual files: `fix_redeem_system.sql`, `fix_library_tables.sql`, `fix_admin_permissions.sql` (superseded by master_migration.sql)
+
 ### Key Rules
 - **Qur'an is ALWAYS FREE** — `canPlaySurah()` always returns true
 - Referral code = `SG` + first 6 uppercase hex chars of UUID

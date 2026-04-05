@@ -118,10 +118,41 @@ export default function SubscriptionScreen() {
           <Text style={[styles.heroSub, { color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginTop: 8 }]}>
             Subscription is not yet available. All content is free while we get everything ready for you. JazakAllah Khayran!
           </Text>
-          <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold, marginTop: 24, marginBottom: 24, width: "100%" }]}>
+          <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold, marginTop: 24, width: "100%" }]}>
             <Text style={styles.subscribeBtnText}>Continue Exploring</Text>
           </Pressable>
-          <View style={{ width: "100%", gap: 10 }}>
+
+          <View style={[styles.couponCard, { backgroundColor: colors.surface, borderColor: colors.border, width: "100%", marginTop: 16 }]}>
+            <Text style={[styles.couponLabel, { color: colors.textSecondary }]}>Have a referral or coupon code? Enter it here</Text>
+            <View style={styles.couponRow}>
+              <TextInput
+                value={couponCode}
+                onChangeText={setCouponCode}
+                placeholder="Enter code"
+                placeholderTextColor={colors.textMuted}
+                style={[styles.couponInput, { backgroundColor: colors.surfaceHigh, borderColor: colors.border, color: colors.textPrimary }]}
+                autoCapitalize="characters"
+                autoComplete="off"
+                autoCorrect={false}
+                spellCheck={false}
+                importantForAutofill="no"
+                editable={!couponLoading}
+              />
+              <Pressable
+                onPress={handleApplyCoupon}
+                disabled={!couponCode.trim() || couponLoading}
+                style={[styles.applyBtn, { backgroundColor: couponCode.trim() && !couponLoading ? colors.gold : colors.divider }]}
+              >
+                {couponLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.applyBtnText, { color: couponCode.trim() ? "#fff" : colors.textMuted }]}>Apply</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={{ width: "100%", gap: 10, marginTop: 16 }}>
             {FEATURES.map((f, i) => (
               <View key={i} style={[styles.featureRow, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 12, padding: 14 }]}>
                 <View style={[styles.featureCheck, { backgroundColor: colors.green + "22" }]}>
@@ -221,7 +252,7 @@ export default function SubscriptionScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: hasMiniplayer ? 130 : 90 }}
+        contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 130 : 90) + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
