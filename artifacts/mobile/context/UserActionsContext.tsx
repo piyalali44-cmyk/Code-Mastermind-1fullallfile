@@ -144,6 +144,7 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
   };
 
   const toggleFavourite = useCallback((id: string, meta?: { title?: string; coverColor?: string }) => {
+    if (!userId) return false;
     const currentlyFav = favourites.has(id);
     const added = !currentlyFav;
 
@@ -168,6 +169,7 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
   }, [userId, favourites]);
 
   const toggleBookmark = useCallback((id: string, meta?: { title?: string; coverColor?: string }) => {
+    if (!userId) return false;
     const currentlyBk = bookmarks.has(id);
     const added = !currentlyBk;
 
@@ -215,6 +217,10 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
   }, [userId]);
 
   const startDownload = useCallback(async (id: string, audioUrl: string, meta?: { title?: string }) => {
+    if (!userId) {
+      console.warn("[startDownload] Not logged in");
+      return;
+    }
     if (!audioUrl) {
       console.warn("[startDownload] No audio URL for", id);
       return;
