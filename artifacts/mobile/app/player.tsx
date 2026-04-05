@@ -229,10 +229,19 @@ export default function PlayerScreen() {
     setLangModal(false);
   };
 
-  const itemId = nowPlaying?.id ?? "";
+  // Canonical favourite key:
+  //   surah  → "surah:<number>"   (shows in Library Favourites as a Surah row)
+  //   series → "series:<seriesId>" (shows in Library Favourites as a Series card)
+  //   other  → raw id (fallback)
+  const itemId = nowPlaying?.surahNumber != null
+    ? `surah:${nowPlaying.surahNumber}`
+    : nowPlaying?.seriesId
+      ? `series:${nowPlaying.seriesId}`
+      : (nowPlaying?.id ?? "");
+
   const isLiked = isFavourite(itemId);
   const isBookmarked = isItemBookmarked(itemId);
-  const isDownloaded = isItemDownloaded(itemId);
+  const isDownloaded = isItemDownloaded(nowPlaying?.id ?? "");
 
   const itemMeta = { title: nowPlaying?.title ?? "", coverColor: nowPlaying?.coverColor, audioUrl: nowPlaying?.audioUrl };
 

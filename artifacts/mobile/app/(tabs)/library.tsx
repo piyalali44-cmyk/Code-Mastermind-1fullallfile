@@ -12,6 +12,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SeriesCard } from "@/components/SeriesCard";
+import { SURAHS } from "@/constants/surahs";
 
 const TABS = ["Continue", "Favourites", "Bookmarks", "History", "Completed"];
 
@@ -69,6 +70,8 @@ export default function LibraryScreen() {
 
   const favouritedSeries = SERIES.filter((s) => favourites.has(`series:${s.id}`));
   const bookmarkedSeries = SERIES.filter((s) => bookmarks.has(`series:${s.id}`));
+  const favouritedSurahs = SURAHS.filter((s) => favourites.has(`surah:${s.number}`));
+  const bookmarkedSurahs = SURAHS.filter((s) => bookmarks.has(`surah:${s.number}`));
   const downloadedSeries = SERIES.filter((s) =>
     (s.episodes ?? []).some((ep) =>
       downloads.has(`episode:${ep.id}`) || downloads.has(ep.id)
@@ -213,21 +216,46 @@ export default function LibraryScreen() {
         {/* ── Favourites ── */}
         {activeTab === 1 && (
           <>
-            {favouritedSeries.length > 0 ? (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Favourite series</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                  {favouritedSeries.map((s) => <SeriesCard key={s.id} series={s} />)}
-                </View>
-              </>
-            ) : (
+            {favouritedSeries.length === 0 && favouritedSurahs.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="heart" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No favourites yet</Text>
                 <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  Tap the heart icon on any series or episode to save it here.
+                  Tap the heart icon on any series, episode, or Qur'an surah to save it here.
                 </Text>
               </View>
+            ) : (
+              <>
+                {favouritedSeries.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Favourite Series</Text>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                      {favouritedSeries.map((s) => <SeriesCard key={s.id} series={s} />)}
+                    </View>
+                  </>
+                )}
+                {favouritedSurahs.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: favouritedSeries.length > 0 ? 8 : 0 }]}>Favourite Surahs</Text>
+                    {favouritedSurahs.map((s) => (
+                      <Pressable
+                        key={s.number}
+                        onPress={() => router.push(`/quran/${s.number}` as any)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: colors.gold + "22" }]}>
+                          <Text style={{ color: colors.goldLight, fontWeight: "700", fontSize: 13 }}>{s.number}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.nameSimple}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.nameArabic} · {s.verseCount} verses</Text>
+                        </View>
+                        <Icon name="heart" size={14} color={colors.gold} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </>
         )}
@@ -235,36 +263,59 @@ export default function LibraryScreen() {
         {/* ── Bookmarks ── */}
         {activeTab === 2 && (
           <>
-            {bookmarkedSeries.length > 0 ? (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Saved series</Text>
-                {bookmarkedSeries.map((s) => (
-                  <Pressable
-                    key={s.id}
-                    onPress={() => router.push(`/series/${s.id}`)}
-                    style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  >
-                    <View style={[styles.histCover, { backgroundColor: s.coverColor }]}>
-                      <Icon name="headphones" size={18} color={colors.goldLight} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.title}</Text>
-                      <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.episodeCount} episodes</Text>
-                    </View>
-                    <View style={[styles.numBadge, { backgroundColor: colors.gold + "22" }]}>
-                      <Icon name="bookmark" size={14} color={colors.goldLight} />
-                    </View>
-                  </Pressable>
-                ))}
-              </>
-            ) : (
+            {bookmarkedSeries.length === 0 && bookmarkedSurahs.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="bookmark" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No bookmarks yet</Text>
                 <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  Tap the bookmark icon on any series to save it here.
+                  Tap the bookmark icon on any series or surah to save it here.
                 </Text>
               </View>
+            ) : (
+              <>
+                {bookmarkedSeries.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Saved Series</Text>
+                    {bookmarkedSeries.map((s) => (
+                      <Pressable
+                        key={s.id}
+                        onPress={() => router.push(`/series/${s.id}`)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: s.coverColor }]}>
+                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.title}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.episodeCount} episodes</Text>
+                        </View>
+                        <Icon name="bookmark" size={14} color={colors.goldLight} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+                {bookmarkedSurahs.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: bookmarkedSeries.length > 0 ? 8 : 0 }]}>Saved Surahs</Text>
+                    {bookmarkedSurahs.map((s) => (
+                      <Pressable
+                        key={s.number}
+                        onPress={() => router.push(`/quran/${s.number}` as any)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: colors.gold + "22" }]}>
+                          <Text style={{ color: colors.goldLight, fontWeight: "700", fontSize: 13 }}>{s.number}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.nameSimple}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.nameArabic} · {s.verseCount} verses</Text>
+                        </View>
+                        <Icon name="bookmark" size={14} color={colors.goldLight} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </>
         )}
