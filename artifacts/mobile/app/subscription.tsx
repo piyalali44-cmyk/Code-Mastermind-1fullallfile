@@ -291,12 +291,12 @@ export default function SubscriptionScreen() {
           </View>
 
           <View style={[styles.couponCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.couponLabel, { color: colors.textSecondary }]}>Have a referral code? Get +100 XP</Text>
+            <Text style={[styles.couponLabel, { color: colors.textSecondary }]}>Have a referral or coupon code?</Text>
             <View style={styles.couponRow}>
               <TextInput
                 value={couponCode}
                 onChangeText={setCouponCode}
-                placeholder="Enter code (e.g. SGA1B2C3)"
+                placeholder="Enter code"
                 placeholderTextColor={colors.textMuted}
                 style={[styles.couponInput, { backgroundColor: colors.surfaceHigh, borderColor: colors.border, color: colors.textPrimary }]}
                 autoCapitalize="characters"
