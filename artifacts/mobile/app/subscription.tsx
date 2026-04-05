@@ -139,41 +139,74 @@ export default function SubscriptionScreen() {
   if (user?.isPremium) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <LinearGradient
-          colors={[colors.gold + "44", colors.gold + "11", colors.background]}
-          style={[styles.hero, { paddingTop: insets.top + (isWeb ? 67 : 0) + 16, paddingBottom: 40 }]}
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 60) + insets.bottom }}
+          showsVerticalScrollIndicator={false}
         >
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Icon name="x" size={22} color={colors.textPrimary} />
-          </Pressable>
-          <View style={[styles.crownWrap, { backgroundColor: colors.gold + "33" }]}>
-            <Icon name="star" size={44} color={colors.goldLight} />
-          </View>
-          <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>You're Premium</Text>
-          <Text style={[styles.heroSub, { color: colors.textSecondary }]}>Enjoy unlimited access to all Islamic content</Text>
-        </LinearGradient>
-        <View style={{ padding: 20, gap: 14 }}>
-          <View style={[{ borderRadius: 14, borderWidth: 1, padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.gold + "44" }]}>
-            <Text style={{ color: colors.gold, fontWeight: "700", fontSize: 15 }}>Active Benefits</Text>
-            {FEATURES.map((f, i) => (
-              <View key={i} style={styles.featureRow}>
-                <View style={[styles.featureCheck, { backgroundColor: colors.gold + "22" }]}>
-                  <Icon name="check" size={12} color={colors.goldLight} />
+          <LinearGradient
+            colors={[colors.gold + "44", colors.gold + "11", colors.background]}
+            style={[styles.hero, { paddingTop: insets.top + (isWeb ? 67 : 0) + 16, paddingBottom: 40 }]}
+          >
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <Icon name="x" size={22} color={colors.textPrimary} />
+            </Pressable>
+            <View style={[styles.crownWrap, { backgroundColor: colors.gold + "33" }]}>
+              <Icon name="star" size={44} color={colors.goldLight} />
+            </View>
+            <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>You're Premium</Text>
+            <Text style={[styles.heroSub, { color: colors.textSecondary }]}>Enjoy unlimited access to all Islamic content</Text>
+          </LinearGradient>
+          <View style={{ padding: 20, gap: 14 }}>
+            <View style={[{ borderRadius: 14, borderWidth: 1, padding: 18, gap: 12, backgroundColor: colors.surface, borderColor: colors.gold + "44" }]}>
+              <Text style={{ color: colors.gold, fontWeight: "700", fontSize: 15 }}>Active Benefits</Text>
+              {FEATURES.map((f, i) => (
+                <View key={i} style={styles.featureRow}>
+                  <View style={[styles.featureCheck, { backgroundColor: colors.gold + "22" }]}>
+                    <Icon name="check" size={12} color={colors.goldLight} />
+                  </View>
+                  <Text style={[styles.featureText, { color: colors.textSecondary }]}>{f}</Text>
                 </View>
-                <Text style={[styles.featureText, { color: colors.textSecondary }]}>{f}</Text>
+              ))}
+            </View>
+            <View style={[{ borderRadius: 12, borderWidth: 1, padding: 14, flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "#0a2018", borderColor: colors.green + "33" }]}>
+              <Icon name="shield" size={18} color={colors.green} />
+              <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colors.textSecondary }}>
+                Your subscription is <Text style={{ color: colors.green, fontWeight: "700" }}>active</Text>. Manage billing in your account settings.
+              </Text>
+            </View>
+            <View style={[styles.couponCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.couponLabel, { color: colors.textSecondary }]}>Have a coupon or referral code?</Text>
+              <View style={styles.couponRow}>
+                <TextInput
+                  value={couponCode}
+                  onChangeText={setCouponCode}
+                  placeholder="Enter code"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.couponInput, { backgroundColor: colors.surfaceHigh, borderColor: colors.border, color: colors.textPrimary }]}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  editable={!couponLoading}
+                />
+                <Pressable
+                  onPress={handleApplyCoupon}
+                  disabled={!couponCode.trim() || couponLoading}
+                  style={[styles.applyBtn, { backgroundColor: couponCode.trim() && !couponLoading ? colors.gold : colors.divider }]}
+                >
+                  {couponLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={[styles.applyBtnText, { color: couponCode.trim() ? "#fff" : colors.textMuted }]}>Apply</Text>
+                  )}
+                </Pressable>
               </View>
-            ))}
+            </View>
+            <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold }]}>
+              <Text style={styles.subscribeBtnText}>Continue Exploring</Text>
+            </Pressable>
           </View>
-          <View style={[{ borderRadius: 12, borderWidth: 1, padding: 14, flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "#0a2018", borderColor: colors.green + "33" }]}>
-            <Icon name="shield" size={18} color={colors.green} />
-            <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colors.textSecondary }}>
-              Your subscription is <Text style={{ color: colors.green, fontWeight: "700" }}>active</Text>. Manage billing in your account settings.
-            </Text>
-          </View>
-          <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold }]}>
-            <Text style={styles.subscribeBtnText}>Continue Exploring</Text>
-          </Pressable>
-        </View>
+        </ScrollView>
         <Toast
           visible={toast.visible}
           message={toast.message}

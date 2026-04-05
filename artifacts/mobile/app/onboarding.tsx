@@ -32,13 +32,13 @@ const SLIDES = [
   },
   {
     id: "2",
-    icon: "book-open" as const,
+    icon: "quran" as const,
     title: "Listen to the Holy Qur'an",
     subtitle: "114 Surahs · Arabic Text · Multiple Reciters",
     description:
       "Experience the Qur'an as it was meant to be — beautifully recited, with Arabic text and English translation. Free for everyone. Forever.",
     accent: "#B8860E",
-    decorIcon: "book-open" as const,
+    decorIcon: "star" as const,
   },
   {
     id: "3",
