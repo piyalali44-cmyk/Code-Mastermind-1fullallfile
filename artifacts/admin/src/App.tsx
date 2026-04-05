@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { SidebarProvider } from "@/components/Sidebar";
 import { SUPABASE_KEY_MISSING } from "@/lib/supabase";
 import { Suspense, lazy } from "react";
+import type { AdminRole } from "@/lib/types";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,9 +79,20 @@ function LoadingSpinner() {
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, accessDenied } = useAuth();
   if (loading) return <LoadingSpinner />;
-  // Authenticated admin — let them through
   if (profile) return <>{children}</>;
   if (!user || accessDenied) return <Redirect to="/login" />;
+  return <>{children}</>;
+}
+
+function RequirePermission({ children, minRole, exactRole }: {
+  children: React.ReactNode;
+  minRole?: AdminRole;
+  exactRole?: AdminRole;
+}) {
+  const { isAtLeast, role, loading } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  if (exactRole && role !== exactRole) return <Redirect to="/" />;
+  if (minRole && !isAtLeast(minRole)) return <Redirect to="/" />;
   return <>{children}</>;
 }
 
@@ -190,25 +202,31 @@ function Router() {
 
         <Route path="/monetization/plans">
           <RequireAuth>
-            <AdminLayout>
-              <SubscriptionPlans />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <SubscriptionPlans />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/monetization/coupons">
           <RequireAuth>
-            <AdminLayout>
-              <Coupons />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <Coupons />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/monetization/donation">
           <RequireAuth>
-            <AdminLayout>
-              <DonationSettings />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <DonationSettings />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
@@ -278,97 +296,121 @@ function Router() {
 
         <Route path="/settings/feature-flags">
           <RequireAuth>
-            <AdminLayout>
-              <FeatureFlags />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <FeatureFlags />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/guest-access">
           <RequireAuth>
-            <AdminLayout>
-              <AppSettingsGuest />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AppSettingsGuest />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/quran">
           <RequireAuth>
-            <AdminLayout>
-              <AppSettingsQuran />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AppSettingsQuran />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/downloads">
           <RequireAuth>
-            <AdminLayout>
-              <AppSettingsDownloads />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AppSettingsDownloads />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/xp">
           <RequireAuth>
-            <AdminLayout>
-              <AppSettingsXP />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AppSettingsXP />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/appearance">
           <RequireAuth>
-            <AdminLayout>
-              <AppSettingsAppearance />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AppSettingsAppearance />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/ramadan">
           <RequireAuth>
-            <AdminLayout>
-              <RamadanMode />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <RamadanMode />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/referral">
           <RequireAuth>
-            <AdminLayout>
-              <ReferralSettings />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <ReferralSettings />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/rate-limiting">
           <RequireAuth>
-            <AdminLayout>
-              <RateLimiting />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <RateLimiting />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/settings/api-sources">
           <RequireAuth>
-            <AdminLayout>
-              <ApiSources />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <ApiSources />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/staff/users">
           <RequireAuth>
-            <AdminLayout>
-              <AdminUsers />
-            </AdminLayout>
+            <RequirePermission minRole="super_admin">
+              <AdminLayout>
+                <AdminUsers />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
 
         <Route path="/staff/activity-log">
           <RequireAuth>
-            <AdminLayout>
-              <ActivityLog />
-            </AdminLayout>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <ActivityLog />
+              </AdminLayout>
+            </RequirePermission>
           </RequireAuth>
         </Route>
         <Route path="/profile">

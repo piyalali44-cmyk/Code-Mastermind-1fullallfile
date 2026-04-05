@@ -120,67 +120,67 @@ export function Sidebar() {
     {
       title: "Content",
       items: [
-        { title: "Categories", href: "/content/categories", icon: FolderTree, show: true },
-        { title: "Series", href: "/content/series", icon: ListVideo, show: true },
-        { title: "Episodes", href: "/content/episodes", icon: Mic2, show: true },
-        { title: "Reciters", href: "/content/reciters", icon: Mic2, show: true },
-        { title: "Reports", href: "/content/reports", icon: AlertTriangle, show: true, badge: 0 },
-        { title: "Play Stats", href: "/content/play-stats", icon: Headphones, show: true },
+        { title: "Categories", href: "/content/categories", icon: FolderTree, show: isAtLeast("content") },
+        { title: "Series", href: "/content/series", icon: ListVideo, show: isAtLeast("content") },
+        { title: "Episodes", href: "/content/episodes", icon: Mic2, show: isAtLeast("content") },
+        { title: "Reciters", href: "/content/reciters", icon: Mic2, show: isAtLeast("content") },
+        { title: "Reports", href: "/content/reports", icon: AlertTriangle, show: isAtLeast("content"), badge: 0 },
+        { title: "Play Stats", href: "/content/play-stats", icon: Headphones, show: isAtLeast("content") },
       ],
     },
     {
       title: "Journey",
       items: [
-        { title: "Journey Timeline", href: "/journey", icon: Map, show: true },
+        { title: "Journey Timeline", href: "/journey", icon: Map, show: isAtLeast("content") },
       ],
     },
     {
       title: "Home Feed",
       items: [
-        { title: "Feed Manager", href: "/feed", icon: Rss, show: true },
-        { title: "Widget Injection", href: "/feed/widgets", icon: Plug, show: true },
+        { title: "Feed Manager", href: "/feed", icon: Rss, show: isAtLeast("editor") },
+        { title: "Widget Injection", href: "/feed/widgets", icon: Plug, show: isAtLeast("editor") },
       ],
     },
     {
       title: "Users",
       items: [
-        { title: "All Users", href: "/users", icon: Users, show: true },
+        { title: "All Users", href: "/users", icon: Users, show: isAtLeast("support") },
       ],
     },
     {
       title: "Monetization",
       items: [
-        { title: "Subscription Plans", href: "/monetization/plans", icon: CreditCard, show: true },
-        { title: "Coupon Codes", href: "/monetization/coupons", icon: Ticket, show: true },
-        { title: "Donation Settings", href: "/monetization/donation", icon: HeartHandshake, show: true },
+        { title: "Subscription Plans", href: "/monetization/plans", icon: CreditCard, show: isAtLeast("admin") },
+        { title: "Coupon Codes", href: "/monetization/coupons", icon: Ticket, show: isAtLeast("admin") },
+        { title: "Donation Settings", href: "/monetization/donation", icon: HeartHandshake, show: isAtLeast("admin") },
       ],
     },
     {
       title: "Gamification",
       items: [
-        { title: "Quiz Builder", href: "/gamification/quiz", icon: Gamepad2, show: true },
-        { title: "Badge Manager", href: "/gamification/badges", icon: Award, show: true },
-        { title: "Leaderboard", href: "/gamification/leaderboard", icon: Trophy, show: true },
+        { title: "Quiz Builder", href: "/gamification/quiz", icon: Gamepad2, show: isAtLeast("editor") },
+        { title: "Badge Manager", href: "/gamification/badges", icon: Award, show: isAtLeast("editor") },
+        { title: "Leaderboard", href: "/gamification/leaderboard", icon: Trophy, show: isAtLeast("editor") },
       ],
     },
     {
       title: "Notifications",
       items: [
-        { title: "Push Notifications", href: "/notifications/push", icon: Bell, show: true },
-        { title: "Popups & Notice Bar", href: "/notifications/popups", icon: MessageSquareWarning, show: true },
-        { title: "Contact Messages", href: "/notifications/contact", icon: MessageSquare, show: true },
+        { title: "Push Notifications", href: "/notifications/push", icon: Bell, show: isAtLeast("editor") },
+        { title: "Popups & Notice Bar", href: "/notifications/popups", icon: MessageSquareWarning, show: isAtLeast("editor") },
+        { title: "Contact Messages", href: "/notifications/contact", icon: MessageSquare, show: isAtLeast("support") },
       ],
     },
     {
       title: "Analytics",
       items: [
-        { title: "Analytics", href: "/analytics", icon: LineChart, show: isAtLeast("content") },
+        { title: "Analytics", href: "/analytics", icon: LineChart, show: isAtLeast("support") },
       ],
     },
     {
       title: "Hadith",
       items: [
-        { title: "Hadith Manager", href: "/hadith", icon: BookMarked, show: isAtLeast("admin") },
+        { title: "Hadith Manager", href: "/hadith", icon: BookMarked, show: isAtLeast("content") },
       ],
     },
     {
