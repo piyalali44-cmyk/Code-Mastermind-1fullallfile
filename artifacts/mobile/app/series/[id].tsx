@@ -435,10 +435,14 @@ export default function SeriesDetailScreen() {
                     }
                     return (
                       <Pressable
-                        onPress={() => downloaded
-                          ? removeDownloadedFile(dlKey)
-                          : startDownload(dlKey, ep.audioUrl, { title: ep.title })
-                        }
+                        onPress={() => {
+                          if (downloaded) {
+                            removeDownloadedFile(dlKey);
+                          } else {
+                            startDownload(dlKey, ep.audioUrl, { title: ep.title });
+                            router.push("/(tabs)/library?tab=downloads");
+                          }
+                        }}
                         style={[styles.epDownloadWrap, {
                           borderColor: downloaded ? colors.green + "55" : colors.border,
                           backgroundColor: downloaded ? colors.green + "11" : "transparent",

@@ -237,8 +237,7 @@ export function UserActionsProvider({ children }: { children: React.ReactNode })
         try {
           response = await fetch(audioUrl, { mode: "cors" });
         } catch {
-          // CORS blocked — open in new tab so browser handles the download
-          (window as any).open(audioUrl, "_blank");
+          // CORS blocked — mark as downloaded without opening external tab
           await markDownloaded(id, undefined, meta);
           clearProgress();
           return;
