@@ -162,12 +162,15 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchContactStats() {
       try {
-        const [{ count: total }, { count: open }, { count: replied }] = await Promise.all([
-          supabase.from("contact_messages").select("*", { count: "exact", head: true }),
-          supabase.from("contact_messages").select("*", { count: "exact", head: true }).eq("status", "open"),
-          supabase.from("contact_messages").select("*", { count: "exact", head: true }).eq("status", "replied"),
-        ]);
-        setContactStats({ total: total ?? 0, open: open ?? 0, replied: replied ?? 0 });
+        const { data } = await supabase
+          .from("admin_activity_log")
+          .select("id, details")
+          .eq("entity_type", "contact_message");
+        const rows = data || [];
+        const total = rows.length;
+        const replied = rows.filter(r => r.details?.replied === true).length;
+        const open = total - replied;
+        setContactStats({ total, open, replied });
       } catch {
         setContactStats({ total: 0, open: 0, replied: 0 });
       }
@@ -190,27 +193,29 @@ export default function Dashboard() {
           return;
         }
 
-        const queries: Promise<any>[] = [
-          supabase.from("episodes").select("*", { count: "exact", head: true }),
-          supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "published"),
-          supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "draft"),
-          supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "under_review"),
-          supabase.from("series").select("*", { count: "exact", head: true }),
-          safe(supabase.from("content_reports").select("*", { count: "exact", head: true }).eq("status", "pending") as PromiseLike<AnyResult>, { count: 0, data: null, error: null } as AnyResult),
-          supabase.from("episodes").select("title, play_count").order("play_count", { ascending: false }).limit(5),
+        const p = <T,>(q: PromiseLike<T>) => q as unknown as Promise<T>;
+
+        const queries: Promise<AnyResult>[] = [
+          p(supabase.from("episodes").select("*", { count: "exact", head: true })),
+          p(supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "published")),
+          p(supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "draft")),
+          p(supabase.from("episodes").select("*", { count: "exact", head: true }).eq("pub_status", "under_review")),
+          p(supabase.from("series").select("*", { count: "exact", head: true })),
+          safe(p(supabase.from("content_reports").select("*", { count: "exact", head: true }).eq("status", "pending")), { count: 0, data: null, error: null } as AnyResult),
+          p(supabase.from("episodes").select("title, play_count").order("play_count", { ascending: false }).limit(5)),
           safe(
-            supabase.from("admin_activity_log").select("id,action,entity_type,created_at").order("created_at", { ascending: false }).limit(8) as PromiseLike<AnyResult>,
+            p(supabase.from("admin_activity_log").select("id,action,entity_type,created_at").order("created_at", { ascending: false }).limit(8)),
             { data: [], error: null } as AnyResult
           ),
         ];
 
-        const adminQueries: Promise<any>[] = isAtLeast("admin") ? [
-          supabase.from("profiles").select("*", { count: "exact", head: true }),
-          supabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_tier", "premium"),
-          supabase.from("profiles").select("*", { count: "exact", head: true }).gte("updated_at", sevenDaysAgo),
-          supabase.from("profiles").select("joined_at").gte("joined_at", thirtyDaysAgo).order("joined_at"),
-          supabase.from("profiles").select("country").not("country", "is", null),
-          safe(supabase.from("subscriptions").select("provider,status").eq("status", "active") as PromiseLike<AnyResult>, { data: [], error: null } as AnyResult),
+        const adminQueries: Promise<AnyResult>[] = isAtLeast("admin") ? [
+          p(supabase.from("profiles").select("*", { count: "exact", head: true })),
+          p(supabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_tier", "premium")),
+          p(supabase.from("profiles").select("*", { count: "exact", head: true }).gte("updated_at", sevenDaysAgo)),
+          p(supabase.from("profiles").select("joined_at").gte("joined_at", thirtyDaysAgo).order("joined_at")),
+          p(supabase.from("profiles").select("country").not("country", "is", null)),
+          safe(p(supabase.from("subscriptions").select("provider,status").eq("status", "active")), { data: [], error: null } as AnyResult),
         ] : [];
 
         const [
