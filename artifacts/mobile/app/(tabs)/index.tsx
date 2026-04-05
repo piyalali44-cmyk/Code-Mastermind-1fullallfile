@@ -341,38 +341,81 @@ function CarouselCard({
   );
 }
 
-// ─── Professional auto-advancing featured carousel ─────────────────────────────
+// ─── Professional auto-advancing featured carousel (infinite loop) ─────────────
 function FeaturedCarousel({ featured }: { featured: any[] }) {
   const router = useRouter();
-  const [activeIdx, setActiveIdx] = useState(0);
+  // Append a clone of the first card at the end for seamless forward loop
+  const looped = featured.length > 1 ? [...featured, featured[0]] : featured;
+  const [activeIdx, setActiveIdx] = useState(0);   // display dot index (0..featured.length-1)
+  const [scrollIdx, setScrollIdx] = useState(0);   // actual scroll position index
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
-  const isManualScroll = useRef(false);
+  const isSilentSnap = useRef(false);
 
-  const goTo = useCallback((idx: number, animated = true) => {
-    scrollRef.current?.scrollTo({ x: idx * BANNER_CARD_W, animated });
-    setActiveIdx(idx);
-  }, []);
+  // Advance to next card — always forward, never backwards
+  const advanceTo = useCallback((nextScrollIdx: number, animated: boolean) => {
+    scrollRef.current?.scrollTo({ x: nextScrollIdx * BANNER_CARD_W, animated });
+    setScrollIdx(nextScrollIdx);
+    setActiveIdx(nextScrollIdx % featured.length);
+  }, [featured.length]);
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
+    if (featured.length <= 1) return;
     timerRef.current = setInterval(() => {
-      setActiveIdx((prev) => {
-        const next = (prev + 1) % featured.length;
+      setScrollIdx((prev) => {
+        const next = prev + 1; // always go forward
         scrollRef.current?.scrollTo({ x: next * BANNER_CARD_W, animated: true });
+        setActiveIdx(next % featured.length);
         return next;
       });
     }, 4800);
   }, [featured.length]);
 
   useEffect(() => {
-    if (featured.length <= 1) return;
     startTimer();
     return () => clearInterval(timerRef.current);
-  }, [featured.length, startTimer]);
+  }, [startTimer]);
 
   if (featured.length === 0) return null;
+
+  const handleMomentumEnd = (e: any) => {
+    if (isSilentSnap.current) { isSilentSnap.current = false; return; }
+    const rawIdx = Math.round(e.nativeEvent.contentOffset.x / BANNER_CARD_W);
+    setActiveIdx(rawIdx % featured.length);
+    setScrollIdx(rawIdx);
+
+    // If user scrolled to the cloned-first card at the end, silently snap back to real index 0
+    if (rawIdx >= featured.length) {
+      isSilentSnap.current = true;
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ x: 0, animated: false });
+        setScrollIdx(0);
+      }, 32);
+    }
+    startTimer();
+  };
+
+  // Also handle auto-timer reaching the cloned card — reset silently
+  useEffect(() => {
+    if (scrollIdx >= featured.length) {
+      const t = setTimeout(() => {
+        isSilentSnap.current = true;
+        scrollRef.current?.scrollTo({ x: 0, animated: false });
+        // Also reset scrollX animated value so per-card interpolations stay correct
+        scrollX.setValue(0);
+        setScrollIdx(0);
+      }, 480); // wait for scroll animation to finish (~400ms)
+      return () => clearTimeout(t);
+    }
+  }, [scrollIdx, featured.length]);
+
+  const goTo = useCallback((idx: number) => {
+    clearInterval(timerRef.current);
+    advanceTo(idx, true);
+    startTimer();
+  }, [advanceTo, startTimer]);
 
   return (
     <View style={{ gap: 12 }}>
@@ -383,27 +426,19 @@ function FeaturedCarousel({ featured }: { featured: any[] }) {
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
         decelerationRate="fast"
-        onScrollBeginDrag={() => {
-          isManualScroll.current = true;
-          clearInterval(timerRef.current);
-        }}
-        onMomentumScrollEnd={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / BANNER_CARD_W);
-          setActiveIdx(idx);
-          isManualScroll.current = false;
-          startTimer();
-        }}
+        onScrollBeginDrag={() => clearInterval(timerRef.current)}
+        onMomentumScrollEnd={handleMomentumEnd}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
           { useNativeDriver: false }
         )}
         style={{ width: BANNER_CARD_W }}
       >
-        {featured.map((item, i) => (
+        {looped.map((item, i) => (
           <CarouselCard
-            key={item.id}
+            key={`${item.id}-${i}`}
             item={item}
-            isActive={i === activeIdx}
+            isActive={i === scrollIdx || (i === 0 && scrollIdx >= featured.length)}
             index={i}
             scrollX={scrollX}
             onPress={() => router.push(`/series/${item.id}`)}
@@ -413,7 +448,7 @@ function FeaturedCarousel({ featured }: { featured: any[] }) {
       {featured.length > 1 && (
         <View style={styles.dotsRow}>
           {featured.map((_, i) => (
-            <Pressable key={i} onPress={() => { goTo(i); startTimer(); }} hitSlop={8}>
+            <Pressable key={i} onPress={() => goTo(i)} hitSlop={8}>
               <BannerDot active={i === activeIdx} />
             </Pressable>
           ))}
