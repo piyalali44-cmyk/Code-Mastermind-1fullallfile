@@ -4,6 +4,7 @@ import hadithRouter from "./hadith";
 import authRouter from "./auth";
 import contactRouter from "./contact";
 import referralRouter from "./referral";
+import redeemRouter from "./redeem";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(hadithRouter);
 router.use(authRouter);
 router.use(contactRouter);
 router.use(referralRouter);
+router.use(redeemRouter);
 
 export default router;

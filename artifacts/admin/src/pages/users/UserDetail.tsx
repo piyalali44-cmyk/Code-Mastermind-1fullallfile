@@ -114,14 +114,19 @@ export default function UserDetail({ userId }: { userId: string }) {
   async function awardBadge(badgeId: string) {
     setBadgeLoading(true);
     try {
-      const { error } = await supabase.from("user_badges").insert({ user_id: userId, badge_id: badgeId });
-      if (error && error.code !== "23505") throw error;
+      // Use SECURITY DEFINER RPC — bypasses RLS, handles XP award atomically
+      const { data, error } = await supabase.rpc("admin_award_badge", {
+        p_user_id: userId,
+        p_badge_id: badgeId,
+      });
+      if (error) throw error;
       const badge = allBadges.find(b => b.id === badgeId);
-      if (badge?.xp_reward) {
-        await supabase.from("user_xp").upsert({ user_id: userId, total_xp: (xp?.total_xp || 0) + badge.xp_reward }, { onConflict: "user_id" });
-        await supabase.from("daily_xp_log").insert({ user_id: userId, xp_amount: badge.xp_reward, reason: `Badge awarded: ${badge.name}` });
+      const result = data as { already_had?: boolean; xp_reward?: number } | null;
+      if (result?.already_had) {
+        toast.info(`User already has badge "${badge?.name}"`);
+      } else {
+        toast.success(`Badge "${badge?.name}" awarded${result?.xp_reward ? ` (+${result.xp_reward} XP)` : ""}`);
       }
-      toast.success(`Badge "${badge?.name}" awarded`);
       await Promise.all([loadBadges(), loadXpHistory(), load()]);
     } catch (e: any) { toast.error(e.message); }
     finally { setBadgeLoading(false); }
@@ -130,7 +135,11 @@ export default function UserDetail({ userId }: { userId: string }) {
   async function revokeBadge(badgeId: string) {
     setBadgeLoading(true);
     try {
-      const { error } = await supabase.from("user_badges").delete().eq("user_id", userId).eq("badge_id", badgeId);
+      // Use SECURITY DEFINER RPC — bypasses RLS
+      const { error } = await supabase.rpc("admin_revoke_badge", {
+        p_user_id: userId,
+        p_badge_id: badgeId,
+      });
       if (error) throw error;
       toast.success("Badge revoked");
       await loadBadges();
@@ -206,21 +215,15 @@ export default function UserDetail({ userId }: { userId: string }) {
           setActing(false);
           return;
         }
-        const currentXp = xp?.total_xp || 0;
-        const newXp = xpAwardType === "add"
-          ? currentXp + xpAwardAmount
-          : Math.max(0, currentXp - xpAwardAmount);
         const finalAmount = xpAwardType === "add" ? xpAwardAmount : -(xpAwardAmount);
-        const { error } = await supabase.from("user_xp").upsert(
-          { user_id: userId, total_xp: newXp, level: Math.floor(newXp / 500) + 1 },
-          { onConflict: "user_id" }
-        );
-        if (error) throw new Error(error.message);
-        await supabase.from("daily_xp_log").insert({
-          user_id: userId,
-          xp_amount: finalAmount,
-          reason: xpAwardReason || (xpAwardType === "add" ? "Admin manual award" : "Admin manual deduction"),
+        const reason = xpAwardReason || (xpAwardType === "add" ? "Admin manual award" : "Admin manual deduction");
+        // Use SECURITY DEFINER RPC — bypasses RLS, handles XP atomically in DB
+        const { error } = await supabase.rpc("admin_award_xp", {
+          p_user_id: userId,
+          p_amount:  finalAmount,
+          p_reason:  reason,
         });
+        if (error) throw new Error(error.message);
         toast.success(`${xpAwardType === "add" ? "+" : "-"}${xpAwardAmount} XP ${xpAwardType === "add" ? "awarded" : "deducted"}`);
         await loadXpHistory();
       } else if (action === "delete") {

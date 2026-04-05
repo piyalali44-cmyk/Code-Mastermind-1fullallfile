@@ -209,17 +209,30 @@ export default function ProfileScreen() {
     try {
       const result = await applyReferralCode(couponCode.trim());
       if (result.success) {
-        showToast(`Code applied! +${result.xpBonus ?? 100} XP bonus earned`, "check-circle", colors.green);
         setCouponCode("");
         setCouponModal(false);
-        // Refresh stats
+        // Build success message based on reward type
+        let msg = "Code applied successfully!";
+        if (result.type === "free_days" && result.freeDays) {
+          msg = `🎉 ${result.freeDays} days of Premium unlocked!`;
+        } else if (result.type === "xp_bonus" && result.xpBonus) {
+          msg = `+${result.xpBonus} XP bonus earned!`;
+        } else if (result.type === "referral") {
+          msg = `Referral code applied! +${result.xpBonus ?? 100} XP earned.`;
+        } else if (result.xpBonus) {
+          msg = `Code applied! +${result.xpBonus} XP earned.`;
+        }
+        showToast(msg, "check-circle", colors.green);
+        // Refresh referral stats
         const stats = await getReferralStats(user.id);
         setRefStats(stats);
       } else {
         const msg =
-          result.error === "invalid_code"  ? "That code doesn't exist. Double-check and try again." :
-          result.error === "already_used"  ? "You've already used a referral code." :
-          result.error === "own_code"      ? "You cannot use your own referral code." :
+          result.error === "invalid_code"    ? "That code doesn't exist. Double-check and try again." :
+          result.error === "already_used"    ? "You've already used this code." :
+          result.error === "own_code"        ? "You cannot use your own referral code." :
+          result.error === "code_exhausted"  ? "This code has reached its maximum uses." :
+          result.error === "new_users_only"  ? "This code is for new users only." :
           result.error === "not_authenticated" ? "Please sign in first." :
           result.error || "Something went wrong. Please try again.";
         showToast(msg, "alert-circle", colors.error);

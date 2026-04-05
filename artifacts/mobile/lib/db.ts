@@ -569,25 +569,49 @@ export async function applyReferralCode(code: string): Promise<{
   success: boolean;
   error?: string;
   xpBonus?: number;
+  type?: string;
+  freeDays?: number;
+  description?: string;
+}> {
+  return redeemCode(code);
+}
+
+// Unified code redemption — handles both referral codes AND coupon codes
+export async function redeemCode(code: string): Promise<{
+  success: boolean;
+  error?: string;
+  xpBonus?: number;
+  type?: string;
+  freeDays?: number;
+  description?: string;
 }> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return { success: false, error: "not_authenticated" };
 
-    const resp = await fetch(`${API_BASE}/referral/apply`, {
+    const resp = await fetch(`${API_BASE}/redeem`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ code: code.trim() }),
+      body: JSON.stringify({ code: code.trim().toUpperCase() }),
     });
+
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[redeemCode] HTTP error:", resp.status, text);
+      return { success: false, error: "server_error" };
+    }
 
     const result = await resp.json();
     return {
-      success: result.success === true,
-      error: result.error,
-      xpBonus: result.xp_bonus ?? result.xpBonus,
+      success:     result.success === true,
+      error:       result.error,
+      type:        result.type,
+      xpBonus:     result.xp_bonus ?? result.xpBonus ?? result.xp_bonus,
+      freeDays:    result.free_days,
+      description: result.description,
     };
   } catch (e: any) {
     return { success: false, error: e?.message ?? "Unknown error" };
