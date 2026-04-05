@@ -5,9 +5,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Animated,
   Dimensions,
+  Easing,
   FlatList,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -245,13 +247,13 @@ const StoryGridCard = React.memo(function StoryGridCard({
 
 function BannerDot({ active }: { active: boolean }) {
   const colors = useColors();
-  const widthAnim = useRef(new Animated.Value(active ? 24 : 6)).current;
-  const opacityAnim = useRef(new Animated.Value(active ? 1 : 0.4)).current;
+  const widthAnim = useRef(new Animated.Value(active ? 28 : 6)).current;
+  const opacityAnim = useRef(new Animated.Value(active ? 1 : 0.35)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(widthAnim, { toValue: active ? 24 : 6, duration: 350, useNativeDriver: false }),
-      Animated.timing(opacityAnim, { toValue: active ? 1 : 0.4, duration: 350, useNativeDriver: false }),
+      Animated.timing(widthAnim, { toValue: active ? 28 : 6, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(opacityAnim, { toValue: active ? 1 : 0.35, duration: 400, useNativeDriver: false }),
     ]).start();
   }, [active]);
 
@@ -259,13 +261,165 @@ function BannerDot({ active }: { active: boolean }) {
     <Animated.View
       style={[
         styles.dot,
-        {
-          backgroundColor: colors.gold,
-          width: widthAnim,
-          opacity: opacityAnim,
-        },
+        { backgroundColor: colors.gold, width: widthAnim, opacity: opacityAnim },
       ]}
     />
+  );
+}
+
+// ─── Per-card component with independent text reveal animation ─────────────────
+const BANNER_CARD_W = W - 32;
+
+function CarouselCard({
+  item, isActive, index, scrollX, onPress,
+}: {
+  item: any; isActive: boolean; index: number; scrollX: Animated.Value; onPress: () => void;
+}) {
+  const colors = useColors();
+  const textOpacity = useRef(new Animated.Value(isActive ? 1 : 0.5)).current;
+  const textSlide = useRef(new Animated.Value(isActive ? 0 : 14)).current;
+  const btnScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isActive) {
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.parallel([
+          Animated.timing(textOpacity, { toValue: 1, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+          Animated.spring(textSlide, { toValue: 0, tension: 90, friction: 12, useNativeDriver: true }),
+        ]),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 0.4, duration: 200, useNativeDriver: true }),
+        Animated.timing(textSlide, { toValue: 10, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isActive]);
+
+  const inputRange = [(index - 1) * BANNER_CARD_W, index * BANNER_CARD_W, (index + 1) * BANNER_CARD_W];
+  const cardScale = scrollX.interpolate({ inputRange, outputRange: [0.92, 1, 0.92], extrapolate: "clamp" });
+  const cardOpacity = scrollX.interpolate({ inputRange, outputRange: [0.55, 1, 0.55], extrapolate: "clamp" });
+
+  return (
+    <Animated.View style={{ width: BANNER_CARD_W, transform: [{ scale: cardScale }], opacity: cardOpacity }}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => Animated.spring(btnScale, { toValue: 0.97, useNativeDriver: true, tension: 200, friction: 12 }).start()}
+        onPressOut={() => Animated.spring(btnScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 12 }).start()}
+        style={[styles.bannerCard, { backgroundColor: item.coverColor }]}
+      >
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: btnScale }] }]}>
+          {item.coverUrl ? (
+            <FadeImage uri={item.coverUrl} style={StyleSheet.absoluteFill} />
+          ) : (
+            <View style={[styles.bannerDecorCircle, { borderColor: "rgba(255,255,255,0.06)" }]} />
+          )}
+        </Animated.View>
+        <LinearGradient
+          colors={["transparent", "rgba(6,12,22,0.55)", "rgba(6,12,22,0.97)"]}
+          locations={[0, 0.45, 1]}
+          style={styles.bannerGrad}
+        >
+          <Animated.View style={{ opacity: textOpacity, transform: [{ translateY: textSlide }] }}>
+            <View style={[styles.bannerBadge, { backgroundColor: colors.gold, flexDirection: "row", alignItems: "center", gap: 4 }]}>
+              <Text style={styles.bannerBadgeText}>✦ FEATURED</Text>
+            </View>
+            <Text style={styles.bannerTitle} numberOfLines={2}>{item.title}</Text>
+            <View style={styles.bannerMetaRow}>
+              <Icon name="headphones" size={12} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.bannerMeta}>{item.episodeCount} episodes · {item.totalHours}</Text>
+            </View>
+            <View style={styles.bannerCta}>
+              <Icon name="play" size={11} color="#fff" />
+              <Text style={styles.bannerCtaText}>Listen now</Text>
+            </View>
+          </Animated.View>
+        </LinearGradient>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── Professional auto-advancing featured carousel ─────────────────────────────
+function FeaturedCarousel({ featured }: { featured: any[] }) {
+  const router = useRouter();
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const isManualScroll = useRef(false);
+
+  const goTo = useCallback((idx: number, animated = true) => {
+    scrollRef.current?.scrollTo({ x: idx * BANNER_CARD_W, animated });
+    setActiveIdx(idx);
+  }, []);
+
+  const startTimer = useCallback(() => {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setActiveIdx((prev) => {
+        const next = (prev + 1) % featured.length;
+        scrollRef.current?.scrollTo({ x: next * BANNER_CARD_W, animated: true });
+        return next;
+      });
+    }, 4800);
+  }, [featured.length]);
+
+  useEffect(() => {
+    if (featured.length <= 1) return;
+    startTimer();
+    return () => clearInterval(timerRef.current);
+  }, [featured.length, startTimer]);
+
+  if (featured.length === 0) return null;
+
+  return (
+    <View style={{ gap: 12 }}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        decelerationRate="fast"
+        onScrollBeginDrag={() => {
+          isManualScroll.current = true;
+          clearInterval(timerRef.current);
+        }}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / BANNER_CARD_W);
+          setActiveIdx(idx);
+          isManualScroll.current = false;
+          startTimer();
+        }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        style={{ width: BANNER_CARD_W }}
+      >
+        {featured.map((item, i) => (
+          <CarouselCard
+            key={item.id}
+            item={item}
+            isActive={i === activeIdx}
+            index={i}
+            scrollX={scrollX}
+            onPress={() => router.push(`/series/${item.id}`)}
+          />
+        ))}
+      </ScrollView>
+      {featured.length > 1 && (
+        <View style={styles.dotsRow}>
+          {featured.map((_, i) => (
+            <Pressable key={i} onPress={() => { goTo(i); startTimer(); }} hitSlop={8}>
+              <BannerDot active={i === activeIdx} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -277,12 +431,10 @@ export default function HomeScreen() {
   const { nowPlaying } = useAudio();
   const { series: allSeries, loading: contentLoading } = useContent();
   const { featureFlags, settings } = useAppSettings();
-  const [bannerIndex, setBannerIndex] = useState(0);
   const [feedPage, setFeedPage] = useState(0);
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const sessionSeed = useRef(getDailySeed()).current;
-  const bannerRef = useRef<FlatList>(null);
   const feedInitRef = useRef(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -301,38 +453,6 @@ export default function HomeScreen() {
       setFeedItems(generateFeed(allSeries, 0, sessionSeed));
     }
   }, [allSeries, sessionSeed]);
-
-  const bannerWidth = W - 32;
-  const loopedBanner = [...featured, ...featured, ...featured];
-  const loopStartIndex = featured.length;
-  const bannerInitialised = useRef(false);
-
-  useEffect(() => {
-    if (!bannerInitialised.current && bannerRef.current && featured.length > 1) {
-      bannerInitialised.current = true;
-      setTimeout(() => {
-        bannerRef.current?.scrollToOffset({ offset: loopStartIndex * bannerWidth, animated: false });
-      }, 50);
-    }
-  }, [featured.length, bannerWidth]);
-
-  useEffect(() => {
-    if (featured.length <= 1) return;
-    const interval = setInterval(() => {
-      setBannerIndex((prev) => {
-        const next = prev + 1;
-        bannerRef.current?.scrollToOffset({ offset: (loopStartIndex + next) * bannerWidth, animated: true });
-        if (next >= featured.length) {
-          setTimeout(() => {
-            bannerRef.current?.scrollToOffset({ offset: loopStartIndex * bannerWidth, animated: false });
-          }, 500);
-          return 0;
-        }
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [featured.length, bannerWidth]);
 
   const handleScroll = useCallback(
     (e: any) => {
@@ -507,74 +627,12 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Featured Banner — auto-rotating */}
-        <View style={styles.section}>
-          <FlatList
-            ref={bannerRef}
-            data={loopedBanner}
-            horizontal
-            pagingEnabled
-            decelerationRate="fast"
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
-            onMomentumScrollEnd={(e) => {
-              const rawIdx = Math.round(e.nativeEvent.contentOffset.x / bannerWidth);
-              const realIdx = rawIdx % featured.length;
-              setBannerIndex(realIdx);
-              if (rawIdx < loopStartIndex || rawIdx >= loopStartIndex + featured.length) {
-                setTimeout(() => {
-                  bannerRef.current?.scrollToOffset({ offset: (loopStartIndex + realIdx) * bannerWidth, animated: false });
-                }, 100);
-              }
-            }}
-            getItemLayout={(_, index) => ({
-              length: bannerWidth,
-              offset: bannerWidth * index,
-              index,
-            })}
-            renderItem={({ item }) => (
-              <AnimatedPressable
-                onPress={() => router.push(`/series/${item.id}`)}
-                style={[
-                  styles.bannerCard,
-                  { width: W - 32, backgroundColor: item.coverColor },
-                ]}
-              >
-                {item.coverUrl ? (
-                  <FadeImage uri={item.coverUrl} style={StyleSheet.absoluteFill} />
-                ) : (
-                  <View style={[styles.bannerDecorCircle, { borderColor: "rgba(255,255,255,0.06)" }]} />
-                )}
-                <LinearGradient
-                  colors={["transparent", "rgba(8,15,28,0.95)"]}
-                  style={styles.bannerGrad}
-                >
-                  <View
-                    style={[styles.bannerBadge, { backgroundColor: colors.gold }]}
-                  >
-                    <Text style={styles.bannerBadgeText}>✦ FEATURED</Text>
-                  </View>
-                  <Text style={styles.bannerTitle}>{item.title}</Text>
-                  <View style={styles.bannerMetaRow}>
-                    <Icon
-                      name="headphones"
-                      size={12}
-                      color="rgba(255,255,255,0.6)"
-                    />
-                    <Text style={styles.bannerMeta}>
-                      {item.episodeCount} episodes · {item.totalHours}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </AnimatedPressable>
-            )}
-          />
-          <View style={styles.dotsRow}>
-            {featured.map((_, i) => (
-              <BannerDot key={i} active={i === bannerIndex} />
-            ))}
+        {/* Featured Banner — professional animated carousel */}
+        {featured.length > 0 && (
+          <View style={styles.section}>
+            <FeaturedCarousel featured={featured} />
           </View>
-        </View>
+        )}
 
         {/* Journey Card */}
         <AnimatedPressable onPress={() => router.push("/journey")}>
@@ -1086,8 +1144,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   bannerCard: {
-    height: 210,
-    borderRadius: 18,
+    height: 240,
+    borderRadius: 20,
     overflow: "hidden",
   },
   bannerDecorCircle: {
@@ -1132,6 +1190,25 @@ const styles = StyleSheet.create({
   bannerMeta: {
     color: "rgba(255,255,255,0.7)",
     fontSize: 13,
+  },
+  bannerCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  bannerCtaText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
   dotsRow: {
     flexDirection: "row",
