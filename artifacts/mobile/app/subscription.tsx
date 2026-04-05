@@ -56,7 +56,7 @@ export default function SubscriptionScreen() {
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
     if (!user) {
-      showToast("Please sign in to apply a referral code", "alert-circle", colors.error);
+      showToast("Please sign in to apply a code", "alert-circle", colors.error);
       return;
     }
     setCouponLoading(true);
@@ -64,12 +64,24 @@ export default function SubscriptionScreen() {
     setCouponLoading(false);
     if (result.success) {
       setCouponCode("");
-      showToast(`Code applied! +${result.xpBonus ?? 100} XP added to your account`, "check-circle", colors.green);
+      let msg = "Code applied successfully!";
+      if (result.type === "free_days" && result.freeDays) {
+        msg = `🎉 ${result.freeDays} days of Premium activated!`;
+      } else if (result.type === "xp_bonus" && result.xpBonus) {
+        msg = `+${result.xpBonus} XP added to your account!`;
+      } else if (result.type === "referral") {
+        msg = `Referral code applied! +${result.xpBonus ?? 100} XP added.`;
+      } else if (result.xpBonus) {
+        msg = `Code applied! +${result.xpBonus} XP added.`;
+      }
+      showToast(msg, "check-circle", colors.green);
     } else {
       const msg =
-        result.error === "already_used" ? "You have already used a referral code" :
-        result.error === "invalid_code" ? "That code is invalid or has expired" :
-        result.error === "own_code" ? "You cannot use your own referral code" :
+        result.error === "already_used"   ? "You have already used this code" :
+        result.error === "invalid_code"   ? "That code is invalid or has expired" :
+        result.error === "own_code"       ? "You cannot use your own referral code" :
+        result.error === "code_exhausted" ? "This code has reached its maximum uses" :
+        result.error === "new_users_only" ? "This code is for new users only" :
         result.error === "not_authenticated" ? "Please sign in to apply a code" :
         result.error || "Unable to apply code. Please try again.";
       showToast(msg, "alert-circle", colors.error);
