@@ -46,7 +46,7 @@ export default function SeriesDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { play, nowPlaying } = useAudio();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   const { isFavourite, isBookmarked: isItemBookmarked, toggleFavourite, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
 
@@ -83,6 +83,11 @@ export default function SeriesDetailScreen() {
   const shareMessage = `Check out "${series.title}" on StayGuided Me — an Islamic audio app!\n${shareLink}`;
 
   const handleToggleLike = () => {
+    if (isGuest) {
+      showToast("Sign in to save favourites", "user", colors.textSecondary);
+      setTimeout(() => router.push("/login"), 600);
+      return;
+    }
     const added = toggleFavourite(`series:${series.id}`, { title: series.title, coverColor: series.coverColor });
     showToast(added ? "Added to Favourites" : "Removed from Favourites", "heart", added ? colors.gold : colors.textSecondary);
     Animated.sequence([
@@ -92,6 +97,11 @@ export default function SeriesDetailScreen() {
   };
 
   const handleToggleBookmark = () => {
+    if (isGuest) {
+      showToast("Sign in to bookmark series", "user", colors.textSecondary);
+      setTimeout(() => router.push("/login"), 600);
+      return;
+    }
     const added = toggleBookmark(`series:${series.id}`, { title: series.title, coverColor: series.coverColor });
     showToast(added ? "Saved to Library" : "Removed from Library", "bookmark", added ? colors.gold : colors.textSecondary);
     Animated.sequence([
@@ -438,6 +448,9 @@ export default function SeriesDetailScreen() {
                         onPress={() => {
                           if (downloaded) {
                             removeDownloadedFile(dlKey);
+                          } else if (isGuest) {
+                            showToast("Sign in to download episodes", "user", colors.textSecondary);
+                            setTimeout(() => router.push("/login"), 600);
                           } else {
                             startDownload(dlKey, ep.audioUrl, { title: ep.title });
                             router.push("/(tabs)/library?tab=downloads");

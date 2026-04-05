@@ -224,7 +224,9 @@ export default function LibraryScreen() {
         {/* ── Favourites ── */}
         {activeTab === 1 && (
           <>
-            {favouritedSeries.length === 0 && favouritedSurahs.length === 0 ? (
+            {isGuest ? (
+              <GuestPrompt label="Sign in to save and view your favourite series and surahs" onSignIn={() => router.push("/login")} colors={colors} />
+            ) : favouritedSeries.length === 0 && favouritedSurahs.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="heart" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No favourites yet</Text>
@@ -271,7 +273,9 @@ export default function LibraryScreen() {
         {/* ── Bookmarks ── */}
         {activeTab === 2 && (
           <>
-            {bookmarkedSeries.length === 0 && bookmarkedSurahs.length === 0 ? (
+            {isGuest ? (
+              <GuestPrompt label="Sign in to bookmark series and surahs for quick access" onSignIn={() => router.push("/login")} colors={colors} />
+            ) : bookmarkedSeries.length === 0 && bookmarkedSurahs.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="bookmark" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No bookmarks yet</Text>
@@ -442,7 +446,9 @@ export default function LibraryScreen() {
         {/* ── Downloads ── */}
         {activeTab === 5 && (
           <>
-            {settings.subscription_enabled && !user?.isPremium ? (
+            {isGuest ? (
+              <GuestPrompt label="Sign in to download episodes and surahs for offline listening" onSignIn={() => router.push("/login")} colors={colors} />
+            ) : settings.subscription_enabled && !user?.isPremium ? (
               <View style={styles.emptyState}>
                 <Icon name="lock" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Premium Feature</Text>
