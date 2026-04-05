@@ -397,40 +397,44 @@ export default function UserDetail({ userId }: { userId: string }) {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4" />Admin Actions</CardTitle></CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {!user.is_blocked ? (
-              <Button size="sm" variant="outline" className="text-destructive border-destructive/30" onClick={() => setAction("block")}>
-                <ShieldAlert className="h-4 w-4 mr-1" />Block User
+      {isAtLeast("admin") && (
+        <Card>
+          <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4" />Admin Actions</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {!user.is_blocked ? (
+                <Button size="sm" variant="outline" className="text-destructive border-destructive/30" onClick={() => setAction("block")}>
+                  <ShieldAlert className="h-4 w-4 mr-1" />Block User
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="text-green-400 border-green-400/30" onClick={() => setAction("unblock")}>
+                  <ShieldCheck className="h-4 w-4 mr-1" />Unblock User
+                </Button>
+              )}
+              {user.subscription_tier !== "premium" ? (
+                <Button size="sm" variant="outline" className="text-primary border-primary/30" onClick={() => setAction("grant_premium")}>
+                  <CreditCard className="h-4 w-4 mr-1" />Grant Premium
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setAction("revoke_premium")}>
+                  <RotateCcw className="h-4 w-4 mr-1" />Revoke Premium
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={() => { setEditName(user.display_name || ""); setAction("edit_name"); }}>
+                <Pencil className="h-4 w-4 mr-1" />Edit Name
               </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="text-green-400 border-green-400/30" onClick={() => setAction("unblock")}>
-                <ShieldCheck className="h-4 w-4 mr-1" />Unblock User
+              <Button size="sm" variant="outline" onClick={() => { setNewPassword(""); setAction("reset_password"); }}>
+                <KeyRound className="h-4 w-4 mr-1" />Reset Password
               </Button>
-            )}
-            {user.subscription_tier !== "premium" ? (
-              <Button size="sm" variant="outline" className="text-primary border-primary/30" onClick={() => setAction("grant_premium")}>
-                <CreditCard className="h-4 w-4 mr-1" />Grant Premium
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" onClick={() => setAction("revoke_premium")}>
-                <RotateCcw className="h-4 w-4 mr-1" />Revoke Premium
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => { setEditName(user.display_name || ""); setAction("edit_name"); }}>
-              <Pencil className="h-4 w-4 mr-1" />Edit Name
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { setNewPassword(""); setAction("reset_password"); }}>
-              <KeyRound className="h-4 w-4 mr-1" />Reset Password
-            </Button>
-            <Button size="sm" variant="outline" className="text-destructive border-destructive/30" onClick={() => setAction("delete")}>
-              <Trash2 className="h-4 w-4 mr-1" />Delete Account
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              {isSuperAdmin && (
+                <Button size="sm" variant="outline" className="text-destructive border-destructive/30" onClick={() => setAction("delete")}>
+                  <Trash2 className="h-4 w-4 mr-1" />Delete Account
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Role & Permissions */}
       {canManageRoles && (
@@ -470,11 +474,11 @@ export default function UserDetail({ userId }: { userId: string }) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="user">User — Standard app user (no admin access)</SelectItem>
-                      <SelectItem value="support">Support — User management & contact messages</SelectItem>
-                      <SelectItem value="content">Content — Manage content, series & hadith</SelectItem>
-                      <SelectItem value="editor">Editor — Content + journey + feed editor</SelectItem>
-                      <SelectItem value="admin">Admin — All features except super admin settings</SelectItem>
-                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin — Full control over everything</SelectItem>}
+                      <SelectItem value="support">Support — Contact message replies only</SelectItem>
+                      <SelectItem value="content">Content — Content, journey, hadith & analytics</SelectItem>
+                      <SelectItem value="editor">Editor — Content + feed + gamification + notifications</SelectItem>
+                      <SelectItem value="admin">Admin — All features including users & monetization</SelectItem>
+                      {isSuperAdmin && <SelectItem value="super_admin">Super Admin — Full control including staff management</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
@@ -491,11 +495,11 @@ export default function UserDetail({ userId }: { userId: string }) {
               <div className="space-y-1.5 text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
                 <p className="font-medium text-foreground text-sm mb-2">Role Permission Summary</p>
                 {[
-                  { role: "support", label: "Support", perms: "View users, contact messages, analytics" },
-                  { role: "content", label: "Content", perms: "Content + Hadith + Journey + Analytics" },
-                  { role: "editor", label: "Editor", perms: "Content + Feed + Gamification + Notifications" },
-                  { role: "admin", label: "Admin", perms: "All features including Monetization, except super settings" },
-                  { role: "super_admin", label: "Super Admin", perms: "Full access including all settings" },
+                  { role: "support", label: "Support", perms: "Contact message replies only" },
+                  { role: "content", label: "Content", perms: "Content, journey, hadith & analytics" },
+                  { role: "editor", label: "Editor", perms: "Content + feed + gamification + notifications" },
+                  { role: "admin", label: "Admin", perms: "All features: users, monetization & settings" },
+                  { role: "super_admin", label: "Super Admin", perms: "Full control including staff management" },
                 ].map(({ role: r, label, perms }) => (
                   <div key={r} className={`flex gap-2 py-0.5 ${selectedRole === r ? "text-foreground font-medium" : ""}`}>
                     <span className="shrink-0 w-20">{label}</span>

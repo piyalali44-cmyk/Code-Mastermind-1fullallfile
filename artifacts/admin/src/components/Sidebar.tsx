@@ -144,7 +144,7 @@ export function Sidebar() {
     {
       title: "Users",
       items: [
-        { title: "All Users", href: "/users", icon: Users, show: isAtLeast("support") },
+        { title: "All Users", href: "/users", icon: Users, show: isAtLeast("admin") },
       ],
     },
     {
@@ -174,7 +174,7 @@ export function Sidebar() {
     {
       title: "Analytics",
       items: [
-        { title: "Analytics", href: "/analytics", icon: LineChart, show: isAtLeast("support") },
+        { title: "Analytics", href: "/analytics", icon: LineChart, show: isAtLeast("content") },
       ],
     },
     {
