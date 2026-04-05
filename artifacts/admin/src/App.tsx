@@ -96,6 +96,13 @@ function RequirePermission({ children, minRole, exactRole }: {
   return <>{children}</>;
 }
 
+function DashboardOrRedirect() {
+  const { isAtLeast, loading } = useAuth();
+  if (loading) return <LoadingSpinner />;
+  if (!isAtLeast("content")) return <Redirect to="/notifications/contact" />;
+  return <Dashboard />;
+}
+
 function Router() {
   return (
     <Suspense fallback={<LoadingSpinner />}>
@@ -105,7 +112,7 @@ function Router() {
         <Route path="/">
           <RequireAuth>
             <AdminLayout>
-              <Dashboard />
+              <DashboardOrRedirect />
             </AdminLayout>
           </RequireAuth>
         </Route>
