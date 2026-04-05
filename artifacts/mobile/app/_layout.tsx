@@ -134,7 +134,7 @@ function RootLayoutNav() {
   );
 }
 
-const MIN_SPLASH_MS = 2400;
+const MIN_SPLASH_MS = 3400;
 
 function SplashOverlay() {
   const [hidden, setHidden] = useState(false);
@@ -188,7 +188,7 @@ export default function RootLayout() {
   }, []);
 
   if (!fontsLoaded && !fontError) {
-    return <SplashLoader />;
+    return <View style={{ flex: 1, backgroundColor: "#0C3222" }} />;
   }
 
   return (
