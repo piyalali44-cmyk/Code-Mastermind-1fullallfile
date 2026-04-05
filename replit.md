@@ -99,10 +99,32 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 | Settings | `pages/settings/FeatureFlags.tsx`, `AppSettingsGuest.tsx`, `AppSettingsQuran.tsx`, `AppSettingsSubscription.tsx`, `AppSettingsDownloads.tsx`, `AppSettingsXP.tsx`, `AppSettingsAppearance.tsx`, `ReferralSettings.tsx`, `ApiSources.tsx`, `RateLimiting.tsx`, `RamadanMode.tsx` |
 | Admin | `pages/admin/AdminUsers.tsx`, `ActivityLog.tsx` |
 
-### Role Hierarchy
+### Role Hierarchy & RBAC
 `super_admin` > `admin` > `editor` > `content` > `support`
-- Subscription prices: super_admin ONLY
-- All App Settings: super_admin ONLY
+
+| Section | support | content | editor | admin | super_admin |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Dashboard | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Content/Journey/Hadith | ✗ | ✓ | ✓ | ✓ | ✓ |
+| Home Feed/Gamification | ✗ | ✗ | ✓ | ✓ | ✓ |
+| Users | ✓(read) | ✗ | ✗ | ✓ | ✓ |
+| Monetization | ✗ | ✗ | ✗ | ✓ | ✓ |
+| Push/Popups Notifications | ✗ | ✗ | ✓ | ✓ | ✓ |
+| Contact Messages | ✓ | ✗ | ✓ | ✓ | ✓ |
+| Analytics | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Settings (basic) | ✗ | ✗ | ✗ | ✓ | ✓ |
+| Settings (advanced) | ✗ | ✗ | ✗ | ✗ | ✓ |
+| Admin Users | ✗ | ✗ | ✗ | ✗ | ✓ |
+| Activity Log | ✗ | ✗ | ✗ | ✓ | ✓ |
+
+**Role Assignment:**
+- `AdminUsers.tsx`: Search existing registered user by email/name → assign role directly (no email invite needed)
+- `UserDetail.tsx`: "Admin Role ও Permissions" card — assign/change role for any user from their profile
+- Both log to `admin_activity_log`
+- `protect_role_column()` trigger prevents non-admin users from self-promoting via RLS
+
+**Route Protection:** `RequirePermission` component wraps sensitive routes (minRole="admin" for monetization/settings, minRole="super_admin" for staff/users and advanced settings)
+
 - Every write action logs to `admin_activity_log`
 
 ### Critical Patterns
