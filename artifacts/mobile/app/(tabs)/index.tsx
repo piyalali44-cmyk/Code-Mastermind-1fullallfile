@@ -350,7 +350,7 @@ function FeaturedCarousel({ featured }: { featured: any[] }) {
   const [scrollIdx, setScrollIdx] = useState(0);   // actual scroll position index
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const isSilentSnap = useRef(false);
 
   // Advance to next card — always forward, never backwards

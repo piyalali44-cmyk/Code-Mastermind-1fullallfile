@@ -77,6 +77,7 @@ export default function LibraryScreen() {
       downloads.has(`episode:${ep.id}`) || downloads.has(ep.id)
     )
   );
+  const downloadedSurahs = SURAHS.filter((s) => downloads.has(`surah:${s.number}`));
 
   const loadContinue = useCallback(async () => {
     if (!user || isGuest) return;
@@ -448,7 +449,7 @@ export default function LibraryScreen() {
                   <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Upgrade Now</Text>
                 </Pressable>
               </View>
-            ) : downloadedSeries.length > 0 || downloadProgress.size > 0 ? (
+            ) : downloadedSeries.length > 0 || downloadedSurahs.length > 0 || downloadProgress.size > 0 ? (
               <>
                 {downloadProgress.size > 0 && (
                   <>
@@ -525,6 +526,32 @@ export default function LibraryScreen() {
                         </View>
                       );
                     })}
+                  </>
+                )}
+                {downloadedSurahs.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Downloaded Surahs</Text>
+                    {downloadedSurahs.map((s) => (
+                      <Pressable
+                        key={s.number}
+                        onPress={() => router.push(`/quran?surah=${s.number}`)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: colors.green + "33" }]}>
+                          <Text style={{ color: colors.green, fontWeight: "700", fontSize: 13 }}>{s.number}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.nameSimple}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.nameArabic} · {s.verseCount} Ayahs</Text>
+                        </View>
+                        <Pressable
+                          onPress={() => removeDownloadedFile(`surah:${s.number}`)}
+                          style={{ padding: 8 }}
+                        >
+                          <Icon name="trash-2" size={16} color={colors.error ?? "#EF4444"} />
+                        </Pressable>
+                      </Pressable>
+                    ))}
                   </>
                 )}
               </>
