@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 // ─── ENSURE USER ROWS EXIST (for users created before the trigger) ───────────
 export async function ensureUserRows(userId: string) {
   try {
-    await Promise.all([
+    const results = await Promise.all([
       supabase.from("user_xp").upsert(
         { user_id: userId },
         { onConflict: "user_id", ignoreDuplicates: true }
@@ -17,17 +17,20 @@ export async function ensureUserRows(userId: string) {
         { onConflict: "user_id", ignoreDuplicates: true }
       ),
     ]);
+    results.forEach((r, i) => { if (r.error) console.warn(`[ensureUserRows] op${i}`, r.error.message); });
   } catch (err) { console.warn("[ensureUserRows]", err); }
 }
 
 // ─── XP ──────────────────────────────────────────────────────────────────────
 export async function addXp(userId: string, amount: number, reason: string) {
   try {
-    await supabase.from("user_xp").upsert(
+    const { error: e1 } = await supabase.from("user_xp").upsert(
       { user_id: userId, total_xp: 0, level: 1 },
       { onConflict: "user_id", ignoreDuplicates: true }
     );
-    await supabase.from("daily_xp_log").insert({ user_id: userId, xp_amount: amount, reason });
+    if (e1) console.warn("[addXp] ensure row", e1.message);
+    const { error: e2 } = await supabase.from("daily_xp_log").insert({ user_id: userId, xp_amount: amount, reason });
+    if (e2) console.warn("[addXp] log", e2.message);
     const { data: existing } = await supabase
       .from("user_xp")
       .select("total_xp")
@@ -36,10 +39,11 @@ export async function addXp(userId: string, amount: number, reason: string) {
     const currentXp = existing?.total_xp ?? 0;
     const newXp = currentXp + amount;
     const newLevel = Math.floor(newXp / 500) + 1;
-    await supabase.from("user_xp").upsert(
+    const { error: e3 } = await supabase.from("user_xp").upsert(
       { user_id: userId, total_xp: newXp, level: newLevel, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
+    if (e3) console.warn("[addXp] upsert", e3.message);
   } catch (err) { console.warn("[addXp]", err); }
 }
 
@@ -50,10 +54,11 @@ export async function updateStreak(userId: string) {
     const { data } = await supabase.from("user_streaks").select("*").eq("user_id", userId).single();
     if (!data) {
       // Create streak row for users who signed up before the trigger
-      await supabase.from("user_streaks").upsert(
+      const { error: e1 } = await supabase.from("user_streaks").upsert(
         { user_id: userId, current_streak: 1, longest_streak: 1, last_activity_date: today },
         { onConflict: "user_id" }
       );
+      if (e1) console.warn("[updateStreak] upsert", e1.message);
       return;
     }
     const last = data.last_activity_date;
@@ -61,12 +66,13 @@ export async function updateStreak(userId: string) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     const newStreak = last === yesterday ? data.current_streak + 1 : 1;
     const longest = Math.max(newStreak, data.longest_streak ?? 0);
-    await supabase.from("user_streaks").update({
+    const { error: e2 } = await supabase.from("user_streaks").update({
       current_streak: newStreak,
       longest_streak: longest,
       last_activity_date: today,
       updated_at: new Date().toISOString(),
     }).eq("user_id", userId);
+    if (e2) console.warn("[updateStreak] update", e2.message);
   } catch (err) { console.warn("[updateStreak]", err); }
 }
 
@@ -74,7 +80,7 @@ export async function updateStreak(userId: string) {
 export async function saveProgress(userId: string, contentType: "surah" | "episode", contentId: string, positionMs: number, durationMs: number) {
   try {
     const completed = durationMs > 0 && positionMs / durationMs > 0.9;
-    await supabase.from("listening_progress").upsert({
+    const { error } = await supabase.from("listening_progress").upsert({
       user_id: userId,
       content_type: contentType,
       content_id: contentId,
@@ -83,6 +89,7 @@ export async function saveProgress(userId: string, contentType: "surah" | "episo
       completed,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,content_type,content_id" });
+    if (error) console.warn("[saveProgress]", error.message);
   } catch (err) { console.warn("[saveProgress]", err); }
 }
 
@@ -96,7 +103,7 @@ export async function getProgress(userId: string, contentType: "surah" | "episod
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
 export async function addToHistory(userId: string, entry: { contentType: "surah" | "episode"; contentId: string; title: string; seriesName?: string; seriesId?: string; durationMs?: number }): Promise<string | null> {
   try {
-    const { data } = await supabase.from("listening_history").insert({
+    const { data, error } = await supabase.from("listening_history").insert({
       user_id: userId,
       content_type: entry.contentType,
       content_id: entry.contentId,
@@ -105,14 +112,16 @@ export async function addToHistory(userId: string, entry: { contentType: "surah"
       series_id: entry.seriesId ?? null,
       duration_ms: entry.durationMs ?? 0,
     }).select("id").single();
+    if (error) console.warn("[addToHistory]", error.message);
     return data?.id ?? null;
-  } catch { return null; }
+  } catch (err) { console.warn("[addToHistory]", err); return null; }
 }
 
 export async function updateHistoryDuration(historyId: string, durationMs: number): Promise<void> {
   if (!historyId || durationMs <= 0) return;
   try {
-    await supabase.from("listening_history").update({ duration_ms: durationMs }).eq("id", historyId);
+    const { error } = await supabase.from("listening_history").update({ duration_ms: durationMs }).eq("id", historyId);
+    if (error) console.warn("[updateHistoryDuration]", error.message);
   } catch (err) { console.warn("[updateHistoryDuration]", err); }
 }
 
@@ -426,7 +435,7 @@ export async function getJourneyCompletion(userId: string): Promise<{
 // ─── FAVOURITES ──────────────────────────────────────────────────────────────
 export async function addFavourite(userId: string, item: { contentType: "surah" | "episode" | "series"; contentId: string; title: string; seriesName?: string; coverColor?: string }) {
   try {
-    await supabase.from("favourites").upsert({
+    const { error } = await supabase.from("favourites").upsert({
       user_id: userId,
       content_type: item.contentType,
       content_id: item.contentId,
@@ -434,12 +443,14 @@ export async function addFavourite(userId: string, item: { contentType: "surah" 
       series_name: item.seriesName ?? null,
       cover_color: item.coverColor ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
+    if (error) console.warn("[addFavourite]", error.message);
   } catch (err) { console.warn("[addFavourite]", err); }
 }
 
 export async function removeFavourite(userId: string, contentType: string, contentId: string) {
   try {
-    await supabase.from("favourites").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    const { error } = await supabase.from("favourites").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    if (error) console.warn("[removeFavourite]", error.message);
   } catch (err) { console.warn("[removeFavourite]", err); }
 }
 
@@ -453,7 +464,7 @@ export async function getFavourites(userId: string) {
 // ─── BOOKMARKS ───────────────────────────────────────────────────────────────
 export async function addBookmark(userId: string, item: { contentType: "surah" | "episode" | "series"; contentId: string; title: string; seriesName?: string; coverColor?: string }) {
   try {
-    await supabase.from("bookmarks").upsert({
+    const { error } = await supabase.from("bookmarks").upsert({
       user_id: userId,
       content_type: item.contentType,
       content_id: item.contentId,
@@ -461,12 +472,14 @@ export async function addBookmark(userId: string, item: { contentType: "surah" |
       series_name: item.seriesName ?? null,
       cover_color: item.coverColor ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
+    if (error) console.warn("[addBookmark]", error.message);
   } catch (err) { console.warn("[addBookmark]", err); }
 }
 
 export async function removeBookmark(userId: string, contentType: string, contentId: string) {
   try {
-    await supabase.from("bookmarks").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    const { error } = await supabase.from("bookmarks").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    if (error) console.warn("[removeBookmark]", error.message);
   } catch (err) { console.warn("[removeBookmark]", err); }
 }
 
@@ -480,19 +493,21 @@ export async function getBookmarks(userId: string) {
 // ─── DOWNLOADS ───────────────────────────────────────────────────────────────
 export async function addDownload(userId: string, item: { contentType: "surah" | "episode"; contentId: string; title: string; fileSizeBytes?: number }) {
   try {
-    await supabase.from("downloads").upsert({
+    const { error } = await supabase.from("downloads").upsert({
       user_id: userId,
       content_type: item.contentType,
       content_id: item.contentId,
       title: item.title,
       file_size_bytes: item.fileSizeBytes ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
+    if (error) console.warn("[addDownload]", error.message);
   } catch (err) { console.warn("[addDownload]", err); }
 }
 
 export async function removeDownload(userId: string, contentType: string, contentId: string) {
   try {
-    await supabase.from("downloads").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    const { error } = await supabase.from("downloads").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
+    if (error) console.warn("[removeDownload]", error.message);
   } catch (err) { console.warn("[removeDownload]", err); }
 }
 
@@ -738,7 +753,8 @@ export async function updateUserSettings(userId: string, settings: Partial<{
   auto_scroll: boolean;
 }>) {
   try {
-    await supabase.from("user_settings").upsert({ user_id: userId, ...settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    const { error } = await supabase.from("user_settings").upsert({ user_id: userId, ...settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) console.warn("[updateUserSettings]", error.message);
   } catch (err) { console.warn("[updateUserSettings]", err); }
 }
 
@@ -771,20 +787,22 @@ export async function getNotifications(userId: string): Promise<DbNotification[]
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
   try {
-    await supabase
+    const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
       .eq("id", notificationId);
+    if (error) console.warn("[markNotificationRead]", error.message);
   } catch (err) { console.warn("[markNotificationRead]", err); }
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   try {
-    await supabase
+    const { error } = await supabase
       .from("notifications")
       .update({ is_read: true })
       .eq("user_id", userId)
       .eq("is_read", false);
+    if (error) console.warn("[markAllNotificationsRead]", error.message);
   } catch (err) { console.warn("[markAllNotificationsRead]", err); }
 }
 
