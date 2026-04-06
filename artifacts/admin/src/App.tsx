@@ -35,6 +35,7 @@ const WidgetInjection = lazy(() => import("@/pages/feed/WidgetInjection"));
 const UsersList = lazy(() => import("@/pages/users/UsersList"));
 const UserDetail = lazy(() => import("@/pages/users/UserDetail"));
 
+const Transactions = lazy(() => import("@/pages/monetization/Transactions"));
 const SubscriptionPlans = lazy(() => import("@/pages/monetization/SubscriptionPlans"));
 const Coupons = lazy(() => import("@/pages/monetization/Coupons"));
 const DonationSettings = lazy(() => import("@/pages/monetization/DonationSettings"));
@@ -209,6 +210,16 @@ function Router() {
               </RequirePermission>
             </RequireAuth>
           )}
+        </Route>
+
+        <Route path="/monetization/transactions">
+          <RequireAuth>
+            <RequirePermission minRole="admin">
+              <AdminLayout>
+                <Transactions />
+              </AdminLayout>
+            </RequirePermission>
+          </RequireAuth>
         </Route>
 
         <Route path="/monetization/plans">

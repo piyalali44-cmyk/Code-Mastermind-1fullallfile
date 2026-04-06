@@ -18,6 +18,7 @@ import {
   Plug,
   Users,
   CreditCard,
+  DollarSign,
   Ticket,
   HeartHandshake,
   Gamepad2,
@@ -150,6 +151,7 @@ export function Sidebar() {
     {
       title: "Monetization",
       items: [
+        { title: "Transactions", href: "/monetization/transactions", icon: DollarSign, show: isAtLeast("admin") },
         { title: "Subscription Plans", href: "/monetization/plans", icon: CreditCard, show: isAtLeast("admin") },
         { title: "Coupon Codes", href: "/monetization/coupons", icon: Ticket, show: isAtLeast("admin") },
         { title: "Donation Settings", href: "/monetization/donation", icon: HeartHandshake, show: isAtLeast("admin") },
