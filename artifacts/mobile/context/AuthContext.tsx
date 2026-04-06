@@ -208,12 +208,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                   // Show notification in home screen
                   setPendingNotification({ type: "referral_applied", xp: result.xpBonus ?? 100 });
-                  // Update XP in user state immediately (optimistic)
+                  // Optimistic XP update immediately
                   setUser(prev => prev ? {
                     ...prev,
                     xp:    prev.xp + (result.xpBonus ?? 100),
                     level: Math.max(1, Math.floor((prev.xp + (result.xpBonus ?? 100)) / 500) + 1),
                   } : prev);
+                  // Then refresh from DB to get authoritative XP value
+                  setTimeout(async () => {
+                    if (s?.user) {
+                      const refreshed = await buildUserFromSession(s.user);
+                      setUser(refreshed);
+                    }
+                  }, 1500);
                 } else if (result.error === "already_used") {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                 }

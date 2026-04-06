@@ -18,6 +18,24 @@ import { PaginationBar } from "@/components/ui/PaginationBar";
 import { useLocation } from "wouter";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
+const API_BASE: string =
+  (import.meta.env as Record<string, string>).VITE_API_BASE_URL ||
+  "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+
+async function adminFetch(path: string, token: string, body: Record<string, unknown>): Promise<{ ok: boolean; data: any; error?: string }> {
+  try {
+    const resp = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    return { ok: resp.ok, data, error: !resp.ok ? (data?.error || "Server error") : undefined };
+  } catch (e: any) {
+    return { ok: false, data: null, error: e.message };
+  }
+}
+
 function countryToFlag(code: string) {
   return code.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
@@ -66,7 +84,12 @@ export default function UserDetail({ userId }: { userId: string }) {
   const [badgeLoading, setBadgeLoading] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("");
-  const { profile, isAtLeast } = useAuth();
+  const [referralsData, setReferralsData] = useState<{
+    myReferrer: { id: string; name: string; email: string; code: string } | null;
+    referred: { id: string; name: string; email: string; joinedAt: string; xpEarned: number }[];
+  } | null>(null);
+  const [referralsLoading, setReferralsLoading] = useState(false);
+  const { profile, session, isAtLeast } = useAuth();
   const canManageXP = isAtLeast("admin");
   const canManageRoles = isAtLeast("admin");
   const isSuperAdmin = isAtLeast("super_admin");
@@ -95,7 +118,43 @@ export default function UserDetail({ userId }: { userId: string }) {
     load();
     loadXpHistory();
     loadBadges();
+    loadReferrals();
   }, [userId]);
+
+  async function loadReferrals() {
+    setReferralsLoading(true);
+    try {
+      const [myReferrerRes, referredRes] = await Promise.all([
+        supabase.from("referrals").select("referrer_id, code_used").eq("referred_id", userId).maybeSingle(),
+        supabase.from("referrals").select("referred_id, xp_awarded_referrer, created_at").eq("referrer_id", userId).order("created_at", { ascending: false }),
+      ]);
+
+      let myReferrer: { id: string; name: string; email: string; code: string } | null = null;
+      if (myReferrerRes.data) {
+        const rid = (myReferrerRes.data as any).referrer_id;
+        const { data: rProfile } = await supabase.from("profiles").select("id,display_name,email").eq("id", rid).single();
+        if (rProfile) myReferrer = { id: rid, name: (rProfile as any).display_name || "Unknown", email: (rProfile as any).email || "", code: (myReferrerRes.data as any).code_used };
+      }
+
+      const referredRows = (referredRes.data ?? []) as any[];
+      let referred: { id: string; name: string; email: string; joinedAt: string; xpEarned: number }[] = [];
+      if (referredRows.length > 0) {
+        const ids = referredRows.map((r) => r.referred_id);
+        const { data: profiles } = await supabase.from("profiles").select("id,display_name,email").in("id", ids);
+        const profileMap = new Map<string, any>((profiles ?? []).map((p: any) => [p.id, p]));
+        referred = referredRows.map((r) => ({
+          id: r.referred_id,
+          name: profileMap.get(r.referred_id)?.display_name || "Unknown",
+          email: profileMap.get(r.referred_id)?.email || "",
+          joinedAt: r.created_at,
+          xpEarned: r.xp_awarded_referrer ?? 500,
+        }));
+      }
+
+      setReferralsData({ myReferrer, referred });
+    } catch { setReferralsData({ myReferrer: null, referred: [] }); }
+    finally { setReferralsLoading(false); }
+  }
 
   async function loadXpHistory() {
     const { data } = await supabase
@@ -124,10 +183,12 @@ export default function UserDetail({ userId }: { userId: string }) {
     if (!user || !canManageRoles) return;
     if (selectedRole === "super_admin" && !isSuperAdmin) return void toast.error("Only Super Admin can assign the Super Admin role");
     if (selectedRole === (user.role || "user")) return void toast.info("No change — role is already set to this value");
+    const token = session?.access_token;
+    if (!token) return void toast.error("Session expired, please re-login");
     setRoleUpdating(true);
     try {
-      const { error } = await supabase.from("profiles").update({ role: selectedRole }).eq("id", userId);
-      if (error) throw error;
+      const result = await adminFetch(`/admin/users/${userId}/update-role`, token, { role: selectedRole });
+      if (!result.ok) throw new Error(result.error || "Failed to update role");
       supabase.from("admin_activity_log").insert({
         admin_id: profile?.id,
         action: `Changed role for ${user.email}: ${user.role || "user"} → ${selectedRole}`,
@@ -146,19 +207,16 @@ export default function UserDetail({ userId }: { userId: string }) {
 
   async function awardBadge(badgeId: string) {
     setBadgeLoading(true);
+    const token = session?.access_token;
     try {
-      // Use SECURITY DEFINER RPC — bypasses RLS, handles XP award atomically
-      const { data, error } = await supabase.rpc("admin_award_badge", {
-        p_user_id: userId,
-        p_badge_id: badgeId,
-      });
-      if (error) throw error;
+      if (!token) throw new Error("Session expired, please re-login");
+      const r = await adminFetch(`/admin/users/${userId}/award-badge`, token, { badgeId });
+      if (!r.ok) throw new Error(r.error || "Failed to award badge");
       const badge = allBadges.find(b => b.id === badgeId);
-      const result = data as { already_had?: boolean; xp_reward?: number } | null;
-      if (result?.already_had) {
+      if (r.data?.already_had) {
         toast.info(`User already has badge "${badge?.name}"`);
       } else {
-        toast.success(`Badge "${badge?.name}" awarded${result?.xp_reward ? ` (+${result.xp_reward} XP)` : ""}`);
+        toast.success(`Badge "${badge?.name}" awarded${r.data?.xp_reward ? ` (+${r.data.xp_reward} XP)` : ""}`);
       }
       await Promise.all([loadBadges(), loadXpHistory(), load()]);
     } catch (e: any) { toast.error(e.message); }
@@ -167,13 +225,11 @@ export default function UserDetail({ userId }: { userId: string }) {
 
   async function revokeBadge(badgeId: string) {
     setBadgeLoading(true);
+    const token = session?.access_token;
     try {
-      // Use SECURITY DEFINER RPC — bypasses RLS
-      const { error } = await supabase.rpc("admin_revoke_badge", {
-        p_user_id: userId,
-        p_badge_id: badgeId,
-      });
-      if (error) throw error;
+      if (!token) throw new Error("Session expired, please re-login");
+      const r = await adminFetch(`/admin/users/${userId}/revoke-badge`, token, { badgeId });
+      if (!r.ok) throw new Error(r.error || "Failed to revoke badge");
       toast.success("Badge revoked");
       await loadBadges();
     } catch (e: any) { toast.error(e.message); }
@@ -190,58 +246,54 @@ export default function UserDetail({ userId }: { userId: string }) {
 
   async function performAction() {
     setActing(true);
-    const db = supabaseAdmin || supabase;
+    const token = session?.access_token;
     try {
+      if (!token && action !== "delete" && action !== "reset_password") {
+        throw new Error("Session expired, please re-login");
+      }
+
       if (action === "block") {
-        const { error } = await db.from("profiles")
-          .update({ is_blocked: true, blocked_reason: blockReason || null })
-          .eq("id", userId);
-        if (error) throw new Error(error.message);
+        const r = await adminFetch(`/admin/users/${userId}/block`, token!, { reason: blockReason || "" });
+        if (!r.ok) throw new Error(r.error || "Failed to block user");
         toast.success("User blocked");
+
       } else if (action === "unblock") {
-        const { error } = await db.from("profiles")
-          .update({ is_blocked: false, blocked_reason: null })
-          .eq("id", userId);
-        if (error) throw new Error(error.message);
+        const r = await adminFetch(`/admin/users/${userId}/unblock`, token!, {});
+        if (!r.ok) throw new Error(r.error || "Failed to unblock user");
         toast.success("User unblocked");
+
       } else if (action === "grant_premium") {
-        const expires = grantPlan === "lifetime" ? null : new Date(Date.now() + grantDays * 86_400_000).toISOString();
-        const { error } = await db.from("profiles")
-          .update({ subscription_tier: "premium", subscription_expires_at: expires })
-          .eq("id", userId);
-        if (error) throw new Error(error.message);
-        await db.from("subscriptions").upsert(
-          { user_id: userId, plan: grantPlan, status: "active", started_at: new Date().toISOString(), expires_at: expires, provider: "admin" },
-          { onConflict: "user_id" }
-        );
+        const r = await adminFetch(`/admin/users/${userId}/grant-premium`, token!, { days: grantDays, plan: grantPlan });
+        if (!r.ok) throw new Error(r.error || "Failed to grant premium");
         toast.success(grantPlan === "lifetime" ? "Lifetime premium granted!" : `Premium granted for ${grantDays} days (${grantPlan} plan)`);
+
       } else if (action === "revoke_premium") {
-        const { error } = await db.from("profiles")
-          .update({ subscription_tier: "free", subscription_expires_at: null })
-          .eq("id", userId);
-        if (error) throw new Error(error.message);
-        await db.from("subscriptions").update({ status: "cancelled" }).eq("user_id", userId);
+        const r = await adminFetch(`/admin/users/${userId}/revoke-premium`, token!, {});
+        if (!r.ok) throw new Error(r.error || "Failed to revoke premium");
         toast.success("Premium revoked");
+
       } else if (action === "reset_password") {
         if (!newPassword || newPassword.length < 6) {
           toast.error("Password must be at least 6 characters");
           setActing(false);
           return;
         }
-        if (!supabaseAdmin) throw new Error("Service key not configured");
-        const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword });
-        if (error) throw new Error(error.message);
+        if (!token) throw new Error("Session expired, please re-login");
+        const r = await adminFetch(`/admin/users/${userId}/reset-password`, token, { password: newPassword });
+        if (!r.ok) throw new Error(r.error || "Failed to reset password");
         toast.success("Password updated successfully");
         setNewPassword("");
+
       } else if (action === "edit_name") {
         if (!editName.trim()) {
           toast.error("Name cannot be empty");
           setActing(false);
           return;
         }
-        const { error } = await supabase.from("profiles").update({ display_name: editName.trim() }).eq("id", userId);
-        if (error) throw new Error(error.message);
+        const r = await adminFetch(`/admin/users/${userId}/update-name`, token!, { name: editName.trim() });
+        if (!r.ok) throw new Error(r.error || "Failed to update name");
         toast.success("Display name updated");
+
       } else if (action === "award_xp") {
         if (!xpAwardAmount || xpAwardAmount <= 0) {
           toast.error("Enter a valid XP amount");
@@ -250,23 +302,20 @@ export default function UserDetail({ userId }: { userId: string }) {
         }
         const finalAmount = xpAwardType === "add" ? xpAwardAmount : -(xpAwardAmount);
         const reason = xpAwardReason || (xpAwardType === "add" ? "Admin manual award" : "Admin manual deduction");
-        // Use SECURITY DEFINER RPC — bypasses RLS, handles XP atomically in DB
-        const { error } = await supabase.rpc("admin_award_xp", {
-          p_user_id: userId,
-          p_amount:  finalAmount,
-          p_reason:  reason,
-        });
-        if (error) throw new Error(error.message);
+        const r = await adminFetch(`/admin/users/${userId}/award-xp`, token!, { amount: finalAmount, reason });
+        if (!r.ok) throw new Error(r.error || "Failed to award XP");
         toast.success(`${xpAwardType === "add" ? "+" : "-"}${xpAwardAmount} XP ${xpAwardType === "add" ? "awarded" : "deducted"}`);
         await loadXpHistory();
+
       } else if (action === "delete") {
-        if (!supabaseAdmin) throw new Error("Service key not configured — cannot delete users");
-        const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-        if (error) throw new Error(error.message);
+        if (!token) throw new Error("Session expired, please re-login");
+        const r = await adminFetch(`/admin/users/${userId}/delete`, token, {});
+        if (!r.ok) throw new Error(r.error || "Failed to delete user");
         toast.success("User deleted");
         navigate("/users");
         return;
       }
+
       supabase.from("admin_activity_log").insert({
         admin_id: profile?.id,
         action: action?.replace(/_/g, " ") || "action",
@@ -517,9 +566,10 @@ export default function UserDetail({ userId }: { userId: string }) {
 
       {/* XP & Badge Management Tabs */}
       <Tabs defaultValue="xp">
-        <TabsList className="mb-3">
+        <TabsList className="mb-3 flex-wrap h-auto">
           <TabsTrigger value="xp" className="gap-1.5"><Zap className="h-4 w-4" />XP Management</TabsTrigger>
           <TabsTrigger value="badges" className="gap-1.5"><Medal className="h-4 w-4" />Badges</TabsTrigger>
+          <TabsTrigger value="referrals" className="gap-1.5"><Gift className="h-4 w-4" />Referrals</TabsTrigger>
           <TabsTrigger value="notes" className="gap-1.5"><MessageSquare className="h-4 w-4" />Notes</TabsTrigger>
         </TabsList>
 
@@ -707,6 +757,64 @@ export default function UserDetail({ userId }: { userId: string }) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Referrals Tab */}
+        <TabsContent value="referrals" className="mt-0 space-y-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2"><Gift className="h-4 w-4 text-primary" />Referral History</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {referralsLoading ? (
+                <div className="text-sm text-muted-foreground animate-pulse">Loading referral data…</div>
+              ) : (
+                <>
+                  {/* Who referred this user */}
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Referred By</div>
+                    {referralsData?.myReferrer ? (
+                      <div className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2 text-sm">
+                        <div>
+                          <div className="font-medium">{referralsData.myReferrer.name}</div>
+                          <div className="text-xs text-muted-foreground">{referralsData.myReferrer.email}</div>
+                        </div>
+                        <Badge variant="outline" className="font-mono text-primary border-primary/30">
+                          {referralsData.myReferrer.code}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">This user was not referred by anyone.</div>
+                    )}
+                  </div>
+                  <Separator />
+                  {/* Who this user referred */}
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">
+                      Friends Referred ({referralsData?.referred.length ?? 0})
+                    </div>
+                    {referralsData?.referred.length ? (
+                      <div className="space-y-2">
+                        {referralsData.referred.map((r) => (
+                          <div key={r.id} className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2 text-sm">
+                            <div>
+                              <div className="font-medium">{r.name}</div>
+                              <div className="text-xs text-muted-foreground">{r.email} · {formatDate(r.joinedAt)}</div>
+                            </div>
+                            <Badge variant="outline" className="text-yellow-400 border-yellow-400/30 gap-1">
+                              <Zap className="h-3 w-3" />+{r.xpEarned}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">This user has not referred anyone yet.</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Notes Tab */}
