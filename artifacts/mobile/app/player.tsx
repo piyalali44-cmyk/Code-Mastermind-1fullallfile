@@ -21,6 +21,7 @@ import {
   getContentCommentCount,
   addContentComment,
   softDeleteContentComment,
+  isUserCommentBlocked,
   type ContentComment,
 } from "@/lib/db";
 import { SURAHS } from "@/constants/surahs";
@@ -172,6 +173,7 @@ export default function PlayerScreen() {
   const [commentCount, setCommentCount] = useState(0);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
+  const [isCommentBlocked, setIsCommentBlocked] = useState(false);
   const [isDbLiked, setIsDbLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [likePending, setLikePending] = useState(false);
@@ -266,10 +268,16 @@ export default function PlayerScreen() {
       ? `episode:${nowPlaying.id}`
       : "";
 
+  const isLiked = isFavourite(favId);
   const isBookmarked = isItemBookmarked(favId);
   const isDownloaded = isItemDownloaded(downloadId);
 
   const itemMeta = { title: nowPlaying?.title ?? "", coverColor: nowPlaying?.coverColor, audioUrl: nowPlaying?.audioUrl };
+
+  const handleFavourite = () => {
+    const added = toggleFavourite(favId, itemMeta);
+    showToast(added ? "Added to Favourites" : "Removed from Favourites", "heart", added ? colors.gold : colors.textSecondary);
+  };
 
   // ─── Content type/id for likes & comments ──────────────────────────────────
   const contentType = nowPlaying?.type === "quran" ? "surah" : "episode";
@@ -341,7 +349,7 @@ export default function PlayerScreen() {
     try {
       const { liked } = await toggleContentLike(user.id, contentType, contentId);
       setIsDbLiked(liked);
-      showToast(liked ? "Liked!" : "Like removed", "heart", liked ? colors.gold : colors.textSecondary);
+      showToast(liked ? "Liked!" : "Like removed", "thumbs-up", liked ? colors.gold : colors.textSecondary);
     } catch {
       setIsDbLiked(!optimistic);
       setLikeCount((n) => n + (optimistic ? -1 : 1));
@@ -354,8 +362,12 @@ export default function PlayerScreen() {
   const handleOpenComments = async () => {
     setCommentModal(true);
     setCommentsLoading(true);
-    const { comments: list } = await getContentComments(contentType, contentId, user?.id);
+    const [{ comments: list }, blocked] = await Promise.all([
+      getContentComments(contentType, contentId, user?.id),
+      user?.id ? isUserCommentBlocked(user.id) : Promise.resolve(false),
+    ]);
     setComments(list);
+    setIsCommentBlocked(blocked);
     setCommentsLoading(false);
   };
 
@@ -701,30 +713,39 @@ export default function PlayerScreen() {
 
         {/* Actions Row */}
         <View style={styles.actionsRow}>
-          <Pressable onPress={handleLike} style={styles.actionBtnWithCount}>
-            <Icon name="heart" size={22} color={isDbLiked ? colors.gold : colors.textSecondary} />
+          {/* Like — DB backed */}
+          <Pressable onPress={handleLike} style={styles.actionBtnWithCount} hitSlop={8}>
+            <Icon name="thumbs-up" size={21} color={isDbLiked ? colors.gold : colors.textSecondary} />
             {likeCount > 0 && (
               <Text style={[styles.actionBtnCount, { color: isDbLiked ? colors.gold : colors.textSecondary }]}>
                 {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
               </Text>
             )}
           </Pressable>
-          <Pressable onPress={handleOpenComments} style={styles.actionBtnWithCount}>
-            <Icon name="message-circle" size={22} color={colors.textSecondary} />
+          {/* Comment */}
+          <Pressable onPress={handleOpenComments} style={styles.actionBtnWithCount} hitSlop={8}>
+            <Icon name="message-circle" size={21} color={colors.textSecondary} />
             {commentCount > 0 && (
               <Text style={[styles.actionBtnCount, { color: colors.textSecondary }]}>
                 {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
               </Text>
             )}
           </Pressable>
-          <Pressable onPress={handleBookmark} style={styles.actionBtn}>
-            <Icon name="bookmark" size={22} color={isBookmarked ? colors.gold : colors.textSecondary} />
+          {/* Favourite — local */}
+          <Pressable onPress={handleFavourite} style={styles.actionBtn} hitSlop={8}>
+            <Icon name="heart" size={21} color={isLiked ? colors.gold : colors.textSecondary} />
           </Pressable>
-          <Pressable onPress={handleDownload} style={styles.actionBtn}>
-            <Icon name={isDownloaded ? "check-circle" : "download"} size={22} color={isDownloaded ? colors.green : colors.textSecondary} />
+          {/* Bookmark */}
+          <Pressable onPress={handleBookmark} style={styles.actionBtn} hitSlop={8}>
+            <Icon name="bookmark" size={21} color={isBookmarked ? colors.gold : colors.textSecondary} />
           </Pressable>
-          <Pressable onPress={() => setSleepModal(true)} style={styles.actionBtn}>
-            <Icon name="moon" size={22} color={colors.textSecondary} />
+          {/* Download */}
+          <Pressable onPress={handleDownload} style={styles.actionBtn} hitSlop={8}>
+            <Icon name={isDownloaded ? "check-circle" : "download"} size={21} color={isDownloaded ? colors.green : colors.textSecondary} />
+          </Pressable>
+          {/* Sleep */}
+          <Pressable onPress={() => setSleepModal(true)} style={styles.actionBtn} hitSlop={8}>
+            <Icon name="moon" size={21} color={colors.textSecondary} />
           </Pressable>
         </View>
 
@@ -1027,12 +1048,16 @@ export default function PlayerScreen() {
               </Pressable>
             )}
             <Pressable onPress={() => { setMoreModal(false); handleLike(); }} style={styles.speedOption}>
-              <Icon name="heart" size={16} color={isDbLiked ? colors.gold : colors.textSecondary} />
+              <Icon name="thumbs-up" size={16} color={isDbLiked ? colors.gold : colors.textSecondary} />
               <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isDbLiked ? "Unlike" : "Like"}</Text>
             </Pressable>
             <Pressable onPress={() => { setMoreModal(false); handleOpenComments(); }} style={styles.speedOption}>
               <Icon name="message-circle" size={16} color={colors.textSecondary} />
               <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>Comments{commentCount > 0 ? ` (${commentCount})` : ""}</Text>
+            </Pressable>
+            <Pressable onPress={() => { setMoreModal(false); handleFavourite(); }} style={styles.speedOption}>
+              <Icon name="heart" size={16} color={isLiked ? colors.gold : colors.textSecondary} />
+              <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isLiked ? "Remove from Favourites" : "Add to Favourites"}</Text>
             </Pressable>
             <Pressable onPress={() => { setMoreModal(false); handleBookmark(); }} style={styles.speedOption}>
               <Icon name="bookmark" size={16} color={isBookmarked ? colors.gold : colors.textSecondary} />
@@ -1053,10 +1078,10 @@ export default function PlayerScreen() {
       {/* Comments Modal */}
       <Modal visible={commentModal} transparent animationType="slide" onRequestClose={() => setCommentModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-          <Pressable style={styles.modalOverlay} onPress={() => setCommentModal(false)}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setCommentModal(false)} />
             <View
               style={[styles.commentSheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onStartShouldSetResponder={() => true}
             >
               {/* Header */}
               <View style={styles.commentHeader}>
@@ -1110,33 +1135,42 @@ export default function PlayerScreen() {
                 />
               )}
 
-              {/* Input */}
-              <View style={[styles.commentInputRow, { borderTopColor: colors.border }]}>
-                <TextInput
-                  style={[styles.commentInput, { backgroundColor: colors.surfaceHigh, color: colors.textPrimary, borderColor: colors.border }]}
-                  placeholder={user?.id ? "Write a comment..." : "Sign in to comment"}
-                  placeholderTextColor={colors.textMuted}
-                  value={commentText}
-                  onChangeText={setCommentText}
-                  maxLength={500}
-                  editable={!!user?.id}
-                  multiline
-                  returnKeyType="send"
-                  onSubmitEditing={handleAddComment}
-                />
-                <Pressable
-                  onPress={handleAddComment}
-                  disabled={sendingComment || !commentText.trim()}
-                  style={[styles.commentSendBtn, { backgroundColor: commentText.trim() ? colors.gold : colors.surfaceHigh }]}
-                >
-                  {sendingComment
-                    ? <ActivityIndicator size="small" color={colors.surface} />
-                    : <Icon name="send" size={16} color={commentText.trim() ? colors.surface : colors.textMuted} />
-                  }
-                </Pressable>
-              </View>
+              {/* Input / Blocked */}
+              {isCommentBlocked ? (
+                <View style={[styles.commentBlockedBanner, { backgroundColor: colors.surfaceHigh, borderColor: colors.border }]}>
+                  <Icon name="slash" size={16} color={colors.textMuted} />
+                  <Text style={[styles.commentBlockedText, { color: colors.textMuted }]}>
+                    You have been restricted from commenting.
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.commentInputRow, { borderTopColor: colors.border }]}>
+                  <TextInput
+                    style={[styles.commentInput, { backgroundColor: colors.surfaceHigh, color: colors.textPrimary, borderColor: colors.border }]}
+                    placeholder={user?.id ? "Write a comment..." : "Sign in to comment"}
+                    placeholderTextColor={colors.textMuted}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    maxLength={500}
+                    editable={!!user?.id}
+                    multiline
+                    returnKeyType="send"
+                    onSubmitEditing={handleAddComment}
+                  />
+                  <Pressable
+                    onPress={handleAddComment}
+                    disabled={sendingComment || !commentText.trim()}
+                    style={[styles.commentSendBtn, { backgroundColor: commentText.trim() ? colors.gold : colors.surfaceHigh }]}
+                  >
+                    {sendingComment
+                      ? <ActivityIndicator size="small" color={colors.surface} />
+                      : <Icon name="send" size={16} color={commentText.trim() ? colors.surface : colors.textMuted} />
+                    }
+                  </Pressable>
+                </View>
+              )}
             </View>
-          </Pressable>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1311,6 +1345,8 @@ const styles = StyleSheet.create({
   commentInputRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingTop: 12, borderTopWidth: 0.5 },
   commentInput: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, maxHeight: 80 },
   commentSendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  commentBlockedBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 14, marginTop: 8 },
+  commentBlockedText: { fontSize: 13, flex: 1 },
   progressSection: { paddingHorizontal: 24, gap: 8 },
   progressBarBg: { height: 4, borderRadius: 2, position: "relative" },
   progressBarFill: { height: 4, borderRadius: 2 },
