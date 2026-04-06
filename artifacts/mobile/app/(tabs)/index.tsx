@@ -132,6 +132,7 @@ const StoryGridCard = React.memo(function StoryGridCard({
 }) {
   const colors = useColors();
   const router = useRouter();
+  const { settings } = useAppSettings();
   const scale = useRef(new Animated.Value(1)).current;
 
   const { series, episode } = item;
@@ -187,7 +188,7 @@ const StoryGridCard = React.memo(function StoryGridCard({
               </Text>
             </View>
           </View>
-          {hasEpisode && episode.isPremium && (
+          {hasEpisode && episode.isPremium && settings.subscription_enabled && (
             <View style={styles.gridPremiumWrap}>
               <View
                 style={[styles.gridPremiumBadge, { backgroundColor: "#B8860E" }]}

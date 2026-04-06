@@ -46,7 +46,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, session, isGuest, logout, refreshUser, applyXpBonus } = useAuth();
   const { nowPlaying } = useAudio();
-  const { featureFlags } = useAppSettings();
+  const { featureFlags, settings } = useAppSettings();
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
 
@@ -356,7 +356,7 @@ export default function ProfileScreen() {
               <Icon name="star" size={12} color="#fff" />
               <Text style={styles.premiumBadgeText}>PREMIUM</Text>
             </View>
-          ) : (
+          ) : settings.subscription_enabled ? (
             <Pressable
               onPress={() => router.push("/subscription")}
               style={[styles.upgradePill, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}
@@ -364,7 +364,7 @@ export default function ProfileScreen() {
               <Icon name="zap" size={12} color={colors.goldLight} />
               <Text style={[styles.upgradePillText, { color: colors.goldLight }]}>Upgrade to Premium</Text>
             </Pressable>
-          )}
+          ) : null}
         </LinearGradient>
 
         <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -414,7 +414,9 @@ export default function ProfileScreen() {
 
           <Text style={[styles.menuSection, { color: colors.textMuted }]}>ACCOUNT</Text>
           <View style={[styles.menuCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <MenuItem icon="star" label="Premium" value={user.isPremium ? "Active" : "Free"} onPress={() => router.push("/subscription")} tint={colors.gold} />
+            {(settings.subscription_enabled || user.isPremium) && (
+              <MenuItem icon="star" label="Premium" value={user.isPremium ? "Active" : "Free"} onPress={() => router.push("/subscription")} tint={colors.gold} />
+            )}
             <MenuItem icon="gift" label="Redeem a Code" onPress={() => setCouponModal(true)} />
             <MenuItem icon="settings" label="Settings" onPress={() => router.push("/settings")} />
           </View>

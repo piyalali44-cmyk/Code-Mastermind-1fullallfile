@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAudio } from "@/context/AudioContext";
 import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
@@ -47,6 +48,7 @@ export default function SeriesDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { play, nowPlaying } = useAudio();
   const { user, isGuest } = useAuth();
+  const { settings } = useAppSettings();
 
   const { isFavourite, isBookmarked: isItemBookmarked, toggleFavourite, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
 
@@ -126,7 +128,7 @@ export default function SeriesDetailScreen() {
   const handlePlayEpisode = async (episodeId: string) => {
     const ep = series.episodes.find((e) => e.id === episodeId);
     if (!ep) return;
-    if (ep.isPremium && !user?.isPremium) {
+    if (settings.subscription_enabled && ep.isPremium && !user?.isPremium) {
       router.push("/subscription");
       return;
     }
@@ -271,7 +273,9 @@ export default function SeriesDetailScreen() {
             <View style={[styles.statDot, { backgroundColor: colors.divider }]} />
             <View style={styles.statItem}>
               <Icon name="unlock" size={14} color={colors.green} />
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{freeCount} free</Text>
+              <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                {settings.subscription_enabled ? `${freeCount} free` : "All free"}
+              </Text>
             </View>
           </View>
 
@@ -359,7 +363,7 @@ export default function SeriesDetailScreen() {
 
           {/* Episode List */}
           {series.episodes.map((ep, idx) => {
-            const isLocked = ep.isPremium && !user?.isPremium;
+            const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
             const isPlaying = nowPlaying?.id === ep.id;
             const noAudio = !ep.hasAudio;
             return (
@@ -394,7 +398,7 @@ export default function SeriesDetailScreen() {
                     >
                       {ep.title}
                     </Text>
-                    {ep.isPremium && (
+                    {settings.subscription_enabled && ep.isPremium && (
                       <View style={[styles.premBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
                         <Icon name="star" size={8} color={colors.goldLight} />
                         <Text style={[styles.premBadgeText, { color: colors.goldLight }]}>PRO</Text>
