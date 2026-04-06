@@ -126,6 +126,7 @@ export function Sidebar() {
         { title: "Episodes", href: "/content/episodes", icon: Mic2, show: isAtLeast("content") },
         { title: "Reciters", href: "/content/reciters", icon: Mic2, show: isAtLeast("content") },
         { title: "Reports", href: "/content/reports", icon: AlertTriangle, show: isAtLeast("content"), badge: 0 },
+        { title: "Comments", href: "/content/comments", icon: MessageSquare, show: isAtLeast("content") },
         { title: "Play Stats", href: "/content/play-stats", icon: Headphones, show: isAtLeast("content") },
       ],
     },
