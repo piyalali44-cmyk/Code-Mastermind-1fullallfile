@@ -268,6 +268,10 @@ export default function PlayerScreen() {
       ? `episode:${nowPlaying.id}`
       : "";
 
+  const itemMeta = nowPlaying
+    ? { title: nowPlaying.title, coverColor: nowPlaying.coverColor, audioUrl: nowPlaying.audioUrl }
+    : undefined;
+
   const isBookmarked = isItemBookmarked(favId);
   const isDownloaded = isItemDownloaded(downloadId);
 
