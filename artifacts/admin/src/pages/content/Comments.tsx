@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { MessageCircle, Trash2, Flag, RefreshCw, Search, Eye, EyeOff } from "lucide-react";
+import { MessageCircle, Trash2, Flag, RefreshCw, Search, Eye, EyeOff, UserX } from "lucide-react";
 
 const db = (supabaseAdmin ?? supabase) as typeof supabase;
 
@@ -43,10 +43,17 @@ export default function Comments() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
+  const [blockingUser, setBlockingUser] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const { data: blockedData } = await db.from("comment_blocked_users").select("user_id");
+      if (blockedData) {
+        setBlockedUsers(new Set(blockedData.map((r: { user_id: string }) => r.user_id)));
+      }
+
       let q = db
         .from("content_comments")
         .select("id, user_id, content_type, content_id, body, is_deleted, is_flagged, created_at, profiles!user_id(display_name)", { count: "exact" })
@@ -116,6 +123,27 @@ export default function Comments() {
     setComments((prev) => prev.map((c) => c.id === id ? { ...c, is_deleted: false } : c));
   };
 
+  const toggleBlockUser = async (userId: string, displayName: string | null) => {
+    if (blockingUser === userId) return;
+    setBlockingUser(userId);
+    try {
+      const isBlocked = blockedUsers.has(userId);
+      if (isBlocked) {
+        const { error } = await db.from("comment_blocked_users").delete().eq("user_id", userId);
+        if (error) { toast.error(error.message); return; }
+        setBlockedUsers((prev) => { const s = new Set(prev); s.delete(userId); return s; });
+        toast.success(`${displayName ?? "User"} can now comment again`);
+      } else {
+        const { error } = await db.from("comment_blocked_users").upsert({ user_id: userId }, { onConflict: "user_id" });
+        if (error) { toast.error(error.message); return; }
+        setBlockedUsers((prev) => new Set([...prev, userId]));
+        toast.success(`${displayName ?? "User"} blocked from commenting`);
+      }
+    } finally {
+      setBlockingUser(null);
+    }
+  };
+
   const activeCount = comments.filter((c) => !c.is_deleted && !c.is_flagged).length;
   const flaggedCount = comments.filter((c) => c.is_flagged).length;
   const deletedCount = comments.filter((c) => c.is_deleted).length;
@@ -134,12 +162,13 @@ export default function Comments() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: "Total Comments", value: total, icon: MessageCircle, color: "text-blue-400" },
           { label: "Active", value: activeCount, icon: Eye, color: "text-green-400" },
           { label: "Flagged", value: flaggedCount, icon: Flag, color: "text-yellow-400" },
           { label: "Deleted", value: deletedCount, icon: EyeOff, color: "text-red-400" },
+          { label: "Blocked Users", value: blockedUsers.size, icon: UserX, color: "text-red-500" },
         ].map((s) => (
           <Card key={s.label} className="border-border bg-surface">
             <CardContent className="p-4 flex items-center gap-3">
@@ -223,10 +252,15 @@ export default function Comments() {
                   <TableRow key={c.id} className={c.is_deleted ? "opacity-50" : c.is_flagged ? "bg-yellow-500/5" : ""}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                        <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${blockedUsers.has(c.user_id) ? "bg-red-500/20 text-red-400" : "bg-primary/10 text-primary"}`}>
                           {(c.display_name ?? "?").charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium truncate max-w-[120px]">{c.display_name ?? "Unknown"}</span>
+                        <div>
+                          <span className="text-sm font-medium truncate max-w-[120px] block">{c.display_name ?? "Unknown"}</span>
+                          {blockedUsers.has(c.user_id) && (
+                            <span className="text-[10px] text-red-400 font-semibold">BLOCKED</span>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -245,7 +279,7 @@ export default function Comments() {
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{timeAgo(c.created_at)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
                         {c.is_deleted ? (
                           <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => restore(c.id)}>
                             Restore
@@ -260,8 +294,19 @@ export default function Comments() {
                           variant="ghost"
                           className={`h-7 px-2 ${c.is_flagged ? "text-yellow-400" : "text-muted-foreground"}`}
                           onClick={() => toggleFlag(c.id, c.is_flagged)}
+                          title={c.is_flagged ? "Remove flag" : "Flag comment"}
                         >
                           <Flag className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={blockingUser === c.user_id}
+                          className={`h-7 px-2 ${blockedUsers.has(c.user_id) ? "text-red-400 hover:text-red-300" : "text-muted-foreground hover:text-red-400"}`}
+                          onClick={() => toggleBlockUser(c.user_id, c.display_name)}
+                          title={blockedUsers.has(c.user_id) ? "Unblock user from commenting" : "Block user from commenting"}
+                        >
+                          <UserX className="h-3.5 w-3.5" />
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-400" onClick={() => hardDelete(c.id)}>
                           ✕

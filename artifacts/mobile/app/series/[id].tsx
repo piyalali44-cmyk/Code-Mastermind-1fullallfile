@@ -2,20 +2,21 @@ import FadeImage from "@/components/FadeImage";
 import { Icon } from "@/components/Icon";
 import { Toast } from "@/components/Toast";
 import { BlurView } from "expo-blur";
-import * as Clipboard from "expo-clipboard";
-
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,6 +27,18 @@ import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
 import { useUserActions } from "@/context/UserActionsContext";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
+import {
+  toggleContentLike,
+  getContentLikeStatus,
+  getContentLikeCount,
+  getContentComments,
+  getContentCommentCount,
+  addContentComment,
+  softDeleteContentComment,
+  isUserCommentBlocked,
+  type ContentComment,
+} from "@/lib/db";
 
 function AnimatedIconBtn({ onPress, children, style, containerStyle }: any) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -66,25 +79,82 @@ export default function SeriesDetailScreen() {
     );
   }
 
-  const isLiked = isFavourite(`series:${series.id}`);
+  const isFavd = isFavourite(`series:${series.id}`);
   const isBookmarked = isItemBookmarked(`series:${series.id}`);
 
   const [moreModal, setMoreModal] = useState(false);
-  const [shareModal, setShareModal] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: any; iconColor?: string }>({ visible: false, message: "", icon: "check" });
   const likeScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const playBtnScale = useRef(new Animated.Value(1)).current;
 
+  // ─── DB-backed Like ────────────────────────────────────────────────────────
+  const [isDbLiked, setIsDbLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likePending, setLikePending] = useState(false);
+
+  // ─── Comments ──────────────────────────────────────────────────────────────
+  const [commentModal, setCommentModal] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [comments, setComments] = useState<ContentComment[]>([]);
+  const [commentCount, setCommentCount] = useState(0);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
+  const [isCommentBlocked, setIsCommentBlocked] = useState(false);
+
+  const CONTENT_TYPE = "series" as const;
+  const CONTENT_ID = series.id;
+
   const showToast = (message: string, icon: any, iconColor?: string) => {
     setToast({ visible: true, message, icon, iconColor });
   };
 
-  const shareLink = `https://stayguided.me/series/${series.id}`;
-  const shareMessage = `Check out "${series.title}" on StayGuided Me — an Islamic audio app!\n${shareLink}`;
+  // Load DB like + comment counts on mount
+  useEffect(() => {
+    if (!series.id) return;
+    getContentLikeCount(CONTENT_TYPE, CONTENT_ID).then(setLikeCount);
+    getContentCommentCount(CONTENT_TYPE, CONTENT_ID).then(setCommentCount);
+    if (user?.id) {
+      getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID).then(r => setIsDbLiked(r.isLiked));
+    }
+  }, [series.id, user?.id]);
 
-  const handleToggleLike = () => {
+  // Real-time like subscription
+  useEffect(() => {
+    const ch = supabase
+      .channel(`series_likes_${CONTENT_ID}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "content_likes",
+        filter: `content_type=eq.${CONTENT_TYPE}` }, async () => {
+        const [count, likeStatus] = await Promise.all([
+          getContentLikeCount(CONTENT_TYPE, CONTENT_ID),
+          user?.id ? getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID) : Promise.resolve({ isLiked: false, count: 0 }),
+        ]);
+        setLikeCount(count);
+        setIsDbLiked(likeStatus.isLiked);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [series.id, user?.id]);
+
+  // Real-time comment subscription
+  useEffect(() => {
+    const ch = supabase
+      .channel(`series_comments_${CONTENT_ID}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "content_comments",
+        filter: `content_type=eq.${CONTENT_TYPE}` }, async () => {
+        const count = await getContentCommentCount(CONTENT_TYPE, CONTENT_ID);
+        setCommentCount(count);
+        if (commentModal) {
+          const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id);
+          setComments(list);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [series.id, user?.id, commentModal]);
+
+  // ─── Favourite (local) ─────────────────────────────────────────────────────
+  const handleToggleFavourite = () => {
     if (isGuest) {
       showToast("Sign in to save favourites", "user", colors.textSecondary);
       setTimeout(() => router.push("/login"), 600);
@@ -98,6 +168,24 @@ export default function SeriesDetailScreen() {
     ]).start();
   };
 
+  // ─── DB Like ───────────────────────────────────────────────────────────────
+  const handleDbLike = async () => {
+    if (!user?.id) {
+      showToast("Sign in to like", "thumbs-up", colors.textSecondary);
+      return;
+    }
+    if (likePending) return;
+    setLikePending(true);
+    const optimistic = !isDbLiked;
+    setIsDbLiked(optimistic);
+    setLikeCount(c => optimistic ? c + 1 : Math.max(0, c - 1));
+    const result = await toggleContentLike(user.id, CONTENT_TYPE, CONTENT_ID);
+    setIsDbLiked(result.liked);
+    setLikeCount(await getContentLikeCount(CONTENT_TYPE, CONTENT_ID));
+    setLikePending(false);
+  };
+
+  // ─── Bookmark ──────────────────────────────────────────────────────────────
   const handleToggleBookmark = () => {
     if (isGuest) {
       showToast("Sign in to bookmark series", "user", colors.textSecondary);
@@ -112,17 +200,42 @@ export default function SeriesDetailScreen() {
     ]).start();
   };
 
-  const handleShare = () => {
-    setCopiedLink(false);
-    setShareModal(true);
+  // ─── Comments ──────────────────────────────────────────────────────────────
+  const handleOpenComments = async () => {
+    setCommentModal(true);
+    setCommentsLoading(true);
+    const [{ comments: list }, blocked] = await Promise.all([
+      getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id),
+      user?.id ? isUserCommentBlocked(user.id) : Promise.resolve(false),
+    ]);
+    setComments(list);
+    setIsCommentBlocked(blocked);
+    setCommentsLoading(false);
   };
 
-  const handleCopyLink = async () => {
-    try {
-      await Clipboard.setStringAsync(shareLink);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
-    } catch (_) {}
+  const handleAddComment = async () => {
+    if (!user?.id) { showToast("Sign in to comment", "message-circle", colors.textSecondary); return; }
+    const text = commentText.trim();
+    if (!text) return;
+    setSendingComment(true);
+    const result = await addContentComment(user.id, CONTENT_TYPE, CONTENT_ID, text);
+    if (result) {
+      setCommentText("");
+      const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user.id);
+      setComments(list);
+      setCommentCount(await getContentCommentCount(CONTENT_TYPE, CONTENT_ID));
+    } else {
+      showToast("Failed to send comment", "alert-circle", colors.error);
+    }
+    setSendingComment(false);
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    const ok = await softDeleteContentComment(commentId);
+    if (ok) {
+      setComments(prev => prev.filter(c => c.id !== commentId));
+      setCommentCount(c => Math.max(0, c - 1));
+    }
   };
 
   const handlePlayEpisode = async (episodeId: string) => {
@@ -315,16 +428,48 @@ export default function SeriesDetailScreen() {
               </Animated.View>
             </Pressable>
 
-            {/* Like */}
+            {/* DB Like — thumbs-up */}
             <AnimatedIconBtn
-              onPress={handleToggleLike}
+              onPress={handleDbLike}
+              style={[styles.iconBtnWithCount, {
+                backgroundColor: isDbLiked ? colors.gold + "22" : colors.surfaceHigh,
+                borderColor: isDbLiked ? colors.gold : colors.border,
+              }]}
+            >
+              <Icon name="thumbs-up" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
+              {likeCount > 0 && (
+                <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
+                  {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
+                </Text>
+              )}
+            </AnimatedIconBtn>
+
+            {/* Comments */}
+            <AnimatedIconBtn
+              onPress={handleOpenComments}
+              style={[styles.iconBtnWithCount, {
+                backgroundColor: colors.surfaceHigh,
+                borderColor: colors.border,
+              }]}
+            >
+              <Icon name="message-circle" size={19} color={colors.textPrimary} />
+              {commentCount > 0 && (
+                <Text style={[styles.iconBtnCount, { color: colors.textMuted }]}>
+                  {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
+                </Text>
+              )}
+            </AnimatedIconBtn>
+
+            {/* Favourite — heart (local) */}
+            <AnimatedIconBtn
+              onPress={handleToggleFavourite}
               style={[styles.iconBtn, {
-                backgroundColor: isLiked ? colors.gold + "22" : colors.surfaceHigh,
-                borderColor: isLiked ? colors.gold : colors.border,
+                backgroundColor: isFavd ? colors.gold + "22" : colors.surfaceHigh,
+                borderColor: isFavd ? colors.gold : colors.border,
               }]}
             >
               <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                <Icon name="heart" size={20} color={isLiked ? colors.gold : colors.textPrimary} />
+                <Icon name="heart" size={19} color={isFavd ? colors.gold : colors.textPrimary} />
               </Animated.View>
             </AnimatedIconBtn>
 
@@ -337,19 +482,8 @@ export default function SeriesDetailScreen() {
               }]}
             >
               <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-                <Icon name={isBookmarked ? "bookmark" : "bookmark"} size={20} color={isBookmarked ? colors.gold : colors.textPrimary} />
+                <Icon name="bookmark" size={19} color={isBookmarked ? colors.gold : colors.textPrimary} />
               </Animated.View>
-            </AnimatedIconBtn>
-
-            {/* Share */}
-            <AnimatedIconBtn
-              onPress={handleShare}
-              style={[styles.iconBtn, {
-                backgroundColor: colors.surfaceHigh,
-                borderColor: colors.border,
-              }]}
-            >
-              <Icon name="share-2" size={20} color={colors.textPrimary} />
             </AnimatedIconBtn>
           </View>
 
@@ -497,48 +631,87 @@ export default function SeriesDetailScreen() {
         onDismiss={() => setToast((t) => ({ ...t, visible: false }))}
       />
 
-      {/* Share Modal */}
-      <Modal visible={shareModal} transparent animationType="slide" onRequestClose={() => setShareModal(false)}>
-        <Pressable style={moreStyles.overlay} onPress={() => setShareModal(false)}>
-          <View style={[moreStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]} onStartShouldSetResponder={() => true}>
-            <View style={[moreStyles.handle, { backgroundColor: colors.border }]} />
-            <Text style={[moreStyles.sheetTitle, { color: colors.textPrimary }]}>Share</Text>
-            <View style={[styles.sharePreview, { backgroundColor: colors.surfaceHigh, borderColor: colors.border }]}>
-              <View style={[styles.shareCover, { backgroundColor: series.coverColor }]}>
-                <Icon name="headphones" size={18} color={colors.goldLight} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.shareTitle, { color: colors.textPrimary }]} numberOfLines={1}>{series.title}</Text>
-                <Text style={[styles.shareSub, { color: colors.textSecondary }]} numberOfLines={1}>{series.episodeCount} episodes</Text>
-              </View>
+      {/* Comment Modal */}
+      <Modal visible={commentModal} transparent animationType="slide" onRequestClose={() => setCommentModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCommentModal(false)} />
+            <View style={[cmtStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[cmtStyles.handle, { backgroundColor: colors.border }]} />
+              <Text style={[cmtStyles.title, { color: colors.textPrimary }]}>
+                Comments{commentCount > 0 ? ` (${commentCount})` : ""}
+              </Text>
+
+              {commentsLoading ? (
+                <ActivityIndicator color={colors.gold} style={{ marginVertical: 32 }} />
+              ) : (
+                <FlatList
+                  data={comments}
+                  keyExtractor={c => c.id}
+                  style={{ maxHeight: 340 }}
+                  contentContainerStyle={{ gap: 2 }}
+                  ListEmptyComponent={
+                    <Text style={[cmtStyles.empty, { color: colors.textMuted }]}>
+                      No comments yet. Be the first!
+                    </Text>
+                  }
+                  renderItem={({ item: c }) => (
+                    <View style={[cmtStyles.commentRow, { borderBottomColor: colors.divider }]}>
+                      <View style={[cmtStyles.avatar, { backgroundColor: colors.gold + "33" }]}>
+                        <Text style={[cmtStyles.avatarText, { color: colors.gold }]}>
+                          {(c.displayName || "U").charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                          <Text style={[cmtStyles.name, { color: colors.textPrimary }]}>{c.displayName || "User"}</Text>
+                          {c.isOwn && (
+                            <Pressable onPress={() => handleDeleteComment(c.id)} hitSlop={8}>
+                              <Icon name="trash-2" size={13} color={colors.textMuted} />
+                            </Pressable>
+                          )}
+                        </View>
+                        <Text style={[cmtStyles.body, { color: colors.textSecondary }]}>{c.body}</Text>
+                      </View>
+                    </View>
+                  )}
+                />
+              )}
+
+              {isCommentBlocked ? (
+                <View style={[cmtStyles.blockedBanner, { backgroundColor: colors.surfaceHigh, borderColor: colors.border }]}>
+                  <Icon name="slash" size={15} color={colors.textMuted} />
+                  <Text style={[cmtStyles.blockedText, { color: colors.textMuted }]}>You have been restricted from commenting.</Text>
+                </View>
+              ) : (
+                <View style={[cmtStyles.inputRow, { borderTopColor: colors.border }]}>
+                  <TextInput
+                    style={[cmtStyles.input, { backgroundColor: colors.surfaceHigh, color: colors.textPrimary, borderColor: colors.border }]}
+                    placeholder={user?.id ? "Write a comment..." : "Sign in to comment"}
+                    placeholderTextColor={colors.textMuted}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    maxLength={500}
+                    editable={!!user?.id}
+                    multiline
+                    returnKeyType="send"
+                    onSubmitEditing={handleAddComment}
+                  />
+                  <Pressable
+                    onPress={handleAddComment}
+                    disabled={sendingComment || !commentText.trim()}
+                    style={[cmtStyles.sendBtn, { backgroundColor: commentText.trim() ? colors.gold : colors.surfaceHigh }]}
+                  >
+                    {sendingComment
+                      ? <ActivityIndicator size="small" color={colors.surface} />
+                      : <Icon name="send" size={15} color={commentText.trim() ? colors.surface : colors.textMuted} />
+                    }
+                  </Pressable>
+                </View>
+              )}
             </View>
-            <Pressable onPress={handleCopyLink} style={moreStyles.row}>
-              <Icon name={copiedLink ? "check" : "link"} size={16} color={copiedLink ? colors.green : colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: copiedLink ? colors.green : colors.textPrimary }]}>{copiedLink ? "Link Copied!" : "Copy Link"}</Text>
-            </Pressable>
-            <Pressable
-              onPress={async () => {
-                setShareModal(false);
-                try { await Share.share({ message: shareMessage, title: series.title }); } catch (_) {}
-              }}
-              style={moreStyles.row}
-            >
-              <Icon name="share-2" size={16} color={colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Share via...</Text>
-            </Pressable>
-            <Pressable
-              onPress={async () => {
-                await Clipboard.setStringAsync(shareMessage);
-                setCopiedLink(true);
-                setTimeout(() => { setCopiedLink(false); setShareModal(false); }, 1200);
-              }}
-              style={moreStyles.row}
-            >
-              <Icon name="copy" size={16} color={colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Copy Message</Text>
-            </Pressable>
           </View>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* More Options Modal */}
@@ -547,19 +720,23 @@ export default function SeriesDetailScreen() {
           <View style={[moreStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]} onStartShouldSetResponder={() => true}>
             <View style={[moreStyles.handle, { backgroundColor: colors.border }]} />
             <Text style={[moreStyles.sheetTitle, { color: colors.textPrimary }]}>{series.title}</Text>
-            <Pressable onPress={() => { handleToggleLike(); setMoreModal(false); }} style={moreStyles.row}>
-              <Icon name="heart" size={18} color={isLiked ? colors.gold : colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isLiked ? "Remove from Favourites" : "Add to Favourites"}</Text>
+            <Pressable onPress={() => { setMoreModal(false); handleDbLike(); }} style={moreStyles.row}>
+              <Icon name="thumbs-up" size={18} color={isDbLiked ? colors.gold : colors.textSecondary} />
+              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isDbLiked ? "Unlike" : "Like"}</Text>
+            </Pressable>
+            <Pressable onPress={() => { setMoreModal(false); handleOpenComments(); }} style={moreStyles.row}>
+              <Icon name="message-circle" size={18} color={colors.textSecondary} />
+              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Comments{commentCount > 0 ? ` (${commentCount})` : ""}</Text>
+            </Pressable>
+            <Pressable onPress={() => { handleToggleFavourite(); setMoreModal(false); }} style={moreStyles.row}>
+              <Icon name="heart" size={18} color={isFavd ? colors.gold : colors.textSecondary} />
+              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isFavd ? "Remove from Favourites" : "Add to Favourites"}</Text>
             </Pressable>
             <Pressable onPress={() => { handleToggleBookmark(); setMoreModal(false); }} style={moreStyles.row}>
               <Icon name="bookmark" size={18} color={isBookmarked ? colors.gold : colors.textSecondary} />
               <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isBookmarked ? "Remove from Library" : "Save to Library"}</Text>
             </Pressable>
-            <Pressable onPress={() => { setMoreModal(false); handleShare(); }} style={moreStyles.row}>
-              <Icon name="share-2" size={18} color={colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Share Series</Text>
-            </Pressable>
-            <Pressable onPress={() => {  setMoreModal(false); }} style={moreStyles.row}>
+            <Pressable onPress={() => { setMoreModal(false); }} style={moreStyles.row}>
               <Icon name="flag" size={18} color={colors.textSecondary} />
               <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Report an Issue</Text>
             </Pressable>
@@ -577,6 +754,23 @@ const moreStyles = StyleSheet.create({
   sheetTitle: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.06)" },
   rowLabel: { fontSize: 15 },
+});
+
+const cmtStyles = StyleSheet.create({
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, padding: 20, paddingBottom: 36, gap: 12 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 4 },
+  title: { fontSize: 16, fontWeight: "700" },
+  empty: { textAlign: "center", paddingVertical: 24, fontSize: 14 },
+  commentRow: { flexDirection: "row", gap: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
+  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  avatarText: { fontSize: 16, fontWeight: "700" },
+  name: { fontSize: 13, fontWeight: "700" },
+  body: { fontSize: 14, lineHeight: 20, marginTop: 2 },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingTop: 12, borderTopWidth: 0.5 },
+  input: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, maxHeight: 80 },
+  sendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  blockedBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 12, borderWidth: 1, padding: 14, marginTop: 4 },
+  blockedText: { fontSize: 13, flex: 1 },
 });
 
 const styles = StyleSheet.create({
@@ -766,6 +960,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconBtnWithCount: {
+    minWidth: 50,
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    gap: 3,
+  },
+  iconBtnCount: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
   epHeader: {
     borderBottomWidth: 1,
     paddingBottom: 12,
@@ -871,29 +1079,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  sharePreview: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  shareCover: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shareTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  shareSub: {
-    fontSize: 12,
-    marginTop: 2,
   },
 });

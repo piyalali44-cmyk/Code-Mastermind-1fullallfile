@@ -1047,3 +1047,15 @@ export async function softDeleteContentComment(commentId: string): Promise<boole
     return !error;
   } catch { return false; }
 }
+
+// ─── COMMENT BLOCKING ─────────────────────────────────────────────────────────
+export async function isUserCommentBlocked(userId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("comment_blocked_users")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return !!data;
+  } catch { return false; }
+}
