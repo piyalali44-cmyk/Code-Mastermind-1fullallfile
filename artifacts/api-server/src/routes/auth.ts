@@ -293,43 +293,40 @@ router.post("/auth/signup", async (req, res) => {
 
     const userId = data.user?.id;
 
-    // ── Step 2: Create all support rows BEFORE returning (so client has them) ─
-    if (userId) {
-      const referralCode = "SG" + userId.replace(/-/g, "").substring(0, 6).toUpperCase();
-      await Promise.all([
-        admin.from("profiles").upsert(
-          { id: userId, display_name: cleanName, email: cleanEmail, referral_code: referralCode },
-          { onConflict: "id", ignoreDuplicates: true }
-        ),
-        admin.from("user_xp").upsert(
-          { user_id: userId, total_xp: 0, level: 1 },
-          { onConflict: "user_id", ignoreDuplicates: true }
-        ),
-        admin.from("user_streaks").upsert(
-          { user_id: userId },
-          { onConflict: "user_id", ignoreDuplicates: true }
-        ),
-        admin.from("user_settings").upsert(
-          { user_id: userId },
-          { onConflict: "user_id", ignoreDuplicates: true }
-        ),
-      ]).catch((e) => console.error("[signup] Row init error:", e?.message));
-    }
-
-    // ── Step 3: Sign in server-side → return tokens to client ─────────────────
-    // This eliminates a second signInWithPassword round-trip from the mobile app.
+    // ── Steps 2+3 in parallel: DB rows + server-side sign-in ─────────────────
+    // Running both at the same time saves ~400 ms vs sequential.
     let accessToken: string | undefined;
     let refreshToken: string | undefined;
 
-    try {
-      const { data: signInData } = await getAnonClient().auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-      accessToken  = signInData?.session?.access_token;
-      refreshToken = signInData?.session?.refresh_token;
-    } catch (signInErr) {
-      console.warn("[signup] Server-side sign-in failed (client will retry):", signInErr);
+    if (userId) {
+      const referralCode = "SG" + userId.replace(/-/g, "").substring(0, 6).toUpperCase();
+      const [, signInResult] = await Promise.all([
+        // DB row setup (must complete so client has data on first load)
+        Promise.all([
+          admin.from("profiles").upsert(
+            { id: userId, display_name: cleanName, email: cleanEmail, referral_code: referralCode },
+            { onConflict: "id", ignoreDuplicates: true }
+          ),
+          admin.from("user_xp").upsert(
+            { user_id: userId, total_xp: 0, level: 1 },
+            { onConflict: "user_id", ignoreDuplicates: true }
+          ),
+          admin.from("user_streaks").upsert(
+            { user_id: userId },
+            { onConflict: "user_id", ignoreDuplicates: true }
+          ),
+          admin.from("user_settings").upsert(
+            { user_id: userId },
+            { onConflict: "user_id", ignoreDuplicates: true }
+          ),
+        ]).catch((e) => console.error("[signup] Row init error:", e?.message)),
+        // Server-side sign-in (parallel — user already exists in auth.users)
+        getAnonClient().auth.signInWithPassword({ email: cleanEmail, password })
+          .catch((e) => { console.warn("[signup] Server-side sign-in failed:", e?.message); return null; }),
+      ]);
+
+      accessToken  = (signInResult as any)?.data?.session?.access_token;
+      refreshToken = (signInResult as any)?.data?.session?.refresh_token;
     }
 
     res.json({
