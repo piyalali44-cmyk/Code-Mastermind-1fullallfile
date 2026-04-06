@@ -12,7 +12,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
 import { useUserActions } from "@/context/UserActionsContext";
 import { useAppSettings } from "@/context/AppSettingsContext";
-import { supabase } from "@/lib/supabase";
 import {
   toggleContentLike,
   getContentLikeStatus,
@@ -299,37 +298,35 @@ export default function PlayerScreen() {
     return () => { cancelled = true; };
   }, [contentId, contentType, user?.id]);
 
-  // ─── Real-time subscription for likes & comments ───────────────────────────
+  // ─── Real-time polling for likes & comments count (every 20s) ─────────────
   useEffect(() => {
     if (!contentId) return;
-    const channel = supabase
-      .channel(`player-${contentType}-${contentId}`)
-      .on(
-        "postgres_changes" as any,
-        { event: "*", schema: "public", table: "content_likes", filter: `content_id=eq.${contentId}` },
-        async () => {
-          const c = await getContentLikeCount(contentType, contentId);
-          setLikeCount(c);
-          if (user?.id) {
-            const s = await getContentLikeStatus(user.id, contentType, contentId, token);
-            setIsDbLiked(s.isLiked);
-          }
-        },
-      )
-      .on(
-        "postgres_changes" as any,
-        { event: "INSERT", schema: "public", table: "content_comments", filter: `content_id=eq.${contentId}` },
-        async (payload: any) => {
-          setCommentCount((n) => n + 1);
-          if (commentModal) {
-            const { comments: fresh } = await getContentComments(contentType, contentId, user?.id, token);
-            setComments(fresh);
-          }
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [contentId, contentType, user?.id, commentModal]);
+    const poll = async () => {
+      const [likeStatus, cCount] = await Promise.all([
+        user?.id
+          ? getContentLikeStatus(user.id, contentType, contentId, token)
+          : getContentLikeCount(contentType, contentId).then((c) => ({ isLiked: false, count: c })),
+        getContentCommentCount(contentType, contentId),
+      ]);
+      setIsDbLiked(likeStatus.isLiked);
+      setLikeCount(likeStatus.count);
+      setCommentCount(cCount);
+    };
+    const id = setInterval(poll, 20_000);
+    return () => clearInterval(id);
+  }, [contentId, contentType, user?.id, token]);
+
+  // ─── Real-time polling for comments list when modal is open (every 8s) ─────
+  useEffect(() => {
+    if (!commentModal || !contentId) return;
+    const poll = async () => {
+      const { comments: fresh, count } = await getContentComments(contentType, contentId, user?.id, token);
+      setComments(fresh);
+      setCommentCount(count);
+    };
+    const id = setInterval(poll, 8_000);
+    return () => clearInterval(id);
+  }, [commentModal, contentId, contentType, user?.id, token]);
 
   // ─── Like handler (DB-backed) ───────────────────────────────────────────────
   const handleLike = async () => {

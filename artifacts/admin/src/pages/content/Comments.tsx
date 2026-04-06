@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { MessageCircle, Trash2, Flag, RefreshCw, Search, Eye, EyeOff, UserX } fr
 
 const API_BASE: string =
   (import.meta.env as Record<string, string>).VITE_API_BASE_URL || "";
+
+const POLL_INTERVAL_MS = 10_000;
 
 async function apiCall(path: string, method = "GET", body?: object) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -64,8 +66,14 @@ export default function Comments() {
   const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
   const [blockingUser, setBlockingUser] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [liveError, setLiveError] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isSilentRef = useRef(false);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    isSilentRef.current = silent;
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -83,14 +91,25 @@ export default function Comments() {
       setComments(commentsRes.comments ?? []);
       setTotal(commentsRes.total ?? 0);
       setBlockedUsers(new Set(blockedRes.blocked ?? []));
+      setLastUpdated(new Date());
+      setLiveError(false);
     } catch (err: any) {
-      toast.error(err.message ?? "Failed to load comments");
+      setLiveError(true);
+      if (!silent) toast.error(err.message ?? "Failed to load comments");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, filterType, filterStatus, search]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load(false);
+  }, [load]);
+
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => { load(true); }, POLL_INTERVAL_MS);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [load]);
 
   async function softDelete(id: string) {
     try {
@@ -141,12 +160,25 @@ export default function Comments() {
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <MessageCircle className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-bold">Comments</h1>
           <Badge variant="secondary">{total} total</Badge>
+          <div className="flex items-center gap-1.5 ml-1">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${liveError ? "bg-red-500" : "bg-green-500 animate-pulse"}`}
+            />
+            <span className={`text-xs font-semibold tracking-wide ${liveError ? "text-red-500" : "text-green-600"}`}>
+              {liveError ? "OFFLINE" : "LIVE"}
+            </span>
+            {lastUpdated && !liveError && (
+              <span className="text-xs text-muted-foreground ml-1">
+                · updated {timeAgo(lastUpdated.toISOString())}
+              </span>
+            )}
+          </div>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => load(false)} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
@@ -257,7 +289,6 @@ export default function Comments() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
-                        {/* Delete / Restore */}
                         {c.is_deleted ? (
                           <Button size="icon" variant="ghost" title="Restore" onClick={() => restore(c.id)}>
                             <Eye className="h-4 w-4 text-green-600" />
@@ -268,7 +299,6 @@ export default function Comments() {
                           </Button>
                         )}
 
-                        {/* Flag / Unflag */}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -282,7 +312,6 @@ export default function Comments() {
                           )}
                         </Button>
 
-                        {/* Block / Unblock user */}
                         <Button
                           size="icon"
                           variant="ghost"
