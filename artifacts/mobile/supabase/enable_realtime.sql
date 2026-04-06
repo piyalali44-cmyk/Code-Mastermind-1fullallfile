@@ -35,8 +35,5 @@ ALTER PUBLICATION supabase_realtime ADD TABLE quiz_questions;
 -- Admin activity log (for admin dashboard)
 ALTER PUBLICATION supabase_realtime ADD TABLE admin_activity_log;
 
--- Donations (for admin dashboard)
-ALTER PUBLICATION supabase_realtime ADD TABLE donations;
-
 -- Reciters
 ALTER PUBLICATION supabase_realtime ADD TABLE reciters;

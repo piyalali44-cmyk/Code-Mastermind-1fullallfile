@@ -188,7 +188,7 @@ This enables Supabase Realtime publication for all tables that need live updates
 - Content: categories, series, episodes, reciters, quizzes, quiz_questions
 - Users: profiles, user_xp, user_streaks, subscriptions
 - Config: app_settings, feature_flags, popup_notices
-- Engagement: notifications, favourites, bookmarks, listening_progress, donations, admin_activity_log
+- Engagement: notifications, favourites, bookmarks, listening_progress, admin_activity_log
 
 ### Realtime Subscriptions
 - **Mobile App**: ContentContext (series/episodes), AuthContext (profiles/user_xp/user_streaks), AppSettingsContext (app_settings/feature_flags/popup_notices), Notifications screen
