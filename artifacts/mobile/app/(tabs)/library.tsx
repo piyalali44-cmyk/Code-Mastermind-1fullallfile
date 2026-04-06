@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SeriesCard } from "@/components/SeriesCard";
 import { SURAHS } from "@/constants/surahs";
+import type { Episode, Series } from "@/data/mockData";
 
 const TABS = ["Continue", "Favourites", "Bookmarks", "History", "Completed", "Downloads"];
 
@@ -81,12 +82,12 @@ export default function LibraryScreen() {
   const bookmarkedSurahs = SURAHS.filter((s) => bookmarks.has(`surah:${s.number}`));
 
   const favouritedEpisodes = React.useMemo(() => {
-    const items: { episode: any; series: any }[] = [];
+    const items: { episode: Episode; series: Series }[] = [];
     favourites.forEach((key) => {
       if (!key.startsWith("episode:")) return;
       const epId = key.slice(8);
       for (const s of SERIES) {
-        const ep = (s.episodes ?? []).find((e: any) => e.id === epId);
+        const ep = (s.episodes ?? []).find((e: Episode) => e.id === epId);
         if (ep) { items.push({ episode: ep, series: s }); break; }
       }
     });
@@ -94,12 +95,12 @@ export default function LibraryScreen() {
   }, [favourites, SERIES]);
 
   const bookmarkedEpisodes = React.useMemo(() => {
-    const items: { episode: any; series: any }[] = [];
+    const items: { episode: Episode; series: Series }[] = [];
     bookmarks.forEach((key) => {
       if (!key.startsWith("episode:")) return;
       const epId = key.slice(8);
       for (const s of SERIES) {
-        const ep = (s.episodes ?? []).find((e: any) => e.id === epId);
+        const ep = (s.episodes ?? []).find((e: Episode) => e.id === epId);
         if (ep) { items.push({ episode: ep, series: s }); break; }
       }
     });
@@ -218,8 +219,8 @@ export default function LibraryScreen() {
                   <Pressable
                     key={`${item.contentId}-${idx}`}
                     onPress={() => {
-                      if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as any);
-                      else if (item.seriesId) router.push(`/series/${item.seriesId}` as any);
+                      if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as never);
+                      else if (item.seriesId) router.push(`/series/${item.seriesId}` as never);
                     }}
                     style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   >
@@ -276,7 +277,7 @@ export default function LibraryScreen() {
                     {favouritedEpisodes.map(({ episode, series }) => (
                       <Pressable
                         key={episode.id}
-                        onPress={() => router.push(`/series/${series.id}` as any)}
+                        onPress={() => router.push(`/series/${series.id}` as never)}
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
@@ -297,7 +298,7 @@ export default function LibraryScreen() {
                     {favouritedSurahs.map((s) => (
                       <Pressable
                         key={s.number}
-                        onPress={() => router.push(`/quran/${s.number}` as any)}
+                        onPress={() => router.push(`/quran/${s.number}` as never)}
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: colors.gold + "22" }]}>
@@ -359,7 +360,7 @@ export default function LibraryScreen() {
                     {bookmarkedEpisodes.map(({ episode, series }) => (
                       <Pressable
                         key={episode.id}
-                        onPress={() => router.push(`/series/${series.id}` as any)}
+                        onPress={() => router.push(`/series/${series.id}` as never)}
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
@@ -380,7 +381,7 @@ export default function LibraryScreen() {
                     {bookmarkedSurahs.map((s) => (
                       <Pressable
                         key={s.number}
-                        onPress={() => router.push(`/quran/${s.number}` as any)}
+                        onPress={() => router.push(`/quran/${s.number}` as never)}
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: colors.gold + "22" }]}>
@@ -423,8 +424,8 @@ export default function LibraryScreen() {
                     <Pressable
                       key={`${item.contentId}-${idx}`}
                       onPress={() => {
-                        if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as any);
-                        else if (item.seriesId) router.push(`/series/${item.seriesId}` as any);
+                        if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as never);
+                        else if (item.seriesId) router.push(`/series/${item.seriesId}` as never);
                       }}
                       style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                     >
@@ -480,8 +481,8 @@ export default function LibraryScreen() {
                   <Pressable
                     key={`${item.contentId}-${idx}`}
                     onPress={() => {
-                      if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as any);
-                      else if (item.seriesId) router.push(`/series/${item.seriesId}` as any);
+                      if (item.contentType === "surah") router.push(`/quran/${item.contentId}` as never);
+                      else if (item.seriesId) router.push(`/series/${item.seriesId}` as never);
                     }}
                     style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   >
@@ -676,7 +677,7 @@ export default function LibraryScreen() {
   );
 }
 
-function LoadingState({ colors }: { colors: any }) {
+function LoadingState({ colors }: { colors: ReturnType<typeof useColors> }) {
   return (
     <View style={{ alignItems: "center", paddingTop: 60, gap: 12 }}>
       <ActivityIndicator color={colors.gold} size="large" />
@@ -685,7 +686,7 @@ function LoadingState({ colors }: { colors: any }) {
   );
 }
 
-function GuestPrompt({ label, onSignIn, colors }: { label: string; onSignIn: () => void; colors: any }) {
+function GuestPrompt({ label, onSignIn, colors }: { label: string; onSignIn: () => void; colors: ReturnType<typeof useColors> }) {
   return (
     <View style={[styles.emptyState]}>
       <Icon name="user" size={40} color={colors.textMuted} />

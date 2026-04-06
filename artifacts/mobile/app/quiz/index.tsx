@@ -50,14 +50,14 @@ export default function QuizListScreen() {
         .from("quiz_questions")
         .select("quiz_id");
       const counts: Record<string, number> = {};
-      (qData ?? []).forEach((q: any) => {
+      (qData ?? []).forEach((q: { quiz_id: string }) => {
         counts[q.quiz_id] = (counts[q.quiz_id] ?? 0) + 1;
       });
 
       setQuizzes(
-        (data as any[])
-          .filter((q) => (counts[q.id] ?? 0) > 0)
-          .map((q) => ({ ...q, question_count: counts[q.id] ?? 0 }))
+        (data ?? [])
+          .filter((q: { id: string }) => (counts[q.id] ?? 0) > 0)
+          .map((q: { id: string }) => ({ ...q, question_count: counts[q.id] ?? 0 }))
       );
 
       if (user?.id) {
@@ -66,7 +66,7 @@ export default function QuizListScreen() {
           .select("quiz_id")
           .eq("user_id", user.id)
           .eq("passed", true);
-        setCompletedIds(new Set((attempts ?? []).map((a: any) => a.quiz_id)));
+        setCompletedIds(new Set((attempts ?? []).map((a: { quiz_id: string }) => a.quiz_id)));
       }
     } catch (err) {
       console.warn("[QuizList] load error:", err);
@@ -126,7 +126,7 @@ export default function QuizListScreen() {
               return (
                 <Pressable
                   key={quiz.id}
-                  onPress={() => router.push(`/quiz/${quiz.id}` as any)}
+                  onPress={() => router.push(`/quiz/${quiz.id}` as `/quiz/${string}`)}
                   style={[styles.card, {
                     backgroundColor: colors.surface,
                     borderColor: completed ? colors.green + "44" : colors.border,

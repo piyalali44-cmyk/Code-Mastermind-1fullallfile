@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Uses service-role → bypasses RLS → always returns correct XP
     const token = session?.access_token;
     if (token) {
-      setTimeout(() => syncStatsFromApi(token).catch(() => {}), 2000);
+      setTimeout(() => syncStatsFromApi(token, true).catch(() => {}), 2000);
     }
   }, [session, syncStatsFromApi]);
 
