@@ -40,6 +40,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Builds the app User object from a Supabase session user.
+// Only fetches the 3 core tables (profiles, user_xp, user_streaks) in parallel —
+// listening_progress (potentially many rows) is skipped here and computed lazily
+// by the profile screen when needed.
 async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let displayName =
     supabaseUser.user_metadata?.display_name ??
@@ -59,18 +63,18 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
     null;
   let bio: string | null = null;
   let country: string | null = null;
-  let totalHoursListened = 0;
 
   try {
-    const [profileRes, xpRes, streakRes, progressRes] = await Promise.all([
+    // 3 parallel calls instead of 4 — listening_progress is loaded lazily
+    const [profileRes, xpRes, streakRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", supabaseUser.id).single(),
-      supabase.from("user_xp").select("*").eq("user_id", supabaseUser.id).single(),
-      supabase.from("user_streaks").select("*").eq("user_id", supabaseUser.id).single(),
-      supabase.from("listening_progress").select("position_ms").eq("user_id", supabaseUser.id),
+      supabase.from("user_xp").select("total_xp,level").eq("user_id", supabaseUser.id).single(),
+      supabase.from("user_streaks").select("current_streak,longest_streak").eq("user_id", supabaseUser.id).single(),
     ]);
 
-    if (!profileRes.data || !xpRes.data || !streakRes.data) {
-      await ensureUserRows(supabaseUser.id);
+    // Only call ensureUserRows if truly missing (new user whose rows weren't created yet)
+    if (!profileRes.data && !xpRes.data) {
+      ensureUserRows(supabaseUser.id).catch(() => {});
     }
 
     if (profileRes.data) {
@@ -89,10 +93,6 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
       streak = streakRes.data.current_streak;
       longestStreak = streakRes.data.longest_streak ?? 0;
     }
-    if (progressRes.data) {
-      const totalMs = progressRes.data.reduce((sum, r: any) => sum + (r.position_ms ?? 0), 0);
-      totalHoursListened = Math.round((totalMs / 3_600_000) * 10) / 10;
-    }
   } catch {
     // Tables may not exist yet — use defaults
   }
@@ -110,7 +110,7 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
     level,
     streak,
     longestStreak,
-    totalHoursListened,
+    totalHoursListened: 0, // loaded lazily in profile screen
     joinDate,
   };
 }
@@ -249,11 +249,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Signup failed");
     const userId: string | null = json.userId ?? null;
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (signInError) throw new Error(signInError.message);
+
+    // Server returns tokens → use setSession() directly (no extra network call).
+    // Falls back to signInWithPassword if server-side sign-in failed.
+    if (json.access_token && json.refresh_token) {
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token:  json.access_token,
+        refresh_token: json.refresh_token,
+      });
+      if (setErr) {
+        // Fallback
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.trim(), password,
+        });
+        if (signInError) throw new Error(signInError.message);
+      }
+    } else {
+      // Server didn't return tokens — sign in normally
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(), password,
+      });
+      if (signInError) throw new Error(signInError.message);
+    }
+
     return { userId };
   }, []);
 
