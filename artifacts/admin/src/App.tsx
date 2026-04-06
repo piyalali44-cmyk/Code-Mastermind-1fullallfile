@@ -26,6 +26,7 @@ const Episodes = lazy(() => import("@/pages/content/Episodes"));
 const Reciters = lazy(() => import("@/pages/content/Reciters"));
 const ContentReports = lazy(() => import("@/pages/content/ContentReports"));
 const PlayCounts = lazy(() => import("@/pages/content/PlayCounts"));
+const Comments = lazy(() => import("@/pages/content/Comments"));
 
 const JourneyTimeline = lazy(() => import("@/pages/journey/JourneyTimeline"));
 
@@ -154,6 +155,14 @@ function Router() {
           <RequireAuth>
             <AdminLayout>
               <ContentReports />
+            </AdminLayout>
+          </RequireAuth>
+        </Route>
+
+        <Route path="/content/comments">
+          <RequireAuth>
+            <AdminLayout>
+              <Comments />
             </AdminLayout>
           </RequireAuth>
         </Route>

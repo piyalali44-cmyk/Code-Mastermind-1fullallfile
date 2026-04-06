@@ -923,3 +923,127 @@ export async function updateUserCountry(userId: string, country: string): Promis
     .eq("id", userId);
   if (error) throw error;
 }
+
+// ─── CONTENT LIKES ───────────────────────────────────────────────────────────
+export async function toggleContentLike(
+  userId: string,
+  contentType: string,
+  contentId: string,
+): Promise<{ liked: boolean }> {
+  try {
+    const { data: existing } = await supabase
+      .from("content_likes")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("content_type", contentType)
+      .eq("content_id", contentId)
+      .maybeSingle();
+    if (existing) {
+      await supabase.from("content_likes").delete().eq("id", existing.id);
+      return { liked: false };
+    } else {
+      await supabase.from("content_likes").insert({ user_id: userId, content_type: contentType, content_id: contentId });
+      return { liked: true };
+    }
+  } catch { return { liked: false }; }
+}
+
+export async function getContentLikeStatus(
+  userId: string,
+  contentType: string,
+  contentId: string,
+): Promise<{ isLiked: boolean; count: number }> {
+  try {
+    const [likedRes, countRes] = await Promise.all([
+      supabase.from("content_likes").select("id").eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId).maybeSingle(),
+      supabase.from("content_likes").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId),
+    ]);
+    return { isLiked: !!likedRes.data, count: countRes.count ?? 0 };
+  } catch { return { isLiked: false, count: 0 }; }
+}
+
+export async function getContentLikeCount(contentType: string, contentId: string): Promise<number> {
+  try {
+    const { count } = await supabase.from("content_likes").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId);
+    return count ?? 0;
+  } catch { return 0; }
+}
+
+// ─── CONTENT COMMENTS ────────────────────────────────────────────────────────
+export interface ContentComment {
+  id: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  body: string;
+  createdAt: string;
+  isOwn: boolean;
+}
+
+export async function getContentComments(
+  contentType: string,
+  contentId: string,
+  currentUserId?: string,
+): Promise<{ comments: ContentComment[]; count: number }> {
+  try {
+    const { data, count } = await supabase
+      .from("content_comments")
+      .select("id, user_id, body, created_at, profiles!user_id(display_name, avatar_url)", { count: "exact" })
+      .eq("content_type", contentType)
+      .eq("content_id", contentId)
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: true })
+      .limit(100);
+    const comments: ContentComment[] = (data ?? []).map((r: any) => ({
+      id: r.id,
+      userId: r.user_id,
+      displayName: r.profiles?.display_name ?? "User",
+      avatarUrl: r.profiles?.avatar_url ?? null,
+      body: r.body,
+      createdAt: r.created_at,
+      isOwn: r.user_id === currentUserId,
+    }));
+    return { comments, count: count ?? comments.length };
+  } catch { return { comments: [], count: 0 }; }
+}
+
+export async function getContentCommentCount(contentType: string, contentId: string): Promise<number> {
+  try {
+    const { count } = await supabase.from("content_comments").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId).eq("is_deleted", false);
+    return count ?? 0;
+  } catch { return 0; }
+}
+
+export async function addContentComment(
+  userId: string,
+  contentType: string,
+  contentId: string,
+  body: string,
+): Promise<ContentComment | null> {
+  try {
+    const trimmed = body.trim();
+    if (!trimmed || trimmed.length > 500) return null;
+    const { data, error } = await supabase
+      .from("content_comments")
+      .insert({ user_id: userId, content_type: contentType, content_id: contentId, body: trimmed })
+      .select("id, user_id, body, created_at, profiles!user_id(display_name, avatar_url)")
+      .single();
+    if (error) { console.warn("[addContentComment]", error.message); return null; }
+    return {
+      id: data.id,
+      userId: data.user_id,
+      displayName: (data as any).profiles?.display_name ?? "User",
+      avatarUrl: (data as any).profiles?.avatar_url ?? null,
+      body: data.body,
+      createdAt: data.created_at,
+      isOwn: true,
+    };
+  } catch { return null; }
+}
+
+export async function softDeleteContentComment(commentId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("content_comments").update({ is_deleted: true }).eq("id", commentId);
+    return !error;
+  } catch { return false; }
+}
