@@ -86,13 +86,9 @@ router.post("/redeem", async (req, res) => {
     });
 
     if (refErr) {
-      // Fallback to legacy manual path if function doesn't exist yet
-      if (refErr.code === "PGRST202" || refErr.message?.includes("function") || refErr.message?.includes("does not exist")) {
-        return void await legacyReferral(admin, cleanCode, userId, res);
-      }
-      console.error("[redeem] referral RPC error:", refErr.message);
-      res.status(500).json({ success: false, error: "Something went wrong" });
-      return;
+      // Always fall back to the manual path — covers function-not-found and any other DB error
+      console.warn("[redeem] process_referral_by_id failed, using legacy path:", refErr.message);
+      return void await legacyReferral(admin, cleanCode, userId, res);
     }
 
     if (refResult?.success === true) {

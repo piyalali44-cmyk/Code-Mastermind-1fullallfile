@@ -293,8 +293,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
+
+    // Pre-populate user state immediately from metadata so tabs render with a real name.
+    // onAuthStateChange will overwrite with full DB data (XP, streak, etc.) in ~300 ms.
+    if (data?.user) {
+      const meta = data.user.user_metadata;
+      const prelimUser: User = {
+        id:                 data.user.id,
+        email:              data.user.email ?? email,
+        emailVerified:      !!data.user.email_confirmed_at,
+        displayName:        meta?.display_name ?? meta?.full_name ?? meta?.name
+                            ?? email.split("@")[0] ?? "Friend",
+        avatarUrl:          meta?.avatar_url ?? meta?.picture ?? null,
+        bio:                null,
+        country:            null,
+        isPremium:          false,
+        xp:                 0,
+        level:              1,
+        streak:             0,
+        longestStreak:      0,
+        totalHoursListened: 0,
+        joinDate:           data.user.created_at ?? new Date().toISOString(),
+      };
+      setUser(prelimUser);
+      setIsGuest(false);
+      AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
+      AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
+    }
   }, []);
 
   const signup = useCallback(async (
