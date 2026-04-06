@@ -44,7 +44,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, session, isGuest, logout, refreshUser } = useAuth();
+  const { user, session, isGuest, logout, refreshUser, applyXpBonus } = useAuth();
   const { nowPlaying } = useAudio();
   const { featureFlags } = useAppSettings();
   const isWeb = Platform.OS === "web";
@@ -250,7 +250,9 @@ export default function ProfileScreen() {
           msg = `Code applied! +${result.xpBonus} XP earned.`;
         }
         showToast(msg, "check-circle", colors.green);
-        refreshUser().catch(() => {});
+        // Instant optimistic XP update + delayed DB sync (avoids getSession hang)
+        if (result.xpBonus) applyXpBonus(result.xpBonus);
+        else refreshUser().catch(() => {});
         const stats = await getReferralStats(user.id);
         setRefStats(stats);
       } else {
