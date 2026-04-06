@@ -292,46 +292,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => { supabase.removeChannel(channel); };
   }, [user?.id]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-
-    // Pre-populate user state immediately from metadata so tabs render with a real name.
-    // onAuthStateChange will overwrite with full DB data (XP, streak, etc.) in ~300 ms.
-    if (data?.user) {
-      const meta = data.user.user_metadata;
-      const prelimUser: User = {
-        id:                 data.user.id,
-        email:              data.user.email ?? email,
-        emailVerified:      !!data.user.email_confirmed_at,
-        displayName:        meta?.display_name ?? meta?.full_name ?? meta?.name
-                            ?? email.split("@")[0] ?? "Friend",
-        avatarUrl:          meta?.avatar_url ?? meta?.picture ?? null,
-        bio:                null,
-        country:            null,
-        isPremium:          false,
-        xp:                 0,
-        level:              1,
-        streak:             0,
-        longestStreak:      0,
-        totalHoursListened: 0,
-        joinDate:           data.user.created_at ?? new Date().toISOString(),
-      };
-      setUser(prelimUser);
-      setIsGuest(false);
-      AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
-      AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
-    }
+  // ── Shared helper: build prelim user from server JSON ───────────────────────
+  const buildPrelimUser = useCallback((userData: any, emailFallback: string): User => {
+    const meta = userData?.user_metadata ?? {};
+    return {
+      id:                 userData?.id ?? "",
+      email:              userData?.email ?? emailFallback,
+      emailVerified:      !!userData?.email_confirmed_at,
+      displayName:        meta?.display_name ?? meta?.full_name ?? meta?.name
+                          ?? emailFallback.split("@")[0] ?? "Friend",
+      avatarUrl:          meta?.avatar_url ?? meta?.picture ?? null,
+      bio:                null,
+      country:            null,
+      isPremium:          false,
+      xp:                 0,
+      level:              1,
+      streak:             0,
+      longestStreak:      0,
+      totalHoursListened: 0,
+      joinDate:           userData?.created_at ?? new Date().toISOString(),
+    };
   }, []);
+
+  // ── Fire-and-forget setSession (triggers onAuthStateChange in background) ──
+  const applyTokens = useCallback((accessToken: string, refreshToken: string) => {
+    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .catch(() => {}); // Never block — onAuthStateChange will update state when ready
+  }, []);
+
+  const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
+    ?? "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+
+  const login = useCallback(async (email: string, password: string) => {
+    // Route through API server so the Supabase auth call happens server-side.
+    // This prevents the browser from making a slow/blocked direct call to Supabase Auth.
+    const res = await fetch(`${API_BASE}/auth/signin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error ?? "Login failed");
+
+    // Immediately set user state from returned metadata — tabs render now.
+    const prelimUser = buildPrelimUser(json.user, email);
+    setUser(prelimUser);
+    setIsGuest(false);
+    AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
+    AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
+
+    // Set session in background → triggers onAuthStateChange → refreshes with full DB data
+    if (json.access_token && json.refresh_token) {
+      applyTokens(json.access_token, json.refresh_token);
+    }
+  }, [API_BASE, buildPrelimUser, applyTokens]);
 
   const signup = useCallback(async (
     email: string,
     password: string,
     name: string,
   ): Promise<{ userId: string | null }> => {
-    const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-      || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
-
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -342,9 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const userId: string | null = json.userId ?? null;
 
-    // ── Pre-populate user state immediately for instant navigation ────────────
-    // The tabs will render with real-looking data right away.
-    // onAuthStateChange will update with actual DB values once setSession fires.
+    // Pre-populate user state immediately — tabs render with real name right away.
     const prelimUser: User = {
       id:               userId ?? "",
       email:            email.trim(),
@@ -363,31 +381,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setUser(prelimUser);
     setIsGuest(false);
-    // Cache so index.tsx doesn't redirect to login during setSession
     AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
     AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
 
-    // ── Set session — triggers onAuthStateChange which updates with real DB data
+    // Set session in background — never await, so signup() returns instantly.
+    // onAuthStateChange fires when setSession resolves and updates with full DB data.
     if (json.access_token && json.refresh_token) {
-      const { error: setErr } = await supabase.auth.setSession({
-        access_token:  json.access_token,
-        refresh_token: json.refresh_token,
-      });
-      if (setErr) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: email.trim(), password,
-        });
-        if (signInError) throw new Error(signInError.message);
-      }
-    } else {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(), password,
-      });
-      if (signInError) throw new Error(signInError.message);
+      applyTokens(json.access_token, json.refresh_token);
     }
 
     return { userId };
-  }, []);
+  }, [API_BASE, applyTokens]);
 
   const logout = useCallback(async () => {
     setUser(null);
