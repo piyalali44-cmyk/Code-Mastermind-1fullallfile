@@ -163,7 +163,7 @@ export default function PlayerScreen() {
   const { nowPlaying, isPlaying, isLoading, position, duration, playbackSpeed, repeatMode, setRepeatMode, pause, resume, seek, skipForward, skipBack, setSpeed, play } = useAudio();
   const { user } = useAuth();
   const { settings } = useAppSettings();
-  const { isFavourite, isBookmarked: isItemBookmarked, isDownloaded: isItemDownloaded, toggleFavourite, toggleBookmark, toggleDownload } = useUserActions();
+  const { isBookmarked: isItemBookmarked, isDownloaded: isItemDownloaded, toggleBookmark, toggleDownload } = useUserActions();
   const [speedModal, setSpeedModal] = useState(false);
   const [sleepModal, setSleepModal] = useState(false);
   const [moreModal, setMoreModal] = useState(false);
@@ -268,16 +268,8 @@ export default function PlayerScreen() {
       ? `episode:${nowPlaying.id}`
       : "";
 
-  const isLiked = isFavourite(favId);
   const isBookmarked = isItemBookmarked(favId);
   const isDownloaded = isItemDownloaded(downloadId);
-
-  const itemMeta = { title: nowPlaying?.title ?? "", coverColor: nowPlaying?.coverColor, audioUrl: nowPlaying?.audioUrl };
-
-  const handleFavourite = () => {
-    const added = toggleFavourite(favId, itemMeta);
-    showToast(added ? "Added to Favourites" : "Removed from Favourites", "heart", added ? colors.gold : colors.textSecondary);
-  };
 
   // ─── Content type/id for likes & comments ──────────────────────────────────
   const contentType = nowPlaying?.type === "quran" ? "surah" : "episode";
@@ -731,10 +723,6 @@ export default function PlayerScreen() {
               </Text>
             )}
           </Pressable>
-          {/* Favourite — local */}
-          <Pressable onPress={handleFavourite} style={styles.actionBtn} hitSlop={8}>
-            <Icon name="heart" size={21} color={isLiked ? colors.gold : colors.textSecondary} />
-          </Pressable>
           {/* Bookmark */}
           <Pressable onPress={handleBookmark} style={styles.actionBtn} hitSlop={8}>
             <Icon name="bookmark" size={21} color={isBookmarked ? colors.gold : colors.textSecondary} />
@@ -1054,10 +1042,6 @@ export default function PlayerScreen() {
             <Pressable onPress={() => { setMoreModal(false); handleOpenComments(); }} style={styles.speedOption}>
               <Icon name="message-circle" size={16} color={colors.textSecondary} />
               <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>Comments{commentCount > 0 ? ` (${commentCount})` : ""}</Text>
-            </Pressable>
-            <Pressable onPress={() => { setMoreModal(false); handleFavourite(); }} style={styles.speedOption}>
-              <Icon name="heart" size={16} color={isLiked ? colors.gold : colors.textSecondary} />
-              <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isLiked ? "Remove from Favourites" : "Add to Favourites"}</Text>
             </Pressable>
             <Pressable onPress={() => { setMoreModal(false); handleBookmark(); }} style={styles.speedOption}>
               <Icon name="bookmark" size={16} color={isBookmarked ? colors.gold : colors.textSecondary} />

@@ -49,14 +49,16 @@ export default function Comments() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: blockedData } = await db.from("comment_blocked_users").select("user_id");
+      const [{ data: blockedData }] = await Promise.all([
+        db.from("comment_blocked_users").select("user_id"),
+      ]);
       if (blockedData) {
         setBlockedUsers(new Set(blockedData.map((r: { user_id: string }) => r.user_id)));
       }
 
       let q = db
         .from("content_comments")
-        .select("id, user_id, content_type, content_id, body, is_deleted, is_flagged, created_at, profiles!user_id(display_name)", { count: "exact" })
+        .select("id, user_id, content_type, content_id, body, is_deleted, is_flagged, created_at", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
@@ -69,7 +71,18 @@ export default function Comments() {
       const { data, count, error } = await q;
       if (error) throw error;
 
-      const rows: AdminComment[] = (data ?? []).map((r: any) => ({
+      const rows = data ?? [];
+      const userIds = [...new Set(rows.map((r: any) => r.user_id as string))];
+      const profileMap = new Map<string, string>();
+      if (userIds.length > 0) {
+        const { data: profiles } = await db
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", userIds);
+        (profiles ?? []).forEach((p: any) => profileMap.set(p.id, p.display_name ?? "Unknown"));
+      }
+
+      const mapped: AdminComment[] = rows.map((r: any) => ({
         id: r.id,
         user_id: r.user_id,
         content_type: r.content_type,
@@ -78,11 +91,11 @@ export default function Comments() {
         is_deleted: r.is_deleted,
         is_flagged: r.is_flagged,
         created_at: r.created_at,
-        display_name: r.profiles?.display_name ?? null,
+        display_name: profileMap.get(r.user_id) ?? null,
         email: null,
       }));
 
-      setComments(rows);
+      setComments(mapped);
       setTotal(count ?? 0);
     } catch (err: any) {
       toast.error(err.message ?? "Failed to load comments");

@@ -63,7 +63,7 @@ export default function SeriesDetailScreen() {
   const { user, isGuest } = useAuth();
   const { settings } = useAppSettings();
 
-  const { isFavourite, isBookmarked: isItemBookmarked, toggleFavourite, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
+  const { isBookmarked: isItemBookmarked, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
 
   const { getSeriesById, loading: contentLoading } = useContent();
   const series = getSeriesById(id!);
@@ -79,12 +79,10 @@ export default function SeriesDetailScreen() {
     );
   }
 
-  const isFavd = isFavourite(`series:${series.id}`);
   const isBookmarked = isItemBookmarked(`series:${series.id}`);
 
   const [moreModal, setMoreModal] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: any; iconColor?: string }>({ visible: false, message: "", icon: "check" });
-  const likeScale = useRef(new Animated.Value(1)).current;
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const playBtnScale = useRef(new Animated.Value(1)).current;
 
@@ -119,12 +117,15 @@ export default function SeriesDetailScreen() {
     }
   }, [series.id, user?.id]);
 
-  // Real-time like subscription
+  // Real-time like + comment subscription (single channel, filtered by content_id)
   useEffect(() => {
+    if (!CONTENT_ID) return;
     const ch = supabase
-      .channel(`series_likes_${CONTENT_ID}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "content_likes",
-        filter: `content_type=eq.${CONTENT_TYPE}` }, async () => {
+      .channel(`series_rt_${CONTENT_ID}`)
+      .on("postgres_changes" as any, {
+        event: "*", schema: "public", table: "content_likes",
+        filter: `content_id=eq.${CONTENT_ID}`,
+      }, async () => {
         const [count, likeStatus] = await Promise.all([
           getContentLikeCount(CONTENT_TYPE, CONTENT_ID),
           user?.id ? getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID) : Promise.resolve({ isLiked: false, count: 0 }),
@@ -132,16 +133,10 @@ export default function SeriesDetailScreen() {
         setLikeCount(count);
         setIsDbLiked(likeStatus.isLiked);
       })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [series.id, user?.id]);
-
-  // Real-time comment subscription
-  useEffect(() => {
-    const ch = supabase
-      .channel(`series_comments_${CONTENT_ID}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "content_comments",
-        filter: `content_type=eq.${CONTENT_TYPE}` }, async () => {
+      .on("postgres_changes" as any, {
+        event: "*", schema: "public", table: "content_comments",
+        filter: `content_id=eq.${CONTENT_ID}`,
+      }, async () => {
         const count = await getContentCommentCount(CONTENT_TYPE, CONTENT_ID);
         setCommentCount(count);
         if (commentModal) {
@@ -152,21 +147,6 @@ export default function SeriesDetailScreen() {
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [series.id, user?.id, commentModal]);
-
-  // ─── Favourite (local) ─────────────────────────────────────────────────────
-  const handleToggleFavourite = () => {
-    if (isGuest) {
-      showToast("Sign in to save favourites", "user", colors.textSecondary);
-      setTimeout(() => router.push("/login"), 600);
-      return;
-    }
-    const added = toggleFavourite(`series:${series.id}`, { title: series.title, coverColor: series.coverColor });
-    showToast(added ? "Added to Favourites" : "Removed from Favourites", "heart", added ? colors.gold : colors.textSecondary);
-    Animated.sequence([
-      Animated.spring(likeScale, { toValue: 1.3, useNativeDriver: true, tension: 300 }),
-      Animated.spring(likeScale, { toValue: 1, useNativeDriver: true, tension: 200 }),
-    ]).start();
-  };
 
   // ─── DB Like ───────────────────────────────────────────────────────────────
   const handleDbLike = async () => {
@@ -460,19 +440,6 @@ export default function SeriesDetailScreen() {
               )}
             </AnimatedIconBtn>
 
-            {/* Favourite — heart (local) */}
-            <AnimatedIconBtn
-              onPress={handleToggleFavourite}
-              style={[styles.iconBtn, {
-                backgroundColor: isFavd ? colors.gold + "22" : colors.surfaceHigh,
-                borderColor: isFavd ? colors.gold : colors.border,
-              }]}
-            >
-              <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                <Icon name="heart" size={19} color={isFavd ? colors.gold : colors.textPrimary} />
-              </Animated.View>
-            </AnimatedIconBtn>
-
             {/* Bookmark */}
             <AnimatedIconBtn
               onPress={handleToggleBookmark}
@@ -727,10 +694,6 @@ export default function SeriesDetailScreen() {
             <Pressable onPress={() => { setMoreModal(false); handleOpenComments(); }} style={moreStyles.row}>
               <Icon name="message-circle" size={18} color={colors.textSecondary} />
               <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Comments{commentCount > 0 ? ` (${commentCount})` : ""}</Text>
-            </Pressable>
-            <Pressable onPress={() => { handleToggleFavourite(); setMoreModal(false); }} style={moreStyles.row}>
-              <Icon name="heart" size={18} color={isFavd ? colors.gold : colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isFavd ? "Remove from Favourites" : "Add to Favourites"}</Text>
             </Pressable>
             <Pressable onPress={() => { handleToggleBookmark(); setMoreModal(false); }} style={moreStyles.row}>
               <Icon name="bookmark" size={18} color={isBookmarked ? colors.gold : colors.textSecondary} />
