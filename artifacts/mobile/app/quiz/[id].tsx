@@ -52,7 +52,7 @@ export default function QuizTakeScreen() {
     if (!id) return;
     try {
       const [{ data: qz }, { data: qs }] = await Promise.all([
-        supabase.from("quizzes").select("id, title, description, category, pass_percentage, xp_reward").eq("id", id).single(),
+        supabase.from("quizzes").select("id, title, description, category, pass_percentage, xp_reward").eq("id", id).eq("is_active", true).single(),
         supabase.from("quiz_questions").select("*").eq("quiz_id", id).order("sort_order"),
       ]);
       if (!qz || !qs || qs.length === 0) {

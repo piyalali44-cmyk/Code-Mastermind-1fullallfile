@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Session, User as SupabaseUser } from "@supabase/supabase-js";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { AppState, AppStateStatus } from "react-native";
 
 import { supabase } from "@/lib/supabase";
 import { applyReferralCode, ensureUserRows, fetchMyStats } from "@/lib/db";
@@ -310,7 +311,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    const appStateListener = AppState.addEventListener("change", (nextState: AppStateStatus) => {
+      if (nextState === "active") {
+        supabase.auth.getSession().then(({ data: { session: s } }) => {
+          if (s?.access_token) {
+            syncStatsFromApi(s.access_token).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      appStateListener.remove();
+    };
   }, []);
 
   // ── Real-time: direct state updates (no DB round-trip) ───────────────────────
