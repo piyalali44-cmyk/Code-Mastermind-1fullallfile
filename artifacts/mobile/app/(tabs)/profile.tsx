@@ -12,7 +12,7 @@ import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useColors } from "@/hooks/useColors";
-import { ReferralStats, applyReferralCode, getReferralStats, getUserReferralCode } from "@/lib/db";
+import { ReferralStats, ReferralHistoryItem, applyReferralCode, getReferralHistory, getMyReferrer, getReferralStats, getUserReferralCode } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 
 interface MenuItemProps {
@@ -58,6 +58,9 @@ export default function ProfileScreen() {
   const [myCode, setMyCode]                 = useState<string | null>(null);
   const [codeLoading, setCodeLoading]       = useState(false);
   const [refStats, setRefStats]             = useState<ReferralStats>({ friendsReferred: 0, xpEarned: 0 });
+  const [refHistory, setRefHistory]         = useState<ReferralHistoryItem[]>([]);
+  const [myReferrer, setMyReferrer]         = useState<{ name: string; code: string } | null>(null);
+  const [refHistoryLoading, setRefHistoryLoading] = useState(false);
   const [hoursListened, setHoursListened]   = useState<number>(0);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: string; iconColor?: string }>({
     visible: false, message: "", icon: "check",
@@ -185,6 +188,24 @@ export default function ProfileScreen() {
     })();
     return () => { active = false; };
   }, [user?.id]);
+
+  // Load full referral history when the modal opens
+  useEffect(() => {
+    if (!referralModal || !user) return;
+    let active = true;
+    setRefHistoryLoading(true);
+    Promise.all([
+      getReferralHistory(user.id),
+      getMyReferrer(user.id),
+    ]).then(([history, referrer]) => {
+      if (!active) return;
+      setRefHistory(history);
+      setMyReferrer(referrer);
+    }).catch(() => {}).finally(() => {
+      if (active) setRefHistoryLoading(false);
+    });
+    return () => { active = false; };
+  }, [referralModal, user?.id]);
 
   const handleCopyCode = async () => {
     if (!myCode) return;
@@ -533,6 +554,62 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Who referred me */}
+            {myReferrer && (
+              <View style={[styles.rewardInfo, { backgroundColor: colors.primary + "12", borderColor: colors.primary + "30" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Icon name="heart" size={14} color={colors.primary} />
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>
+                    You joined via <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{myReferrer.name}</Text>'s code
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Friends I referred */}
+            {(refHistoryLoading || refHistory.length > 0) && (
+              <View style={{ width: "100%", gap: 6 }}>
+                <Text style={{ color: colors.goldLight, fontSize: 13, fontWeight: "700" }}>
+                  Friends You Referred
+                </Text>
+                {refHistoryLoading ? (
+                  <ActivityIndicator size="small" color={colors.goldLight} />
+                ) : (
+                  refHistory.map((item) => (
+                    <View
+                      key={item.referredId}
+                      style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                        paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10,
+                        backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.gold + "22",
+                          alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ color: colors.goldLight, fontSize: 12, fontWeight: "700" }}>
+                            {item.referredName[0]?.toUpperCase() ?? "?"}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "600" }}>
+                            {item.referredName}
+                          </Text>
+                          <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                            {new Date(item.joinedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Icon name="zap" size={12} color={colors.goldLight} />
+                        <Text style={{ color: colors.goldLight, fontSize: 12, fontWeight: "700" }}>
+                          +{item.xpEarned}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
           </Pressable>
         </Pressable>
       </Modal>

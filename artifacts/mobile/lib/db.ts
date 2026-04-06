@@ -585,9 +585,8 @@ export async function applyReferralCode(code: string): Promise<{
 }
 
 // Unified code redemption — handles both referral codes AND coupon codes.
-// FAST PATH: referral codes are handled directly via Supabase RPC (1 DB call,
-// no API server round-trip, no extra auth.getUser call).
-// SLOW PATH: coupon codes fall back to the API server for server-side validation.
+// ALL redemptions go through the API server (service-role, server-side).
+// Browser-side Supabase RPC is intentionally skipped — it hangs on mobile/web.
 export async function redeemCode(code: string): Promise<{
   success: boolean;
   error?: string;
@@ -599,27 +598,6 @@ export async function redeemCode(code: string): Promise<{
   try {
     const cleanCode = code.trim().toUpperCase();
 
-    // ── Fast path: try as referral code directly via Supabase RPC ──────────
-    // apply_referral_code() does everything in 1 SQL transaction:
-    // find referrer → check duplicate → insert referral → award XP to both.
-    // No API server round-trip, no auth.getUser call needed.
-    const { data: rpcResult, error: rpcErr } = await supabase.rpc(
-      "apply_referral_code",
-      { p_code: cleanCode },
-    );
-
-    if (!rpcErr && rpcResult) {
-      if (rpcResult.success === true) {
-        return { success: true, type: "referral", xpBonus: rpcResult.xp_bonus ?? 100 };
-      }
-      // Definitive referral errors (not just "code not found") — return immediately.
-      if (rpcResult.error && rpcResult.error !== "invalid_code") {
-        return { success: false, error: rpcResult.error };
-      }
-      // "invalid_code" means it's not a referral code → fall through to coupon check.
-    }
-
-    // ── Slow path: not a referral code, try as coupon via API server ────────
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return { success: false, error: "not_authenticated" };
 
@@ -649,6 +627,67 @@ export async function redeemCode(code: string): Promise<{
   } catch (e: any) {
     return { success: false, error: e?.message ?? "Unknown error" };
   }
+}
+
+// ─── REFERRAL HISTORY ────────────────────────────────────────────────────────
+
+export interface ReferralHistoryItem {
+  referredId: string;
+  referredName: string;
+  joinedAt: string;
+  xpEarned: number;
+}
+
+export async function getReferralHistory(userId: string): Promise<ReferralHistoryItem[]> {
+  try {
+    const { data } = await supabase
+      .from("referrals")
+      .select("referred_id, xp_awarded_referrer, created_at")
+      .eq("referrer_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (!data || data.length === 0) return [];
+
+    const referredIds = (data as any[]).map((r) => r.referred_id);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", referredIds);
+
+    const nameMap = new Map<string, string>();
+    (profiles ?? []).forEach((p: any) => nameMap.set(p.id, p.display_name || "Friend"));
+
+    return (data as any[]).map((r) => ({
+      referredId:   r.referred_id,
+      referredName: nameMap.get(r.referred_id) ?? "Friend",
+      joinedAt:     r.created_at,
+      xpEarned:     r.xp_awarded_referrer ?? 500,
+    }));
+  } catch { return []; }
+}
+
+export async function getMyReferrer(userId: string): Promise<{ name: string; code: string } | null> {
+  try {
+    const { data } = await supabase
+      .from("referrals")
+      .select("code_used, referrer_id")
+      .eq("referred_id", userId)
+      .maybeSingle();
+
+    if (!data) return null;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name")
+      .eq("id", (data as any).referrer_id)
+      .maybeSingle();
+
+    return {
+      name: (profile as any)?.display_name ?? "Friend",
+      code: (data as any).code_used,
+    };
+  } catch { return null; }
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────

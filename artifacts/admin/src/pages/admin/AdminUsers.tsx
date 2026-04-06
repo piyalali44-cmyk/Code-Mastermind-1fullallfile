@@ -55,7 +55,7 @@ export default function AdminUsers() {
   const [promoteRole, setPromoteRole] = useState("editor");
   const [promoting, setPromoting] = useState(false);
 
-  const { profile, isAtLeast } = useAuth();
+  const { profile, session, isAtLeast } = useAuth();
   const isSuperAdmin = isAtLeast("super_admin");
   const isAdmin = isAtLeast("admin");
 
@@ -136,16 +136,20 @@ export default function AdminUsers() {
   async function inviteAdmin() {
     if (!inviteEmail.trim()) return void toast.error("Email is required");
     if (!isSuperAdmin) return void toast.error("Only Super Admin can send invitations");
+    const token = session?.access_token;
+    if (!token) return void toast.error("Session expired, please re-login");
     setInviting(true);
     try {
-      if (!supabaseAdmin) throw new Error("Service key not configured — cannot invite users");
-      const { data: newUser, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(inviteEmail, {
-        data: { role: inviteRole },
+      const API_BASE: string =
+        (import.meta.env as Record<string, string>).VITE_API_BASE_URL ||
+        "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+      const resp = await fetch(`${API_BASE}/admin/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
-      if (inviteError) throw inviteError;
-      if (newUser.user?.id) {
-        await supabase.from("profiles").upsert({ id: newUser.user.id, role: inviteRole });
-      }
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.error || "Failed to send invitation");
       supabase.from("admin_activity_log").insert({
         admin_id: profile?.id,
         action: `Invited admin user: ${inviteEmail}`,
