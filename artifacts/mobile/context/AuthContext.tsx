@@ -41,6 +41,8 @@ interface AuthContextType {
   hasOnboarded: boolean;
   completeOnboarding: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /** Immediately bump local XP by `delta` (optimistic), then sync from DB after 1.5 s. */
+  applyXpBonus: (delta: number) => void;
   pendingNotification: PendingNotification | null;
   clearPendingNotification: () => void;
 }
@@ -133,13 +135,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearPendingNotification = useCallback(() => setPendingNotification(null), []);
 
   const refreshUser = useCallback(async () => {
-    const { data: { session: s } } = await supabase.auth.getSession();
-    if (s?.user) {
-      const u = await buildUserFromSession(s.user);
+    // Prefer in-memory session (avoids AsyncStorage/getSession() hang in RN).
+    // Fall back to getSession() only if in-memory session is not yet set.
+    const inMemory = session;
+    const supabaseUser = inMemory?.user ?? null;
+    if (supabaseUser) {
+      const u = await buildUserFromSession(supabaseUser);
       setUser(u);
       AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+    } else {
+      const { data: { session: fresh } } = await supabase.auth.getSession();
+      if (fresh?.user) {
+        const u = await buildUserFromSession(fresh.user);
+        setUser(u);
+        AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+      }
     }
-  }, []);
+  }, [session]);
+
+  /** Immediately apply an XP delta to local state (optimistic), then re-sync from DB. */
+  const applyXpBonus = useCallback((delta: number) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const newXp = prev.xp + delta;
+      const updated = { ...prev, xp: newXp, level: Math.max(1, Math.floor(newXp / 500) + 1) };
+      AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+    // Re-sync from DB after 2 s to get the authoritative value
+    setTimeout(async () => {
+      const inMemory = session;
+      const supabaseUser = inMemory?.user ?? null;
+      if (!supabaseUser) return;
+      try {
+        const u = await buildUserFromSession(supabaseUser);
+        setUser(u);
+        AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+      } catch { /* non-critical */ }
+    }, 2000);
+  }, [session]);
 
   useEffect(() => {
     const init = async () => {
@@ -426,7 +460,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user, session, isGuest, isLoading,
         login, signup,
         logout, continueAsGuest,
-        hasOnboarded, completeOnboarding, refreshUser,
+        hasOnboarded, completeOnboarding, refreshUser, applyXpBonus,
         pendingNotification, clearPendingNotification,
       }}
     >
