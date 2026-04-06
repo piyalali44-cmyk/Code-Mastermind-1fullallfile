@@ -66,6 +66,14 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const historyIdRef = useRef<string | null>(null);
   const progressSaveTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const playNextRef = useRef<() => Promise<void>>(async () => {});
+  // Wall-clock listening time tracking (reliable on web and native)
+  const playSegmentStartRef = useRef<number | null>(null); // Date.now() when last play/resume
+  const accListenedMsRef = useRef<number>(0);              // ms accumulated before current segment
+
+  const getElapsedListenedMs = useCallback(() => {
+    const segmentMs = playSegmentStartRef.current ? Date.now() - playSegmentStartRef.current : 0;
+    return accListenedMsRef.current + segmentMs;
+  }, []);
 
   const setRepeatMode = useCallback((mode: RepeatMode) => {
     repeatModeRef.current = mode;
@@ -90,15 +98,19 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (progressSaveTimer.current) clearInterval(progressSaveTimer.current);
     progressSaveTimer.current = setInterval(async () => {
       const np = nowPlayingRef.current;
-      if (!np || positionRef.current === 0) return;
+      if (!np) return;
       const contentType = np.type === "quran" ? "surah" : "episode";
       const contentId = np.surahNumber?.toString() ?? np.id;
-      await saveProgress(userId, contentType, contentId, positionRef.current, durationRef.current);
-      if (historyIdRef.current && positionRef.current > 0) {
-        updateHistoryDuration(historyIdRef.current, positionRef.current);
+      // Use native position if available, otherwise fall back to wall-clock elapsed time
+      const pos = positionRef.current > 0 ? positionRef.current : getElapsedListenedMs();
+      await saveProgress(userId, contentType, contentId, pos, durationRef.current);
+      // Update history duration using wall-clock elapsed time (works on both web & native)
+      const listenedMs = getElapsedListenedMs();
+      if (historyIdRef.current && listenedMs > 0) {
+        updateHistoryDuration(historyIdRef.current, listenedMs);
       }
     }, 15000);
-  }, []);
+  }, [getElapsedListenedMs]);
 
   const stopProgressSync = useCallback(() => {
     if (progressSaveTimer.current) {
@@ -122,6 +134,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       setIsPlaying(false);
 
       historyIdRef.current = null;
+      // Reset wall-clock tracking for new playback session
+      accListenedMsRef.current = 0;
+      playSegmentStartRef.current = Date.now();
+
       if (userId) {
         userIdRef.current = userId;
         addToHistory(userId, {
@@ -186,8 +202,16 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
             durationRef.current = dur;
             setIsPlaying(status.isPlaying ?? false);
             if (status.didJustFinish && !status.isLooping) {
-              if (historyIdRef.current && durationRef.current > 0) {
-                updateHistoryDuration(historyIdRef.current, durationRef.current);
+              // Save final listening duration using wall-clock time
+              if (playSegmentStartRef.current) {
+                accListenedMsRef.current += Date.now() - playSegmentStartRef.current;
+                playSegmentStartRef.current = null;
+              }
+              const finalMs = accListenedMsRef.current > 0
+                ? accListenedMsRef.current
+                : durationRef.current;
+              if (historyIdRef.current && finalMs > 0) {
+                updateHistoryDuration(historyIdRef.current, finalMs);
               }
               if (repeatModeRef.current === "one") {
                 soundRef.current?.setPositionAsync(0).then(() => soundRef.current?.playAsync());
@@ -206,19 +230,28 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   }, [playbackSpeed, startProgressSync, stopProgressSync]);
 
   const pause = useCallback(async (userId?: string) => {
+    // Accumulate wall-clock time before pausing
+    if (playSegmentStartRef.current) {
+      accListenedMsRef.current += Date.now() - playSegmentStartRef.current;
+      playSegmentStartRef.current = null;
+    }
     await soundRef.current?.pauseAsync();
     setIsPlaying(false);
     if (userId && nowPlayingRef.current) {
       const np = nowPlayingRef.current;
       const contentType = np.type === "quran" ? "surah" : "episode";
-      saveProgress(userId, contentType, np.surahNumber?.toString() ?? np.id, positionRef.current, durationRef.current);
+      const pos = positionRef.current > 0 ? positionRef.current : accListenedMsRef.current;
+      saveProgress(userId, contentType, np.surahNumber?.toString() ?? np.id, pos, durationRef.current);
     }
-    if (historyIdRef.current && positionRef.current > 0) {
-      updateHistoryDuration(historyIdRef.current, positionRef.current);
+    const listenedMs = accListenedMsRef.current;
+    if (historyIdRef.current && listenedMs > 0) {
+      updateHistoryDuration(historyIdRef.current, listenedMs);
     }
   }, []);
 
   const resume = useCallback(async (userId?: string) => {
+    // Restart wall-clock segment
+    playSegmentStartRef.current = Date.now();
     await soundRef.current?.playAsync();
     setIsPlaying(true);
     if (userId) startProgressSync(userId);
@@ -226,6 +259,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
   const stop = useCallback(async () => {
     stopProgressSync();
+    // Accumulate remaining segment time before stopping
+    if (playSegmentStartRef.current) {
+      accListenedMsRef.current += Date.now() - playSegmentStartRef.current;
+      playSegmentStartRef.current = null;
+    }
     await soundRef.current?.stopAsync();
     await soundRef.current?.unloadAsync();
     soundRef.current = null;
@@ -236,6 +274,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     positionRef.current = 0;
     setDuration(0);
     durationRef.current = 0;
+    accListenedMsRef.current = 0;
   }, [stopProgressSync]);
 
   const seek = useCallback(async (positionMs: number) => {

@@ -332,22 +332,26 @@ router.post("/auth/signin", async (req, res) => {
 
     const userId = data.user?.id;
 
-    // ── Block check: prevent blocked users from getting tokens ────────────────
+    // ── Block check + stats fetch in parallel ─────────────────────────────────
+    let xp = 0, level = 1, streak = 0;
     if (userId) {
       const admin = getAdminClient();
-      const { data: profile } = await admin
-        .from("profiles")
-        .select("is_blocked")
-        .eq("id", userId)
-        .maybeSingle();
+      const [profileRes, xpRes, streakRes] = await Promise.all([
+        admin.from("profiles").select("is_blocked").eq("id", userId).maybeSingle(),
+        admin.from("user_xp").select("total_xp, level").eq("user_id", userId).maybeSingle(),
+        admin.from("user_streaks").select("current_streak").eq("user_id", userId).maybeSingle(),
+      ]);
 
-      if ((profile as any)?.is_blocked === true) {
+      if ((profileRes.data as any)?.is_blocked === true) {
         res.status(403).json({ error: "Your account has been blocked. Please contact support." });
         return;
       }
 
+      xp     = (xpRes.data as any)?.total_xp        ?? 0;
+      level  = (xpRes.data as any)?.level            ?? 1;
+      streak = (streakRes.data as any)?.current_streak ?? 0;
+
       // Fire-and-forget: ensure referral XP is awarded if it was missed.
-      // Runs after the response is sent so it never delays login.
       ensureReferralXp(admin, userId).catch(() => {});
     }
 
@@ -355,6 +359,9 @@ router.post("/auth/signin", async (req, res) => {
       access_token:  data.session?.access_token,
       refresh_token: data.session?.refresh_token,
       user:          data.user,
+      xp,
+      level,
+      streak,
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Internal server error" });
