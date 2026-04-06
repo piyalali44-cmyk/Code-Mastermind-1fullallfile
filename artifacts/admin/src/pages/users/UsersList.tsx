@@ -101,6 +101,25 @@ export default function UsersList() {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  // Real-time: auto-refresh when users are created or updated
+  useEffect(() => {
+    const channel = db
+      .channel("admin-users-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "profiles" },
+        () => { fetchUsers(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "profiles" },
+        () => { fetchUsers(); }
+      )
+      .subscribe();
+
+    return () => { db.removeChannel(channel); };
+  }, [fetchUsers]);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">

@@ -24,6 +24,11 @@ interface User {
   joinDate: string;
 }
 
+export interface PendingNotification {
+  type: "referral_applied";
+  xp: number;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -36,14 +41,15 @@ interface AuthContextType {
   hasOnboarded: boolean;
   completeOnboarding: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  pendingNotification: PendingNotification | null;
+  clearPendingNotification: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // Builds the app User object from a Supabase session user.
 // Only fetches the 3 core tables (profiles, user_xp, user_streaks) in parallel —
-// listening_progress (potentially many rows) is skipped here and computed lazily
-// by the profile screen when needed.
+// listening_progress (potentially many rows) is loaded lazily by the profile screen.
 async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let displayName =
     supabaseUser.user_metadata?.display_name ??
@@ -65,14 +71,12 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let country: string | null = null;
 
   try {
-    // 3 parallel calls instead of 4 — listening_progress is loaded lazily
     const [profileRes, xpRes, streakRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", supabaseUser.id).single(),
       supabase.from("user_xp").select("total_xp,level").eq("user_id", supabaseUser.id).single(),
       supabase.from("user_streaks").select("current_streak,longest_streak").eq("user_id", supabaseUser.id).single(),
     ]);
 
-    // Only call ensureUserRows if truly missing (new user whose rows weren't created yet)
     if (!profileRes.data && !xpRes.data) {
       ensureUserRows(supabaseUser.id).catch(() => {});
     }
@@ -124,6 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isGuest, setIsGuest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [pendingNotification, setPendingNotification] = useState<PendingNotification | null>(null);
+
+  const clearPendingNotification = useCallback(() => setPendingNotification(null), []);
 
   const refreshUser = useCallback(async () => {
     const { data: { session: s } } = await supabase.auth.getSession();
@@ -190,19 +197,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.removeItem("is_guest");
         AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
         AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
+
         if (event === "SIGNED_IN") {
+          // Apply pending referral code in background
           AsyncStorage.getItem(PENDING_REFERRAL_KEY).then(async (pendingCode) => {
             if (pendingCode) {
               try {
                 const result = await applyReferralCode(pendingCode);
-                if (result.success || result.error === "already_used") {
+                if (result.success) {
+                  await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
+                  // Show notification in home screen
+                  setPendingNotification({ type: "referral_applied", xp: result.xpBonus ?? 100 });
+                  // Update XP in user state immediately (optimistic)
+                  setUser(prev => prev ? {
+                    ...prev,
+                    xp:    prev.xp + (result.xpBonus ?? 100),
+                    level: Math.max(1, Math.floor((prev.xp + (result.xpBonus ?? 100)) / 500) + 1),
+                  } : prev);
+                } else if (result.error === "already_used") {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                 }
               } catch { /* fail silently */ }
             }
           }).catch(() => {});
-        }
-        if (event === "SIGNED_IN") {
+
+          // Register push token in background
           import("@/lib/notifications").then(({ registerPushToken }) => {
             registerPushToken(s.user.id).catch(() => {});
           });
@@ -215,32 +234,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── Real-time: direct state updates (no DB round-trip) ───────────────────────
   useEffect(() => {
     if (!user?.id) return;
+
     const channel = supabase
       .channel(`profile-realtime-${user.id}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
-        () => { refreshUser(); }
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+          setUser(prev => prev ? {
+            ...prev,
+            displayName: row.display_name   ?? prev.displayName,
+            isPremium:   row.subscription_tier === "premium",
+            avatarUrl:   row.avatar_url     ?? prev.avatarUrl,
+            bio:         row.bio            ?? prev.bio,
+            country:     row.country        ?? prev.country,
+          } : prev);
+          // Keep cache in sync
+          setUser(u => {
+            if (u) AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+            return u;
+          });
+        }
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "user_xp", filter: `user_id=eq.${user.id}` },
-        () => { refreshUser(); }
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+          setUser(prev => prev ? {
+            ...prev,
+            xp:    row.total_xp ?? prev.xp,
+            level: row.level    ?? prev.level,
+          } : prev);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "user_streaks", filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          const row = payload.new as any;
+          if (!row) return;
+          setUser(prev => prev ? {
+            ...prev,
+            streak:        row.current_streak  ?? prev.streak,
+            longestStreak: row.longest_streak  ?? prev.longestStreak,
+          } : prev);
+        }
       )
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
-  }, [user?.id, refreshUser]);
+  }, [user?.id]);
 
   const login = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
   }, []);
 
-  const signup = useCallback(async (email: string, password: string, name: string): Promise<{ userId: string | null }> => {
+  const signup = useCallback(async (
+    email: string,
+    password: string,
+    name: string,
+  ): Promise<{ userId: string | null }> => {
     const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
       || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+
     const res = await fetch(`${API_BASE}/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -248,24 +312,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Signup failed");
+
     const userId: string | null = json.userId ?? null;
 
-    // Server returns tokens → use setSession() directly (no extra network call).
-    // Falls back to signInWithPassword if server-side sign-in failed.
+    // ── Pre-populate user state immediately for instant navigation ────────────
+    // The tabs will render with real-looking data right away.
+    // onAuthStateChange will update with actual DB values once setSession fires.
+    const prelimUser: User = {
+      id:               userId ?? "",
+      email:            email.trim(),
+      emailVerified:    true,
+      displayName:      name.trim(),
+      avatarUrl:        null,
+      bio:              null,
+      country:          null,
+      isPremium:        false,
+      xp:               0,
+      level:            1,
+      streak:           0,
+      longestStreak:    0,
+      totalHoursListened: 0,
+      joinDate:         new Date().toISOString(),
+    };
+    setUser(prelimUser);
+    setIsGuest(false);
+    // Cache so index.tsx doesn't redirect to login during setSession
+    AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
+    AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
+
+    // ── Set session — triggers onAuthStateChange which updates with real DB data
     if (json.access_token && json.refresh_token) {
       const { error: setErr } = await supabase.auth.setSession({
         access_token:  json.access_token,
         refresh_token: json.refresh_token,
       });
       if (setErr) {
-        // Fallback
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: email.trim(), password,
         });
         if (signInError) throw new Error(signInError.message);
       }
     } else {
-      // Server didn't return tokens — sign in normally
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(), password,
       });
@@ -301,6 +388,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login, signup,
         logout, continueAsGuest,
         hasOnboarded, completeOnboarding, refreshUser,
+        pendingNotification, clearPendingNotification,
       }}
     >
       {children}
