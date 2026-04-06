@@ -253,6 +253,60 @@ router.post("/auth/verify-otp", async (req, res) => {
   }
 });
 
+// ── XP award helper (used by both redeem and signin routes) ──────────────────
+async function awardXpInline(admin: SupabaseClient, uid: string, amount: number, reason: string) {
+  await admin.from("user_xp").upsert(
+    { user_id: uid, total_xp: 0, level: 1 },
+    { onConflict: "user_id", ignoreDuplicates: true },
+  );
+  const { data: row } = await admin.from("user_xp").select("total_xp").eq("user_id", uid).single();
+  const newTotal = ((row as any)?.total_xp ?? 0) + amount;
+  await Promise.all([
+    admin.from("user_xp").update({
+      total_xp: newTotal,
+      level: Math.max(1, Math.floor(newTotal / 500) + 1),
+      updated_at: new Date().toISOString(),
+    }).eq("user_id", uid),
+    admin.from("daily_xp_log").insert({ user_id: uid, xp_amount: amount, reason }),
+  ]);
+}
+
+// Background: ensure referral XP is awarded if it wasn't (fire-and-forget on login).
+// Checks daily_xp_log to avoid double-awarding.
+async function ensureReferralXp(admin: SupabaseClient, userId: string) {
+  try {
+    const { data: referral } = await admin
+      .from("referrals")
+      .select("id, referrer_id, xp_awarded_referred, xp_awarded_referrer")
+      .eq("referred_id", userId)
+      .maybeSingle();
+
+    if (!referral) return; // user has no referral
+
+    // Check if the referred user's bonus was already recorded in xp log
+    const { data: existing } = await admin
+      .from("daily_xp_log")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("reason", "referral_bonus")
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) return; // already awarded — nothing to do
+
+    // Award XP to both the referred user and the referrer
+    const referredXp  = (referral as any).xp_awarded_referred  ?? 100;
+    const referrerXp  = (referral as any).xp_awarded_referrer  ?? 500;
+    await Promise.all([
+      awardXpInline(admin, userId,                    referredXp,  "referral_bonus"),
+      awardXpInline(admin, (referral as any).referrer_id, referrerXp, "referral_friend_joined"),
+    ]);
+    console.log(`[signin] Ensured referral XP for user ${userId} (+${referredXp} referred, +${referrerXp} referrer)`);
+  } catch (err: any) {
+    console.warn("[signin] ensureReferralXp failed (non-critical):", err?.message);
+  }
+}
+
 // ─── POST /auth/signin ────────────────────────────────────────────────────────
 // Server-side sign-in — returns tokens to the client so setSession() is used
 // instead of a second signInWithPassword call from the browser, which avoids
@@ -274,6 +328,27 @@ router.post("/auth/signin", async (req, res) => {
     if (error) {
       res.status(401).json({ error: error.message });
       return;
+    }
+
+    const userId = data.user?.id;
+
+    // ── Block check: prevent blocked users from getting tokens ────────────────
+    if (userId) {
+      const admin = getAdminClient();
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("is_blocked")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if ((profile as any)?.is_blocked === true) {
+        res.status(403).json({ error: "Your account has been blocked. Please contact support." });
+        return;
+      }
+
+      // Fire-and-forget: ensure referral XP is awarded if it was missed.
+      // Runs after the response is sent so it never delays login.
+      ensureReferralXp(admin, userId).catch(() => {});
     }
 
     res.json({

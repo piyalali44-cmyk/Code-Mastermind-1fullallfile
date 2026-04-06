@@ -199,11 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
 
         if (event === "SIGNED_IN") {
-          // Apply pending referral code in background
+          // Apply pending referral code in background.
+          // Pass the access token directly — avoids supabase.auth.getSession() hang in RN.
           AsyncStorage.getItem(PENDING_REFERRAL_KEY).then(async (pendingCode) => {
             if (pendingCode) {
               try {
-                const result = await applyReferralCode(pendingCode);
+                const result = await applyReferralCode(pendingCode, s?.access_token ?? undefined);
                 if (result.success) {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                   // Show notification in home screen
@@ -221,7 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                       setUser(refreshed);
                     }
                   }, 1500);
-                } else if (result.error === "already_used") {
+                } else if (result.error === "already_used" || result.error === "own_code") {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                 }
               } catch { /* fail silently */ }
