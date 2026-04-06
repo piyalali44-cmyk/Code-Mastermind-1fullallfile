@@ -330,7 +330,7 @@ export default function PlayerScreen() {
 
   // ─── Like handler (DB-backed) ───────────────────────────────────────────────
   const handleLike = async () => {
-    if (!user?.id) { showToast("Sign in to like", "heart", colors.textSecondary); return; }
+    if (!user?.id) { showToast("Sign in to say MashAllah", "moon-star", colors.textSecondary); return; }
     if (likePending) return;
     setLikePending(true);
     const optimistic = !isDbLiked;
@@ -339,7 +339,7 @@ export default function PlayerScreen() {
     try {
       const { liked } = await toggleContentLike(user.id, contentType, contentId, token);
       setIsDbLiked(liked);
-      showToast(liked ? "Liked!" : "Like removed", "thumbs-up", liked ? colors.gold : colors.textSecondary);
+      showToast(liked ? "MashAllah! 🌙" : "Removed", "moon-star", liked ? colors.gold : colors.textSecondary);
     } catch {
       setIsDbLiked(!optimistic);
       setLikeCount((n) => n + (optimistic ? -1 : 1));
@@ -703,12 +703,17 @@ export default function PlayerScreen() {
 
         {/* Actions Row */}
         <View style={styles.actionsRow}>
-          {/* Like — DB backed */}
+          {/* MashAllah — DB backed */}
           <Pressable onPress={handleLike} style={styles.actionBtnWithCount} hitSlop={8}>
-            <Icon name="thumbs-up" size={21} color={isDbLiked ? colors.gold : colors.textSecondary} />
+            <Icon name="moon-star" size={22} color={isDbLiked ? colors.gold : colors.textSecondary} />
             <Text style={[styles.actionBtnCount, { color: isDbLiked ? colors.gold : colors.textSecondary }]}>
               {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
             </Text>
+            {isDbLiked && (
+              <Text style={{ fontSize: 9, color: colors.gold, fontWeight: "700", letterSpacing: 0.5, marginTop: -2 }}>
+                MashAllah
+              </Text>
+            )}
           </Pressable>
           {/* Comment */}
           <Pressable onPress={handleOpenComments} style={styles.actionBtnWithCount} hitSlop={8}>
@@ -1030,8 +1035,8 @@ export default function PlayerScreen() {
               </Pressable>
             )}
             <Pressable onPress={() => { setMoreModal(false); handleLike(); }} style={styles.speedOption}>
-              <Icon name="thumbs-up" size={16} color={isDbLiked ? colors.gold : colors.textSecondary} />
-              <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isDbLiked ? "Unlike" : "Like"}</Text>
+              <Icon name="moon-star" size={16} color={isDbLiked ? colors.gold : colors.textSecondary} />
+              <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isDbLiked ? "Remove MashAllah" : "MashAllah"}</Text>
             </Pressable>
             <Pressable onPress={() => { setMoreModal(false); handleOpenComments(); }} style={styles.speedOption}>
               <Icon name="message-circle" size={16} color={colors.textSecondary} />
