@@ -44,7 +44,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, isGuest, logout, refreshUser } = useAuth();
+  const { user, session, isGuest, logout, refreshUser } = useAuth();
   const { nowPlaying } = useAudio();
   const { featureFlags } = useAppSettings();
   const isWeb = Platform.OS === "web";
@@ -236,7 +236,7 @@ export default function ProfileScreen() {
     setCouponLoading(true);
     setCouponError(null);
     try {
-      const result = await applyReferralCode(couponCode.trim());
+      const result = await applyReferralCode(couponCode.trim(), session?.access_token);
       if (result.success) {
         setCouponCode("");
         setCouponModal(false);

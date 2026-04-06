@@ -573,7 +573,7 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
 
-export async function applyReferralCode(code: string): Promise<{
+export async function applyReferralCode(code: string, token?: string): Promise<{
   success: boolean;
   error?: string;
   xpBonus?: number;
@@ -581,13 +581,13 @@ export async function applyReferralCode(code: string): Promise<{
   freeDays?: number;
   description?: string;
 }> {
-  return redeemCode(code);
+  return redeemCode(code, token);
 }
 
 // Unified code redemption — handles both referral codes AND coupon codes.
 // ALL redemptions go through the API server (service-role, server-side).
-// Browser-side Supabase RPC is intentionally skipped — it hangs on mobile/web.
-export async function redeemCode(code: string): Promise<{
+// Pass `token` directly to avoid supabase.auth.getSession() which can hang in RN.
+export async function redeemCode(code: string, token?: string): Promise<{
   success: boolean;
   error?: string;
   xpBonus?: number;
@@ -598,17 +598,27 @@ export async function redeemCode(code: string): Promise<{
   try {
     const cleanCode = code.trim().toUpperCase();
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return { success: false, error: "not_authenticated" };
+    // Use the provided token first; only call getSession() as a fallback.
+    let accessToken = token;
+    if (!accessToken) {
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token;
+    }
+    if (!accessToken) return { success: false, error: "not_authenticated" };
+
+    // 20-second timeout so the button never hangs forever.
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 20_000);
 
     const resp = await fetch(`${API_BASE}/redeem`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ code: cleanCode }),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
 
     if (!resp.ok) {
       console.error("[redeemCode] HTTP error:", resp.status);
@@ -625,6 +635,7 @@ export async function redeemCode(code: string): Promise<{
       description: result.description,
     };
   } catch (e: any) {
+    if ((e as any)?.name === "AbortError") return { success: false, error: "Request timed out. Please try again." };
     return { success: false, error: e?.message ?? "Unknown error" };
   }
 }
