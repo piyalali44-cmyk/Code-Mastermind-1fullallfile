@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { ArrowLeft, ShieldAlert, ShieldCheck, CreditCard, RotateCcw, Trash2, MessageSquare, Star, Activity, KeyRound, Pencil, Gift, Zap, Medal, Plus, Minus, TrendingUp, Award, Shield } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { useLocation } from "wouter";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
@@ -60,6 +61,8 @@ export default function UserDetail({ userId }: { userId: string }) {
   const [xpAwardAmount, setXpAwardAmount] = useState<number>(50);
   const [xpAwardReason, setXpAwardReason] = useState("");
   const [xpAwardType, setXpAwardType] = useState<"add" | "deduct">("add");
+  const [xpPage, setXpPage] = useState(0);
+  const [xpPageSize, setXpPageSize] = useState(10);
   const [badgeLoading, setBadgeLoading] = useState(false);
   const [roleUpdating, setRoleUpdating] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -100,7 +103,7 @@ export default function UserDetail({ userId }: { userId: string }) {
       .select("id,xp_amount,reason,earned_at")
       .eq("user_id", userId)
       .order("earned_at", { ascending: false })
-      .limit(30);
+      .limit(500);
     setXpHistory((data as XPLog[]) ?? []);
   }
 
@@ -596,28 +599,41 @@ export default function UserDetail({ userId }: { userId: string }) {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                XP History (last 30)
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  XP History
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">{xpHistory.length} entries</span>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {xpHistory.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-4 text-center">No XP history yet</div>
+                <div className="text-sm text-muted-foreground py-6 text-center">No XP history yet</div>
               ) : (
-                <div className="space-y-1.5">
-                  {xpHistory.map(log => (
-                    <div key={log.id} className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
-                      <div>
-                        <div className="text-xs text-foreground">{log.reason || "XP earned"}</div>
-                        <div className="text-[10px] text-muted-foreground">{formatDateTime(log.earned_at)}</div>
+                <>
+                  <div className="divide-y divide-border/30 px-6">
+                    {xpHistory.slice(xpPage * xpPageSize, (xpPage + 1) * xpPageSize).map(log => (
+                      <div key={log.id} className="flex items-center justify-between py-2.5">
+                        <div>
+                          <div className="text-xs text-foreground">{log.reason || "XP earned"}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatDateTime(log.earned_at)}</div>
+                        </div>
+                        <span className={`text-sm font-mono font-semibold ${log.xp_amount >= 0 ? "text-green-500" : "text-destructive"}`}>
+                          {log.xp_amount >= 0 ? "+" : ""}{log.xp_amount} XP
+                        </span>
                       </div>
-                      <span className={`text-sm font-mono font-semibold ${log.xp_amount >= 0 ? "text-green-500" : "text-destructive"}`}>
-                        {log.xp_amount >= 0 ? "+" : ""}{log.xp_amount} XP
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                  <PaginationBar
+                    page={xpPage}
+                    pageSize={xpPageSize}
+                    total={xpHistory.length}
+                    pageSizeOptions={[10, 20, 50]}
+                    onPageChange={setXpPage}
+                    onPageSizeChange={size => { setXpPageSize(size); setXpPage(0); }}
+                  />
+                </>
               )}
             </CardContent>
           </Card>
