@@ -584,7 +584,10 @@ export async function applyReferralCode(code: string): Promise<{
   return redeemCode(code);
 }
 
-// Unified code redemption — handles both referral codes AND coupon codes
+// Unified code redemption — handles both referral codes AND coupon codes.
+// FAST PATH: referral codes are handled directly via Supabase RPC (1 DB call,
+// no API server round-trip, no extra auth.getUser call).
+// SLOW PATH: coupon codes fall back to the API server for server-side validation.
 export async function redeemCode(code: string): Promise<{
   success: boolean;
   error?: string;
@@ -594,6 +597,29 @@ export async function redeemCode(code: string): Promise<{
   description?: string;
 }> {
   try {
+    const cleanCode = code.trim().toUpperCase();
+
+    // ── Fast path: try as referral code directly via Supabase RPC ──────────
+    // apply_referral_code() does everything in 1 SQL transaction:
+    // find referrer → check duplicate → insert referral → award XP to both.
+    // No API server round-trip, no auth.getUser call needed.
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc(
+      "apply_referral_code",
+      { p_code: cleanCode },
+    );
+
+    if (!rpcErr && rpcResult) {
+      if (rpcResult.success === true) {
+        return { success: true, type: "referral", xpBonus: rpcResult.xp_bonus ?? 100 };
+      }
+      // Definitive referral errors (not just "code not found") — return immediately.
+      if (rpcResult.error && rpcResult.error !== "invalid_code") {
+        return { success: false, error: rpcResult.error };
+      }
+      // "invalid_code" means it's not a referral code → fall through to coupon check.
+    }
+
+    // ── Slow path: not a referral code, try as coupon via API server ────────
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return { success: false, error: "not_authenticated" };
 
@@ -603,12 +629,11 @@ export async function redeemCode(code: string): Promise<{
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ code: code.trim().toUpperCase() }),
+      body: JSON.stringify({ code: cleanCode }),
     });
 
     if (!resp.ok) {
-      const text = await resp.text();
-      console.error("[redeemCode] HTTP error:", resp.status, text);
+      console.error("[redeemCode] HTTP error:", resp.status);
       return { success: false, error: "server_error" };
     }
 
@@ -617,7 +642,7 @@ export async function redeemCode(code: string): Promise<{
       success:     result.success === true,
       error:       result.error,
       type:        result.type,
-      xpBonus:     result.xp_bonus ?? result.xpBonus ?? result.xp_bonus,
+      xpBonus:     result.xp_bonus ?? result.xpBonus,
       freeDays:    result.free_days,
       description: result.description,
     };
