@@ -2,7 +2,6 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "@/lib/supabase";
-import { scheduleLocalNotification } from "@/lib/notifications";
 
 export interface AppSettings {
   maintenance_mode: boolean;
@@ -213,7 +212,9 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         if (newNotices.length > 0) {
           for (const notice of newNotices) {
             notifiedIdsRef.current.add(notice.id);
-            scheduleLocalNotification(notice.title, notice.body, "/contact");
+            import("@/lib/notifications").then(({ scheduleLocalNotification }) =>
+              scheduleLocalNotification(notice.title, notice.body, "/contact")
+            ).catch(() => {});
           }
           AsyncStorage.setItem(NOTIFIED_POPUPS_KEY, JSON.stringify([...notifiedIdsRef.current])).catch(() => {});
         }
