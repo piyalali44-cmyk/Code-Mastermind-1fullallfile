@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +26,16 @@ export default function Categories() {
 
   useEffect(() => {
     fetchCategories();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-categories-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
+        fetchCategories();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   async function fetchCategories() {

@@ -58,6 +58,15 @@ export default function SeriesPage() {
 
   useEffect(() => { load(); }, []);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-series-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "series" }, () => { load(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   function openNew() { setForm(blank()); setEditing(null); setSheetOpen(true); }
   function openEdit(s: Series) { setForm({ ...s }); setEditing(s.id); setSheetOpen(true); }
 
