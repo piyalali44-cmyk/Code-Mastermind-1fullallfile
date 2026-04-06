@@ -10,6 +10,10 @@ module.exports = {
       process.env.EXPO_PUBLIC_API_BASE_URL ??
       (process.env.EXPO_PUBLIC_DOMAIN
         ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-        : "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api"),
+        : `https://${process.env.REPLIT_DEV_DOMAIN}/api`),
+    EXPO_PUBLIC_SUPABASE_URL:
+      process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://tkruzfskhtcazjxdracm.supabase.co",
+    EXPO_PUBLIC_SUPABASE_ANON_KEY:
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
   },
 };
