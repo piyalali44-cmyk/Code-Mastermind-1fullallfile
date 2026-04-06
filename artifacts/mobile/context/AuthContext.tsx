@@ -3,7 +3,7 @@ import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { supabase } from "@/lib/supabase";
-import { applyReferralCode, ensureUserRows } from "@/lib/db";
+import { applyReferralCode, ensureUserRows, fetchMyStats } from "@/lib/db";
 
 export const PENDING_REFERRAL_KEY = "pending_referral_code";
 
@@ -134,27 +134,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearPendingNotification = useCallback(() => setPendingNotification(null), []);
 
+  // ── Helper: merge API stats into user state ─────────────────────────────────
+  // Uses service-role on the server → bypasses Supabase RLS completely.
+  // NEVER resets fields not returned by the API (e.g. email, joinDate).
+  const syncStatsFromApi = useCallback(async (token: string) => {
+    const stats = await fetchMyStats(token);
+    if (!stats) return; // network error — keep current state, never reset to 0
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated: typeof prev = {
+        ...prev,
+        xp:               stats.xp,
+        level:            stats.level,
+        streak:           stats.streak,
+        longestStreak:    stats.longest_streak,
+        isPremium:        stats.is_premium,
+        displayName:      stats.display_name  ?? prev.displayName,
+        avatarUrl:        stats.avatar_url    ?? prev.avatarUrl,
+        bio:              stats.bio           ?? prev.bio,
+        country:          stats.country       ?? prev.country,
+        joinDate:         stats.joined_at     ?? prev.joinDate,
+      };
+      AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, []);
+
   const refreshUser = useCallback(async () => {
-    // Prefer in-memory session (avoids AsyncStorage/getSession() hang in RN).
-    // Fall back to getSession() only if in-memory session is not yet set.
-    const inMemory = session;
-    const supabaseUser = inMemory?.user ?? null;
-    if (supabaseUser) {
-      const u = await buildUserFromSession(supabaseUser);
+    // Try token from in-memory session first (avoids AsyncStorage/getSession hang).
+    const token = session?.access_token;
+    if (token) {
+      await syncStatsFromApi(token);
+      return;
+    }
+    // Fallback: getSession() → buildUserFromSession (legacy path for edge cases)
+    const { data: { session: fresh } } = await supabase.auth.getSession();
+    if (fresh?.user) {
+      const u = await buildUserFromSession(fresh.user);
       setUser(u);
       AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
-    } else {
-      const { data: { session: fresh } } = await supabase.auth.getSession();
-      if (fresh?.user) {
-        const u = await buildUserFromSession(fresh.user);
-        setUser(u);
-        AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
-      }
     }
-  }, [session]);
+  }, [session, syncStatsFromApi]);
 
-  /** Immediately apply an XP delta to local state (optimistic), then re-sync from DB. */
+  /** Immediately apply an XP delta to local state (optimistic), then re-sync from API. */
   const applyXpBonus = useCallback((delta: number) => {
+    // Step 1: instant optimistic update
     setUser(prev => {
       if (!prev) return prev;
       const newXp = prev.xp + delta;
@@ -162,18 +186,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
     });
-    // Re-sync from DB after 2 s to get the authoritative value
-    setTimeout(async () => {
-      const inMemory = session;
-      const supabaseUser = inMemory?.user ?? null;
-      if (!supabaseUser) return;
-      try {
-        const u = await buildUserFromSession(supabaseUser);
-        setUser(u);
-        AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
-      } catch { /* non-critical */ }
-    }, 2000);
-  }, [session]);
+    // Step 2: authoritative sync from API server after 2 s
+    // Uses service-role → bypasses RLS → always returns correct XP
+    const token = session?.access_token;
+    if (token) {
+      setTimeout(() => syncStatsFromApi(token).catch(() => {}), 2000);
+    }
+  }, [session, syncStatsFromApi]);
 
   useEffect(() => {
     const init = async () => {
@@ -201,10 +220,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(s);
 
         if (s?.user) {
-          const u = await buildUserFromSession(s.user);
-          setUser(u);
+          // Sync via API server (service-role) for guaranteed fresh data
+          if (s.access_token) {
+            await syncStatsFromApi(s.access_token).catch(async () => {
+              // API failed — fall back to direct Supabase query
+              const u = await buildUserFromSession(s.user!);
+              setUser(u);
+              AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+            });
+          } else {
+            const u = await buildUserFromSession(s.user);
+            setUser(u);
+            AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+          }
           setIsGuest(false);
-          AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
           AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
         } else {
           if (cachedState === "authenticated") {
@@ -225,11 +254,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
       setSession(s);
       if (s?.user) {
-        const u = await buildUserFromSession(s.user);
-        setUser(u);
+        // Always sync via API server (service-role) for guaranteed fresh data.
+        // Fall back to buildUserFromSession only if API call fails.
+        if (s.access_token) {
+          await syncStatsFromApi(s.access_token).catch(async () => {
+            const u = await buildUserFromSession(s.user!);
+            setUser(u);
+            AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+          });
+        } else {
+          const u = await buildUserFromSession(s.user);
+          setUser(u);
+          AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+        }
         setIsGuest(false);
         await AsyncStorage.removeItem("is_guest");
-        AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
         AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
 
         if (event === "SIGNED_IN") {
@@ -249,13 +288,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     xp:    prev.xp + (result.xpBonus ?? 100),
                     level: Math.max(1, Math.floor((prev.xp + (result.xpBonus ?? 100)) / 500) + 1),
                   } : prev);
-                  // Then refresh from DB to get authoritative XP value
-                  setTimeout(async () => {
-                    if (s?.user) {
-                      const refreshed = await buildUserFromSession(s.user);
-                      setUser(refreshed);
-                    }
-                  }, 1500);
+                  // Authoritative sync via API server after 1.5 s
+                  if (s?.access_token) {
+                    setTimeout(() => syncStatsFromApi(s.access_token).catch(() => {}), 1500);
+                  }
                 } else if (result.error === "already_used" || result.error === "own_code") {
                   await AsyncStorage.removeItem(PENDING_REFERRAL_KEY);
                 }
