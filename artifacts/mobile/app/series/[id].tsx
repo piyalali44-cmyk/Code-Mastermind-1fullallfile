@@ -149,7 +149,7 @@ export default function SeriesDetailScreen() {
   // ─── DB Like ───────────────────────────────────────────────────────────────
   const handleDbLike = async () => {
     if (!user?.id) {
-      showToast("Sign in to say MashAllah", "moon-star", colors.textSecondary);
+      showToast("Sign in to like", "heart", colors.textSecondary);
       return;
     }
     if (likePending) return;
@@ -406,24 +406,18 @@ export default function SeriesDetailScreen() {
               </Animated.View>
             </Pressable>
 
-            {/* MashAllah — DB backed */}
+            {/* Like — DB backed */}
             <AnimatedIconBtn
               onPress={handleDbLike}
               style={[styles.iconBtnWithCount, {
                 backgroundColor: isDbLiked ? colors.gold + "22" : colors.surfaceHigh,
                 borderColor: isDbLiked ? colors.gold : colors.border,
-                paddingHorizontal: isDbLiked ? 10 : 12,
               }]}
             >
-              <Icon name="moon-star" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
+              <Icon name="heart" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
               <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
                 {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
               </Text>
-              {isDbLiked && (
-                <Text style={{ fontSize: 8, color: colors.gold, fontWeight: "700", letterSpacing: 0.5, marginTop: -1 }}>
-                  MashAllah
-                </Text>
-              )}
             </AnimatedIconBtn>
 
             {/* Comments */}
