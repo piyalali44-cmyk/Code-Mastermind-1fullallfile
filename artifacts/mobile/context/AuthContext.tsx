@@ -73,11 +73,14 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let bio: string | null = null;
   let country: string | null = null;
 
+  let totalHoursListened = 0;
+
   try {
-    const [profileRes, xpRes, streakRes] = await Promise.all([
+    const [profileRes, xpRes, streakRes, progressRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", supabaseUser.id).single(),
       supabase.from("user_xp").select("total_xp,level").eq("user_id", supabaseUser.id).single(),
       supabase.from("user_streaks").select("current_streak,longest_streak").eq("user_id", supabaseUser.id).single(),
+      supabase.from("listening_progress").select("position_ms").eq("user_id", supabaseUser.id),
     ]);
 
     if (!profileRes.data && !xpRes.data) {
@@ -100,6 +103,10 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
       streak = streakRes.data.current_streak;
       longestStreak = streakRes.data.longest_streak ?? 0;
     }
+    if (progressRes.data && progressRes.data.length > 0) {
+      const totalMs = (progressRes.data as any[]).reduce((sum, r) => sum + (r.position_ms ?? 0), 0);
+      totalHoursListened = Math.round((totalMs / 3_600_000) * 10) / 10;
+    }
   } catch {
     // Tables may not exist yet — use defaults
   }
@@ -117,7 +124,7 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
     level,
     streak,
     longestStreak,
-    totalHoursListened: 0, // loaded lazily in profile screen
+    totalHoursListened,
     joinDate,
   };
 }
@@ -414,7 +421,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-    ?? "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+    ?? "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
 
   const login = useCallback(async (email: string, password: string) => {
     // Route through API server so the Supabase auth call happens server-side.
@@ -427,11 +434,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json();
     if (!res.ok) throw new Error(json.error ?? "Login failed");
 
-    // Immediately set user state from returned metadata — tabs render now.
+    // Immediately set user state — use real XP/streak from server response (no delay).
     const prelimUser = buildPrelimUser(json.user, email);
-    setUser(prelimUser);
+    const readyUser = {
+      ...prelimUser,
+      xp:     typeof json.xp     === "number" ? json.xp     : 0,
+      level:  typeof json.level  === "number" ? json.level  : 1,
+      streak: typeof json.streak === "number" ? json.streak : 0,
+    };
+    setUser(readyUser);
     setIsGuest(false);
-    AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(prelimUser)).catch(() => {});
+    AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(readyUser)).catch(() => {});
     AsyncStorage.setItem(CACHED_AUTH_STATE_KEY, "authenticated").catch(() => {});
 
     // Set session in background → triggers onAuthStateChange → refreshes with full DB data

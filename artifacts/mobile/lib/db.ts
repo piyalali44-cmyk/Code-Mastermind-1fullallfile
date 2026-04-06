@@ -237,12 +237,15 @@ export async function getCompletedContent(userId: string): Promise<CompletedItem
 
 export async function getTotalHoursListened(userId: string): Promise<number> {
   try {
-    const { data } = await supabase
-      .from("listening_history")
-      .select("duration_ms")
-      .eq("user_id", userId);
-    const totalMs = (data ?? []).reduce((sum, r: any) => sum + (r.duration_ms ?? 0), 0);
-    return Math.round((totalMs / 3_600_000) * 10) / 10;
+    const [histRes, progressRes] = await Promise.all([
+      supabase.from("listening_history").select("duration_ms").eq("user_id", userId),
+      supabase.from("listening_progress").select("position_ms").eq("user_id", userId),
+    ]);
+    const histMs = (histRes.data ?? []).reduce((sum: number, r: any) => sum + (r.duration_ms ?? 0), 0);
+    if (histMs > 0) return Math.round((histMs / 3_600_000) * 10) / 10;
+    // Fallback: sum of position_ms from listening_progress (how far the user got in each item)
+    const progressMs = (progressRes.data ?? []).reduce((sum: number, r: any) => sum + (r.position_ms ?? 0), 0);
+    return Math.round((progressMs / 3_600_000) * 10) / 10;
   } catch { return 0; }
 }
 
@@ -363,20 +366,41 @@ export async function getWeeklyListeningMinutes(userId: string): Promise<number[
     const monday = new Date(now);
     monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
     monday.setHours(0, 0, 0, 0);
+    const mondayIso = monday.toISOString();
 
-    const { data } = await supabase
-      .from("listening_history")
-      .select("duration_ms, listened_at")
-      .eq("user_id", userId)
-      .gte("listened_at", monday.toISOString());
+    // Primary source: listening_history (per-session records)
+    const [histRes, progressRes] = await Promise.all([
+      supabase
+        .from("listening_history")
+        .select("duration_ms, listened_at")
+        .eq("user_id", userId)
+        .gte("listened_at", mondayIso),
+      supabase
+        .from("listening_progress")
+        .select("position_ms, updated_at")
+        .eq("user_id", userId)
+        .gte("updated_at", mondayIso),
+    ]);
 
-    const days = [0, 0, 0, 0, 0, 0, 0]; // Mon–Sun
-    (data ?? []).forEach((r: any) => {
+    const histDays = [0, 0, 0, 0, 0, 0, 0]; // Mon–Sun
+    (histRes.data ?? []).forEach((r: any) => {
       const d = new Date(r.listened_at);
-      const idx = (d.getDay() + 6) % 7; // 0 = Monday
-      days[idx] += Math.round((r.duration_ms ?? 0) / 60_000);
+      const idx = (d.getDay() + 6) % 7;
+      histDays[idx] += Math.round((r.duration_ms ?? 0) / 60_000);
     });
-    return days;
+
+    const histTotal = histDays.reduce((a, b) => a + b, 0);
+    if (histTotal > 0) return histDays;
+
+    // Fallback: listening_progress.updated_at — reliable since saveProgress runs every 15 s
+    const progDays = [0, 0, 0, 0, 0, 0, 0];
+    (progressRes.data ?? []).forEach((r: any) => {
+      if (!r.position_ms || r.position_ms <= 0) return;
+      const d = new Date(r.updated_at);
+      const idx = (d.getDay() + 6) % 7;
+      progDays[idx] += Math.round((r.position_ms ?? 0) / 60_000);
+    });
+    return progDays;
   } catch { return [0, 0, 0, 0, 0, 0, 0]; }
 }
 
@@ -583,7 +607,7 @@ export async function getReferralStats(userId: string): Promise<ReferralStats> {
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
   process.env.EXPO_PUBLIC_API_BASE_URL ||
-  "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+  "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
 
 // ── Fetch authoritative user stats from API server (service-role, bypasses RLS) ──
 // Use this instead of supabase client queries when you need guaranteed fresh data.

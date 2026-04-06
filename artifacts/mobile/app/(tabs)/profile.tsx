@@ -61,7 +61,7 @@ export default function ProfileScreen() {
   const [refHistory, setRefHistory]         = useState<ReferralHistoryItem[]>([]);
   const [myReferrer, setMyReferrer]         = useState<{ name: string; code: string } | null>(null);
   const [refHistoryLoading, setRefHistoryLoading] = useState(false);
-  const [hoursListened, setHoursListened]   = useState<number>(0);
+  const [hoursListened, setHoursListened]   = useState<number>(user?.totalHoursListened ?? 0);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: string; iconColor?: string }>({
     visible: false, message: "", icon: "check",
   });
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
       // Route OTP verification through the API server to avoid direct
       // Supabase network calls from the mobile device (which can time out).
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-        || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+        || "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
       const res = await fetch(`${API_BASE}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,7 +166,14 @@ export default function ProfileScreen() {
     }
   };
 
-  // Load referral code, stats + hours listened when the user is known
+  // Keep hoursListened in sync with auth context (updated by buildUserFromSession)
+  useEffect(() => {
+    if (user?.totalHoursListened && user.totalHoursListened > 0) {
+      setHoursListened(user.totalHoursListened);
+    }
+  }, [user?.totalHoursListened]);
+
+  // Load referral code, stats + refresh hours when the user is known
   useEffect(() => {
     if (!user) return;
     let active = true;
@@ -183,7 +190,8 @@ export default function ProfileScreen() {
       setRefStats(stats);
       if (progressRes.data) {
         const totalMs = progressRes.data.reduce((sum: number, r: any) => sum + (r.position_ms ?? 0), 0);
-        setHoursListened(Math.round((totalMs / 3_600_000) * 10) / 10);
+        const hrs = Math.round((totalMs / 3_600_000) * 10) / 10;
+        if (hrs > 0) setHoursListened(hrs);
       }
     })();
     return () => { active = false; };
