@@ -76,8 +76,8 @@ export default function Comments() {
       });
 
       const [commentsRes, blockedRes] = await Promise.all([
-        apiCall(`/api/admin/comments?${params.toString()}`),
-        apiCall("/api/admin/comment-blocked-users"),
+        apiCall(`/admin/comments?${params.toString()}`),
+        apiCall("/admin/comment-blocked-users"),
       ]);
 
       setComments(commentsRes.comments ?? []);
@@ -94,7 +94,7 @@ export default function Comments() {
 
   async function softDelete(id: string) {
     try {
-      await apiCall(`/api/admin/comments/${id}/soft-delete`, "POST");
+      await apiCall(`/admin/comments/${id}/soft-delete`, "POST");
       setComments(prev => prev.map(c => c.id === id ? { ...c, is_deleted: true } : c));
       toast.success("Comment deleted");
     } catch (err: any) { toast.error(err.message); }
@@ -102,7 +102,7 @@ export default function Comments() {
 
   async function restore(id: string) {
     try {
-      await apiCall(`/api/admin/comments/${id}/restore`, "POST");
+      await apiCall(`/admin/comments/${id}/restore`, "POST");
       setComments(prev => prev.map(c => c.id === id ? { ...c, is_deleted: false } : c));
       toast.success("Comment restored");
     } catch (err: any) { toast.error(err.message); }
@@ -110,7 +110,7 @@ export default function Comments() {
 
   async function toggleFlag(id: string, current: boolean) {
     try {
-      await apiCall(`/api/admin/comments/${id}/flag`, "POST", { flagged: !current });
+      await apiCall(`/admin/comments/${id}/flag`, "POST", { flagged: !current });
       setComments(prev => prev.map(c => c.id === id ? { ...c, is_flagged: !current } : c));
       toast.success(current ? "Flag removed" : "Comment flagged");
     } catch (err: any) { toast.error(err.message); }
@@ -119,7 +119,7 @@ export default function Comments() {
   async function blockUser(userId: string) {
     setBlockingUser(userId);
     try {
-      await apiCall(`/api/admin/comment-blocked-users/${userId}/block`, "POST");
+      await apiCall(`/admin/comment-blocked-users/${userId}/block`, "POST");
       setBlockedUsers(prev => new Set([...prev, userId]));
       toast.success("User blocked from commenting");
     } catch (err: any) { toast.error(err.message); }
@@ -129,7 +129,7 @@ export default function Comments() {
   async function unblockUser(userId: string) {
     setBlockingUser(userId);
     try {
-      await apiCall(`/api/admin/comment-blocked-users/${userId}/unblock`, "POST");
+      await apiCall(`/admin/comment-blocked-users/${userId}/unblock`, "POST");
       setBlockedUsers(prev => { const s = new Set(prev); s.delete(userId); return s; });
       toast.success("User unblocked");
     } catch (err: any) { toast.error(err.message); }
