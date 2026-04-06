@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import FadeImage from "@/components/FadeImage";
+import { Toast } from "@/components/Toast";
 import { useAudio } from "@/context/AudioContext";
 import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
@@ -462,10 +463,11 @@ export default function HomeScreen() {
   const colors = useColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, pendingNotification, clearPendingNotification } = useAuth();
   const { nowPlaying } = useAudio();
   const { series: allSeries, loading: contentLoading } = useContent();
   const { featureFlags, settings } = useAppSettings();
+  const [referralToast, setReferralToast] = useState<{ visible: boolean; xp: number }>({ visible: false, xp: 0 });
   const [feedPage, setFeedPage] = useState(0);
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -481,6 +483,14 @@ export default function HomeScreen() {
   const featured = allSeries.filter((s) => s.isFeatured);
   const newReleases = allSeries.filter((s) => s.isNew);
   const popular = allSeries.slice(0, 4);
+
+  // Show toast when referral code is successfully applied after signup
+  useEffect(() => {
+    if (pendingNotification?.type === "referral_applied") {
+      setReferralToast({ visible: true, xp: pendingNotification.xp });
+      clearPendingNotification();
+    }
+  }, [pendingNotification, clearPendingNotification]);
 
   useEffect(() => {
     if (allSeries.length > 0 && !feedInitRef.current) {
@@ -552,6 +562,14 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Toast
+        visible={referralToast.visible}
+        message={`Referral code applied! +${referralToast.xp} XP bonus`}
+        icon="gift"
+        iconColor="#F59E0B"
+        duration={3500}
+        onDismiss={() => setReferralToast(prev => ({ ...prev, visible: false }))}
+      />
       <Animated.View
         style={[
           styles.floatingHeader,
