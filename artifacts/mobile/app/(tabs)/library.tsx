@@ -79,6 +79,32 @@ export default function LibraryScreen() {
   const bookmarkedSeries = SERIES.filter((s) => bookmarks.has(`series:${s.id}`));
   const favouritedSurahs = SURAHS.filter((s) => favourites.has(`surah:${s.number}`));
   const bookmarkedSurahs = SURAHS.filter((s) => bookmarks.has(`surah:${s.number}`));
+
+  const favouritedEpisodes = React.useMemo(() => {
+    const items: { episode: any; series: any }[] = [];
+    favourites.forEach((key) => {
+      if (!key.startsWith("episode:")) return;
+      const epId = key.slice(8);
+      for (const s of SERIES) {
+        const ep = (s.episodes ?? []).find((e: any) => e.id === epId);
+        if (ep) { items.push({ episode: ep, series: s }); break; }
+      }
+    });
+    return items;
+  }, [favourites, SERIES]);
+
+  const bookmarkedEpisodes = React.useMemo(() => {
+    const items: { episode: any; series: any }[] = [];
+    bookmarks.forEach((key) => {
+      if (!key.startsWith("episode:")) return;
+      const epId = key.slice(8);
+      for (const s of SERIES) {
+        const ep = (s.episodes ?? []).find((e: any) => e.id === epId);
+        if (ep) { items.push({ episode: ep, series: s }); break; }
+      }
+    });
+    return items;
+  }, [bookmarks, SERIES]);
   const downloadedSeries = SERIES.filter((s) =>
     (s.episodes ?? []).some((ep) =>
       downloads.has(`episode:${ep.id}`) || downloads.has(ep.id)
@@ -226,7 +252,7 @@ export default function LibraryScreen() {
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to save and view your favourite series and surahs" onSignIn={() => router.push("/login")} colors={colors} />
-            ) : favouritedSeries.length === 0 && favouritedSurahs.length === 0 ? (
+            ) : favouritedSeries.length === 0 && favouritedSurahs.length === 0 && favouritedEpisodes.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="heart" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No favourites yet</Text>
@@ -244,9 +270,30 @@ export default function LibraryScreen() {
                     </View>
                   </>
                 )}
+                {favouritedEpisodes.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: favouritedSeries.length > 0 ? 8 : 0 }]}>Favourite Episodes</Text>
+                    {favouritedEpisodes.map(({ episode, series }) => (
+                      <Pressable
+                        key={episode.id}
+                        onPress={() => router.push(`/series/${series.id}` as any)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
+                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{episode.title}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]} numberOfLines={1}>{series.title}</Text>
+                        </View>
+                        <Icon name="heart" size={14} color={colors.gold} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
                 {favouritedSurahs.length > 0 && (
                   <>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: favouritedSeries.length > 0 ? 8 : 0 }]}>Favourite Surahs</Text>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: (favouritedSeries.length > 0 || favouritedEpisodes.length > 0) ? 8 : 0 }]}>Favourite Surahs</Text>
                     {favouritedSurahs.map((s) => (
                       <Pressable
                         key={s.number}
@@ -275,7 +322,7 @@ export default function LibraryScreen() {
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to bookmark series and surahs for quick access" onSignIn={() => router.push("/login")} colors={colors} />
-            ) : bookmarkedSeries.length === 0 && bookmarkedSurahs.length === 0 ? (
+            ) : bookmarkedSeries.length === 0 && bookmarkedSurahs.length === 0 && bookmarkedEpisodes.length === 0 ? (
               <View style={styles.emptyState}>
                 <Icon name="bookmark" size={40} color={colors.textMuted} />
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No bookmarks yet</Text>
@@ -306,9 +353,30 @@ export default function LibraryScreen() {
                     ))}
                   </>
                 )}
+                {bookmarkedEpisodes.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: bookmarkedSeries.length > 0 ? 8 : 0 }]}>Saved Episodes</Text>
+                    {bookmarkedEpisodes.map(({ episode, series }) => (
+                      <Pressable
+                        key={episode.id}
+                        onPress={() => router.push(`/series/${series.id}` as any)}
+                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
+                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{episode.title}</Text>
+                          <Text style={[styles.histMeta, { color: colors.textSecondary }]} numberOfLines={1}>{series.title}</Text>
+                        </View>
+                        <Icon name="bookmark" size={14} color={colors.goldLight} />
+                      </Pressable>
+                    ))}
+                  </>
+                )}
                 {bookmarkedSurahs.length > 0 && (
                   <>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: bookmarkedSeries.length > 0 ? 8 : 0 }]}>Saved Surahs</Text>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: (bookmarkedSeries.length > 0 || bookmarkedEpisodes.length > 0) ? 8 : 0 }]}>Saved Surahs</Text>
                     {bookmarkedSurahs.map((s) => (
                       <Pressable
                         key={s.number}
