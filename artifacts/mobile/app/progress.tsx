@@ -117,8 +117,8 @@ export default function ProgressScreen() {
           <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.title, { color: colors.textPrimary }]}>My Progress</Text>
-        <Pressable onPress={loadStats} disabled={statsLoading} style={[styles.backBtn, { backgroundColor: colors.surfaceHigh, opacity: statsLoading ? 0.5 : 1 }]}>
-          <Icon name="refresh-cw" size={16} color={statsLoading ? colors.textMuted : colors.goldLight} />
+        <Pressable onPress={loadStats} style={[styles.backBtn, { backgroundColor: colors.surfaceHigh }]}>
+          <Icon name="refresh-cw" size={16} color={colors.goldLight} />
         </Pressable>
       </View>
 

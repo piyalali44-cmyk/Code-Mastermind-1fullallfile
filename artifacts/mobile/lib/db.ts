@@ -872,16 +872,15 @@ export async function getUserCountry(userId: string): Promise<string | null> {
       .from("profiles")
       .select("country")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
     return data?.country ?? null;
   } catch { return null; }
 }
 
 export async function updateUserCountry(userId: string, country: string): Promise<void> {
-  try {
-    await supabase
-      .from("profiles")
-      .update({ country })
-      .eq("id", userId);
-  } catch { /* silent */ }
+  const { error } = await supabase
+    .from("profiles")
+    .update({ country })
+    .eq("id", userId);
+  if (error) throw error;
 }

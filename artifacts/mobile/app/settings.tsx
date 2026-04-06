@@ -305,9 +305,14 @@ export default function SettingsScreen() {
     setCountryModal(false);
     setCountrySearch("");
     if (!isGuest && user) {
-      await updateUserCountry(user.id, code);
-      showToast("Country updated", "check-circle", colors.green);
-      refreshUser().catch(() => {});
+      try {
+        await updateUserCountry(user.id, code);
+        showToast("Country updated", "check-circle", colors.green);
+        refreshUser().catch(() => {});
+      } catch {
+        showToast("Failed to save country. Please try again.", "alert-circle", "#ef4444");
+        setCountry(country);
+      }
     }
   };
 

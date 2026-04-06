@@ -113,8 +113,8 @@ export default function LeaderboardScreen() {
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </Pressable>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Leaderboard</Text>
-        <Pressable onPress={fetchData} disabled={loading} style={[styles.navBtn, { opacity: loading ? 0.5 : 1 }]}>
-          <Icon name="refresh-cw" size={18} color={loading ? colors.textMuted : colors.goldLight} />
+        <Pressable onPress={fetchData} style={styles.navBtn}>
+          <Icon name="refresh-cw" size={18} color={colors.goldLight} />
         </Pressable>
       </View>
 

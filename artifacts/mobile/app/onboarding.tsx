@@ -38,7 +38,7 @@ const SLIDES = [
     description:
       "Experience the Qur'an as it was meant to be — beautifully recited, with Arabic text and English translation. Free for everyone. Forever.",
     accent: "#B8860E",
-    decorIcon: "star" as const,
+    decorIcon: "book-open" as const,
   },
   {
     id: "3",
