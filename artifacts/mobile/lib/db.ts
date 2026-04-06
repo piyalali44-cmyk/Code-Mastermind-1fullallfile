@@ -924,49 +924,41 @@ export async function updateUserCountry(userId: string, country: string): Promis
   if (error) throw error;
 }
 
-// ─── CONTENT LIKES ───────────────────────────────────────────────────────────
+// ─── CONTENT LIKES (via API server, stores in Replit Postgres) ───────────────
+async function contentApiCall(path: string, token: string | null, method = "GET", body?: object) {
+  try {
+    const opts: RequestInit = { method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) } };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(`${API_BASE}${path}`, opts);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
 export async function toggleContentLike(
   userId: string,
   contentType: string,
   contentId: string,
+  token?: string,
 ): Promise<{ liked: boolean }> {
-  try {
-    const { data: existing } = await supabase
-      .from("content_likes")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("content_type", contentType)
-      .eq("content_id", contentId)
-      .maybeSingle();
-    if (existing) {
-      await supabase.from("content_likes").delete().eq("id", existing.id);
-      return { liked: false };
-    } else {
-      await supabase.from("content_likes").insert({ user_id: userId, content_type: contentType, content_id: contentId });
-      return { liked: true };
-    }
-  } catch { return { liked: false }; }
+  if (!token) return { liked: false };
+  const res = await contentApiCall("/content/likes/toggle", token, "POST", { contentType, contentId });
+  return { liked: res?.liked ?? false };
 }
 
 export async function getContentLikeStatus(
   userId: string,
   contentType: string,
   contentId: string,
+  token?: string,
 ): Promise<{ isLiked: boolean; count: number }> {
-  try {
-    const [likedRes, countRes] = await Promise.all([
-      supabase.from("content_likes").select("id").eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId).maybeSingle(),
-      supabase.from("content_likes").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId),
-    ]);
-    return { isLiked: !!likedRes.data, count: countRes.count ?? 0 };
-  } catch { return { isLiked: false, count: 0 }; }
+  const res = await contentApiCall(`/content/likes/status?contentType=${encodeURIComponent(contentType)}&contentId=${encodeURIComponent(contentId)}`, token ?? null);
+  return { isLiked: res?.isLiked ?? false, count: res?.count ?? 0 };
 }
 
 export async function getContentLikeCount(contentType: string, contentId: string): Promise<number> {
-  try {
-    const { count } = await supabase.from("content_likes").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId);
-    return count ?? 0;
-  } catch { return 0; }
+  const res = await contentApiCall(`/content/likes/status?contentType=${encodeURIComponent(contentType)}&contentId=${encodeURIComponent(contentId)}`, null);
+  return res?.count ?? 0;
 }
 
 // ─── CONTENT COMMENTS ────────────────────────────────────────────────────────
@@ -984,46 +976,21 @@ export async function getContentComments(
   contentType: string,
   contentId: string,
   currentUserId?: string,
+  token?: string,
 ): Promise<{ comments: ContentComment[]; count: number }> {
-  try {
-    const { data, count } = await supabase
-      .from("content_comments")
-      .select("id, user_id, body, created_at", { count: "exact" })
-      .eq("content_type", contentType)
-      .eq("content_id", contentId)
-      .eq("is_deleted", false)
-      .order("created_at", { ascending: true })
-      .limit(100);
-
-    const rows = data ?? [];
-    const userIds = [...new Set(rows.map((r: any) => r.user_id as string))];
-    const profileMap = new Map<string, { display_name?: string; avatar_url?: string }>();
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
-      (profiles ?? []).forEach((p: any) => profileMap.set(p.id, p));
-    }
-
-    const comments: ContentComment[] = rows.map((r: any) => ({
-      id: r.id,
-      userId: r.user_id,
-      displayName: profileMap.get(r.user_id)?.display_name ?? "User",
-      avatarUrl: profileMap.get(r.user_id)?.avatar_url ?? null,
-      body: r.body,
-      createdAt: r.created_at,
-      isOwn: r.user_id === currentUserId,
-    }));
-    return { comments, count: count ?? comments.length };
-  } catch { return { comments: [], count: 0 }; }
+  const res = await contentApiCall(
+    `/content/comments?contentType=${encodeURIComponent(contentType)}&contentId=${encodeURIComponent(contentId)}`,
+    token ?? null
+  );
+  return { comments: res?.comments ?? [], count: res?.count ?? 0 };
 }
 
 export async function getContentCommentCount(contentType: string, contentId: string): Promise<number> {
-  try {
-    const { count } = await supabase.from("content_comments").select("id", { count: "exact", head: true }).eq("content_type", contentType).eq("content_id", contentId).eq("is_deleted", false);
-    return count ?? 0;
-  } catch { return 0; }
+  const res = await contentApiCall(
+    `/content/comments?contentType=${encodeURIComponent(contentType)}&contentId=${encodeURIComponent(contentId)}`,
+    null
+  );
+  return res?.count ?? 0;
 }
 
 export async function addContentComment(
@@ -1031,48 +998,23 @@ export async function addContentComment(
   contentType: string,
   contentId: string,
   body: string,
+  token?: string,
+  displayName?: string,
 ): Promise<ContentComment | null> {
-  try {
-    const trimmed = body.trim();
-    if (!trimmed || trimmed.length > 500) return null;
-    const { data, error } = await supabase
-      .from("content_comments")
-      .insert({ user_id: userId, content_type: contentType, content_id: contentId, body: trimmed })
-      .select("id, user_id, body, created_at")
-      .single();
-    if (error) { console.warn("[addContentComment]", error.message); return null; }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("display_name, avatar_url")
-      .eq("id", userId)
-      .maybeSingle();
-    return {
-      id: data.id,
-      userId: data.user_id,
-      displayName: profile?.display_name ?? "User",
-      avatarUrl: profile?.avatar_url ?? null,
-      body: data.body,
-      createdAt: data.created_at,
-      isOwn: true,
-    };
-  } catch { return null; }
+  if (!token) return null;
+  const trimmed = body.trim();
+  if (!trimmed || trimmed.length > 2000) return null;
+  return await contentApiCall("/content/comments", token, "POST", { contentType, contentId, body: trimmed, displayName });
 }
 
-export async function softDeleteContentComment(commentId: string): Promise<boolean> {
-  try {
-    const { error } = await supabase.from("content_comments").update({ is_deleted: true }).eq("id", commentId);
-    return !error;
-  } catch { return false; }
+export async function softDeleteContentComment(commentId: string, token?: string): Promise<boolean> {
+  if (!token) return false;
+  const res = await contentApiCall(`/content/comments/${commentId}`, token, "DELETE");
+  return !!res?.success;
 }
 
 // ─── COMMENT BLOCKING ─────────────────────────────────────────────────────────
-export async function isUserCommentBlocked(userId: string): Promise<boolean> {
-  try {
-    const { data } = await supabase
-      .from("comment_blocked_users")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    return !!data;
-  } catch { return false; }
+export async function isUserCommentBlocked(userId: string, token?: string): Promise<boolean> {
+  const res = await contentApiCall("/content/comment-blocked", token ?? null);
+  return res?.blocked ?? false;
 }

@@ -6,6 +6,7 @@ import contactRouter from "./contact";
 import referralRouter from "./referral";
 import redeemRouter from "./redeem";
 import adminRouter from "./admin";
+import contentRouter from "./content";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(contactRouter);
 router.use(referralRouter);
 router.use(redeemRouter);
 router.use(adminRouter);
+router.use(contentRouter);
 
 export default router;

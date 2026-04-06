@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { seedRateLimitDefaults } from "./lib/initDb";
+import { seedRateLimitDefaults, ensureLikesCommentsTables } from "./lib/initDb";
 
 const rawPort = process.env["PORT"];
 
@@ -25,5 +25,8 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   seedRateLimitDefaults().catch((e) =>
     logger.warn({ err: e }, "Could not seed rate limit defaults")
+  );
+  ensureLikesCommentsTables().catch((e) =>
+    logger.warn({ err: e }, "Could not ensure likes/comments tables")
   );
 });
