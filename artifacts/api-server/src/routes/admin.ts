@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { getPgPool } from "../lib/pgClient.js";
 
 const router = Router();
 
@@ -287,38 +288,39 @@ router.get("/admin/comments", async (req, res) => {
     const filterType = (req.query.filterType as string) ?? "all";
     const filterStatus = (req.query.filterStatus as string) ?? "all";
     const search = (req.query.search as string) ?? "";
+    const offset = page * pageSize;
 
-    let q = admin
-      .from("content_comments")
-      .select("id, user_id, content_type, content_id, body, is_deleted, is_flagged, created_at", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(page * pageSize, page * pageSize + pageSize - 1);
+    const conditions: string[] = [];
+    const params: any[] = [];
 
-    if (filterType !== "all") q = q.eq("content_type", filterType);
-    if (filterStatus === "active") q = q.eq("is_deleted", false).eq("is_flagged", false);
-    if (filterStatus === "flagged") q = q.eq("is_flagged", true);
-    if (filterStatus === "deleted") q = q.eq("is_deleted", true);
-    if (search) q = q.ilike("body", `%${search}%`);
+    if (filterType !== "all") { params.push(filterType); conditions.push(`c.content_type = $${params.length}`); }
+    if (filterStatus === "active") { conditions.push(`c.is_deleted = false AND c.is_flagged = false`); }
+    else if (filterStatus === "flagged") { conditions.push(`c.is_flagged = true`); }
+    else if (filterStatus === "deleted") { conditions.push(`c.is_deleted = true`); }
+    if (search) { params.push(`%${search}%`); conditions.push(`c.body ILIKE $${params.length}`); }
 
-    const { data, count, error } = await q;
-    if (error) throw error;
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
-    const rows = data ?? [];
-    let enriched = rows;
-    if (rows.length > 0) {
-      const userIds = [...new Set(rows.map((r: any) => r.user_id))];
-      const { data: profiles } = await admin
-        .from("profiles")
-        .select("id, display_name, email")
-        .in("id", userIds);
-      const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
-      enriched = rows.map((r: any) => {
-        const p = profileMap.get(r.user_id);
-        return { ...r, display_name: p?.display_name ?? null, email: p?.email ?? null };
-      });
-    }
+    const pool = getPgPool();
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM public.content_comments c ${where}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count, 10);
 
-    res.json({ comments: enriched, total: count ?? 0 });
+    params.push(pageSize, offset);
+    const dataRes = await pool.query(
+      `SELECT c.id, c.user_id, c.content_type, c.content_id, c.body, c.is_deleted, c.is_flagged, c.created_at,
+              p.display_name, p.email
+       FROM public.content_comments c
+       LEFT JOIN public.comment_user_profiles p ON p.user_id = c.user_id
+       ${where}
+       ORDER BY c.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params
+    );
+
+    res.json({ comments: dataRes.rows, total });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -330,9 +332,9 @@ router.get("/admin/comment-blocked-users", async (req, res) => {
     const admin = getAdminClient();
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { data, error } = await admin.from("comment_blocked_users").select("user_id");
-    if (error) throw error;
-    res.json({ blocked: (data ?? []).map((r: any) => r.user_id) });
+    const pool = getPgPool();
+    const result = await pool.query(`SELECT user_id FROM public.comment_blocked_users`);
+    res.json({ blocked: result.rows.map((r: any) => r.user_id) });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
@@ -344,8 +346,8 @@ router.post("/admin/comments/:id/soft-delete", async (req, res) => {
     const admin = getAdminClient();
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { error } = await admin.from("content_comments").update({ is_deleted: true }).eq("id", req.params.id);
-    if (error) throw error;
+    const pool = getPgPool();
+    await pool.query(`UPDATE public.content_comments SET is_deleted = true WHERE id = $1`, [req.params.id]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -358,8 +360,8 @@ router.post("/admin/comments/:id/restore", async (req, res) => {
     const admin = getAdminClient();
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { error } = await admin.from("content_comments").update({ is_deleted: false }).eq("id", req.params.id);
-    if (error) throw error;
+    const pool = getPgPool();
+    await pool.query(`UPDATE public.content_comments SET is_deleted = false WHERE id = $1`, [req.params.id]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -373,8 +375,8 @@ router.post("/admin/comments/:id/flag", async (req, res) => {
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const { flagged } = req.body as { flagged: boolean };
-    const { error } = await admin.from("content_comments").update({ is_flagged: flagged }).eq("id", req.params.id);
-    if (error) throw error;
+    const pool = getPgPool();
+    await pool.query(`UPDATE public.content_comments SET is_flagged = $1 WHERE id = $2`, [flagged, req.params.id]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -387,11 +389,12 @@ router.post("/admin/comment-blocked-users/:userId/block", async (req, res) => {
     const admin = getAdminClient();
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { error } = await admin.from("comment_blocked_users").upsert(
-      { user_id: req.params.userId, blocked_by: decoded.sub },
-      { onConflict: "user_id" }
+    const pool = getPgPool();
+    await pool.query(
+      `INSERT INTO public.comment_blocked_users (user_id, blocked_by) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET blocked_by = EXCLUDED.blocked_by`,
+      [req.params.userId, decoded.sub]
     );
-    if (error) throw error;
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
@@ -404,8 +407,8 @@ router.post("/admin/comment-blocked-users/:userId/unblock", async (req, res) => 
     const admin = getAdminClient();
     if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const { error } = await admin.from("comment_blocked_users").delete().eq("user_id", req.params.userId);
-    if (error) throw error;
+    const pool = getPgPool();
+    await pool.query(`DELETE FROM public.comment_blocked_users WHERE user_id = $1`, [req.params.userId]);
     res.json({ success: true });
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });

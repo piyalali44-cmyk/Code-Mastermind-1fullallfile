@@ -161,7 +161,8 @@ export default function PlayerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { nowPlaying, isPlaying, isLoading, position, duration, playbackSpeed, repeatMode, setRepeatMode, pause, resume, seek, skipForward, skipBack, setSpeed, play } = useAudio();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
+  const token = session?.access_token;
   const { settings } = useAppSettings();
   const { isBookmarked: isItemBookmarked, isDownloaded: isItemDownloaded, toggleBookmark, toggleDownload } = useUserActions();
   const [speedModal, setSpeedModal] = useState(false);
@@ -284,7 +285,7 @@ export default function PlayerScreen() {
     const load = async () => {
       const [likeStatus, cCount] = await Promise.all([
         user?.id
-          ? getContentLikeStatus(user.id, contentType, contentId)
+          ? getContentLikeStatus(user.id, contentType, contentId, token)
           : getContentLikeCount(contentType, contentId).then((c) => ({ isLiked: false, count: c })),
         getContentCommentCount(contentType, contentId),
       ]);
@@ -310,7 +311,7 @@ export default function PlayerScreen() {
           const c = await getContentLikeCount(contentType, contentId);
           setLikeCount(c);
           if (user?.id) {
-            const s = await getContentLikeStatus(user.id, contentType, contentId);
+            const s = await getContentLikeStatus(user.id, contentType, contentId, token);
             setIsDbLiked(s.isLiked);
           }
         },
@@ -321,7 +322,7 @@ export default function PlayerScreen() {
         async (payload: any) => {
           setCommentCount((n) => n + 1);
           if (commentModal) {
-            const { comments: fresh } = await getContentComments(contentType, contentId, user?.id);
+            const { comments: fresh } = await getContentComments(contentType, contentId, user?.id, token);
             setComments(fresh);
           }
         },
@@ -339,7 +340,7 @@ export default function PlayerScreen() {
     setIsDbLiked(optimistic);
     setLikeCount((n) => n + (optimistic ? 1 : -1));
     try {
-      const { liked } = await toggleContentLike(user.id, contentType, contentId);
+      const { liked } = await toggleContentLike(user.id, contentType, contentId, token);
       setIsDbLiked(liked);
       showToast(liked ? "Liked!" : "Like removed", "thumbs-up", liked ? colors.gold : colors.textSecondary);
     } catch {
@@ -355,8 +356,8 @@ export default function PlayerScreen() {
     setCommentModal(true);
     setCommentsLoading(true);
     const [{ comments: list }, blocked] = await Promise.all([
-      getContentComments(contentType, contentId, user?.id),
-      user?.id ? isUserCommentBlocked(user.id) : Promise.resolve(false),
+      getContentComments(contentType, contentId, user?.id, token),
+      user?.id ? isUserCommentBlocked(user.id, token) : Promise.resolve(false),
     ]);
     setComments(list);
     setIsCommentBlocked(blocked);
@@ -368,7 +369,7 @@ export default function PlayerScreen() {
     const text = commentText.trim();
     if (!text || text.length > 500) return;
     setSendingComment(true);
-    const newComment = await addContentComment(user.id, contentType, contentId, text);
+    const newComment = await addContentComment(user.id, contentType, contentId, text, token, user?.displayName ?? undefined);
     if (newComment) {
       setComments((prev) => [...prev, newComment]);
       setCommentCount((n) => n + 1);
@@ -378,7 +379,7 @@ export default function PlayerScreen() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    const ok = await softDeleteContentComment(commentId);
+    const ok = await softDeleteContentComment(commentId, token);
     if (ok) {
       setComments((prev) => prev.filter((c) => c.id !== commentId));
       setCommentCount((n) => Math.max(0, n - 1));

@@ -60,7 +60,8 @@ export default function SeriesDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { play, nowPlaying } = useAudio();
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, session } = useAuth();
+  const token = session?.access_token;
   const { settings } = useAppSettings();
 
   const { isBookmarked: isItemBookmarked, toggleBookmark, startDownload, removeDownloadedFile, isDownloaded: isEpisodeDownloaded, downloadProgress } = useUserActions();
@@ -113,7 +114,7 @@ export default function SeriesDetailScreen() {
     getContentLikeCount(CONTENT_TYPE, CONTENT_ID).then(setLikeCount);
     getContentCommentCount(CONTENT_TYPE, CONTENT_ID).then(setCommentCount);
     if (user?.id) {
-      getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID).then(r => setIsDbLiked(r.isLiked));
+      getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID, token).then(r => setIsDbLiked(r.isLiked));
     }
   }, [series.id, user?.id]);
 
@@ -128,7 +129,7 @@ export default function SeriesDetailScreen() {
       }, async () => {
         const [count, likeStatus] = await Promise.all([
           getContentLikeCount(CONTENT_TYPE, CONTENT_ID),
-          user?.id ? getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID) : Promise.resolve({ isLiked: false, count: 0 }),
+          user?.id ? getContentLikeStatus(user.id, CONTENT_TYPE, CONTENT_ID, token) : Promise.resolve({ isLiked: false, count: 0 }),
         ]);
         setLikeCount(count);
         setIsDbLiked(likeStatus.isLiked);
@@ -140,7 +141,7 @@ export default function SeriesDetailScreen() {
         const count = await getContentCommentCount(CONTENT_TYPE, CONTENT_ID);
         setCommentCount(count);
         if (commentModal) {
-          const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id);
+          const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id, token);
           setComments(list);
         }
       })
@@ -159,7 +160,7 @@ export default function SeriesDetailScreen() {
     const optimistic = !isDbLiked;
     setIsDbLiked(optimistic);
     setLikeCount(c => optimistic ? c + 1 : Math.max(0, c - 1));
-    const result = await toggleContentLike(user.id, CONTENT_TYPE, CONTENT_ID);
+    const result = await toggleContentLike(user.id, CONTENT_TYPE, CONTENT_ID, token);
     setIsDbLiked(result.liked);
     setLikeCount(await getContentLikeCount(CONTENT_TYPE, CONTENT_ID));
     setLikePending(false);
@@ -185,8 +186,8 @@ export default function SeriesDetailScreen() {
     setCommentModal(true);
     setCommentsLoading(true);
     const [{ comments: list }, blocked] = await Promise.all([
-      getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id),
-      user?.id ? isUserCommentBlocked(user.id) : Promise.resolve(false),
+      getContentComments(CONTENT_TYPE, CONTENT_ID, user?.id, token),
+      user?.id ? isUserCommentBlocked(user.id, token) : Promise.resolve(false),
     ]);
     setComments(list);
     setIsCommentBlocked(blocked);
@@ -198,10 +199,10 @@ export default function SeriesDetailScreen() {
     const text = commentText.trim();
     if (!text) return;
     setSendingComment(true);
-    const result = await addContentComment(user.id, CONTENT_TYPE, CONTENT_ID, text);
+    const result = await addContentComment(user.id, CONTENT_TYPE, CONTENT_ID, text, token, user?.displayName ?? undefined);
     if (result) {
       setCommentText("");
-      const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user.id);
+      const { comments: list } = await getContentComments(CONTENT_TYPE, CONTENT_ID, user.id, token);
       setComments(list);
       setCommentCount(await getContentCommentCount(CONTENT_TYPE, CONTENT_ID));
     } else {
@@ -211,7 +212,7 @@ export default function SeriesDetailScreen() {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    const ok = await softDeleteContentComment(commentId);
+    const ok = await softDeleteContentComment(commentId, token);
     if (ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setCommentCount(c => Math.max(0, c - 1));
