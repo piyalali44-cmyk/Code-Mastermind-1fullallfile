@@ -274,6 +274,142 @@ router.post("/admin/users/:userId/delete", async (req, res) => {
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
+// ── GET /api/admin/comments ──────────────────────────────────────────────────
+router.get("/admin/comments", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const page = parseInt((req.query.page as string) ?? "0", 10);
+    const pageSize = parseInt((req.query.pageSize as string) ?? "25", 10);
+    const filterType = (req.query.filterType as string) ?? "all";
+    const filterStatus = (req.query.filterStatus as string) ?? "all";
+    const search = (req.query.search as string) ?? "";
+
+    let q = admin
+      .from("content_comments")
+      .select("id, user_id, content_type, content_id, body, is_deleted, is_flagged, created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+
+    if (filterType !== "all") q = q.eq("content_type", filterType);
+    if (filterStatus === "active") q = q.eq("is_deleted", false).eq("is_flagged", false);
+    if (filterStatus === "flagged") q = q.eq("is_flagged", true);
+    if (filterStatus === "deleted") q = q.eq("is_deleted", true);
+    if (search) q = q.ilike("body", `%${search}%`);
+
+    const { data, count, error } = await q;
+    if (error) throw error;
+
+    const rows = data ?? [];
+    let enriched = rows;
+    if (rows.length > 0) {
+      const userIds = [...new Set(rows.map((r: any) => r.user_id))];
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, display_name, email")
+        .in("id", userIds);
+      const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+      enriched = rows.map((r: any) => {
+        const p = profileMap.get(r.user_id);
+        return { ...r, display_name: p?.display_name ?? null, email: p?.email ?? null };
+      });
+    }
+
+    res.json({ comments: enriched, total: count ?? 0 });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── GET /api/admin/comment-blocked-users ─────────────────────────────────────
+router.get("/admin/comment-blocked-users", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { data, error } = await admin.from("comment_blocked_users").select("user_id");
+    if (error) throw error;
+    res.json({ blocked: (data ?? []).map((r: any) => r.user_id) });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/comments/:id/soft-delete ─────────────────────────────────
+router.post("/admin/comments/:id/soft-delete", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { error } = await admin.from("content_comments").update({ is_deleted: true }).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/comments/:id/restore ─────────────────────────────────────
+router.post("/admin/comments/:id/restore", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { error } = await admin.from("content_comments").update({ is_deleted: false }).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/comments/:id/flag ────────────────────────────────────────
+router.post("/admin/comments/:id/flag", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { flagged } = req.body as { flagged: boolean };
+    const { error } = await admin.from("content_comments").update({ is_flagged: flagged }).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/comment-blocked-users/:userId/block ──────────────────────
+router.post("/admin/comment-blocked-users/:userId/block", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { error } = await admin.from("comment_blocked_users").upsert(
+      { user_id: req.params.userId, blocked_by: decoded.sub },
+      { onConflict: "user_id" }
+    );
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
+// ── POST /api/admin/comment-blocked-users/:userId/unblock ────────────────────
+router.post("/admin/comment-blocked-users/:userId/unblock", async (req, res) => {
+  try {
+    const decoded = decodeJwt(req.headers.authorization);
+    if (!decoded?.sub) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const admin = getAdminClient();
+    if (!isAdmin(await getRequesterRole(admin, decoded.sub))) { res.status(403).json({ error: "Forbidden" }); return; }
+
+    const { error } = await admin.from("comment_blocked_users").delete().eq("user_id", req.params.userId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err.message }); }
+});
+
 // ── POST /api/admin/invite ────────────────────────────────────────────────────
 router.post("/admin/invite", async (req, res) => {
   try {
