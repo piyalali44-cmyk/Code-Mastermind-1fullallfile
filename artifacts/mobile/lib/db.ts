@@ -17,20 +17,17 @@ export async function ensureUserRows(userId: string) {
         { onConflict: "user_id", ignoreDuplicates: true }
       ),
     ]);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[ensureUserRows]", err); }
 }
 
 // ─── XP ──────────────────────────────────────────────────────────────────────
 export async function addXp(userId: string, amount: number, reason: string) {
   try {
-    // Ensure user_xp row exists first
     await supabase.from("user_xp").upsert(
       { user_id: userId, total_xp: 0, level: 1 },
       { onConflict: "user_id", ignoreDuplicates: true }
     );
-    // Insert xp log entry
     await supabase.from("daily_xp_log").insert({ user_id: userId, xp_amount: amount, reason });
-    // Read current XP then update
     const { data: existing } = await supabase
       .from("user_xp")
       .select("total_xp")
@@ -43,7 +40,7 @@ export async function addXp(userId: string, amount: number, reason: string) {
       { user_id: userId, total_xp: newXp, level: newLevel, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[addXp]", err); }
 }
 
 // ─── STREAKS ─────────────────────────────────────────────────────────────────
@@ -70,7 +67,7 @@ export async function updateStreak(userId: string) {
       last_activity_date: today,
       updated_at: new Date().toISOString(),
     }).eq("user_id", userId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[updateStreak]", err); }
 }
 
 // ─── LISTENING PROGRESS ───────────────────────────────────────────────────────
@@ -86,7 +83,7 @@ export async function saveProgress(userId: string, contentType: "surah" | "episo
       completed,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,content_type,content_id" });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[saveProgress]", err); }
 }
 
 export async function getProgress(userId: string, contentType: "surah" | "episode", contentId: string) {
@@ -116,7 +113,7 @@ export async function updateHistoryDuration(historyId: string, durationMs: numbe
   if (!historyId || durationMs <= 0) return;
   try {
     await supabase.from("listening_history").update({ duration_ms: durationMs }).eq("id", historyId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[updateHistoryDuration]", err); }
 }
 
 export interface RecentlyPlayedItem {
@@ -344,7 +341,7 @@ export async function getEarnedBadgeSlugs(userId: string): Promise<string[]> {
 export async function checkAndAwardBadges(userId: string): Promise<void> {
   try {
     await supabase.rpc("check_and_award_badges", { p_user_id: userId });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[checkAndAwardBadges]", err); }
 }
 
 // ─── PROGRESS ANALYTICS ──────────────────────────────────────────────────────
@@ -437,13 +434,13 @@ export async function addFavourite(userId: string, item: { contentType: "surah" 
       series_name: item.seriesName ?? null,
       cover_color: item.coverColor ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[addFavourite]", err); }
 }
 
 export async function removeFavourite(userId: string, contentType: string, contentId: string) {
   try {
     await supabase.from("favourites").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[removeFavourite]", err); }
 }
 
 export async function getFavourites(userId: string) {
@@ -464,13 +461,13 @@ export async function addBookmark(userId: string, item: { contentType: "surah" |
       series_name: item.seriesName ?? null,
       cover_color: item.coverColor ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[addBookmark]", err); }
 }
 
 export async function removeBookmark(userId: string, contentType: string, contentId: string) {
   try {
     await supabase.from("bookmarks").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[removeBookmark]", err); }
 }
 
 export async function getBookmarks(userId: string) {
@@ -490,13 +487,13 @@ export async function addDownload(userId: string, item: { contentType: "surah" |
       title: item.title,
       file_size_bytes: item.fileSizeBytes ?? null,
     }, { onConflict: "user_id,content_type,content_id" });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[addDownload]", err); }
 }
 
 export async function removeDownload(userId: string, contentType: string, contentId: string) {
   try {
     await supabase.from("downloads").delete().eq("user_id", userId).eq("content_type", contentType).eq("content_id", contentId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[removeDownload]", err); }
 }
 
 export async function getDownloads(userId: string) {
@@ -742,7 +739,7 @@ export async function updateUserSettings(userId: string, settings: Partial<{
 }>) {
   try {
     await supabase.from("user_settings").upsert({ user_id: userId, ...settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[updateUserSettings]", err); }
 }
 
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
@@ -778,7 +775,7 @@ export async function markNotificationRead(notificationId: string): Promise<void
       .from("notifications")
       .update({ is_read: true })
       .eq("id", notificationId);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[markNotificationRead]", err); }
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<void> {
@@ -788,7 +785,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
       .update({ is_read: true })
       .eq("user_id", userId)
       .eq("is_read", false);
-  } catch { /* fail silently */ }
+  } catch (err) { console.warn("[markAllNotificationsRead]", err); }
 }
 
 export async function seedNotificationsIfEmpty(userId: string): Promise<DbNotification[]> {

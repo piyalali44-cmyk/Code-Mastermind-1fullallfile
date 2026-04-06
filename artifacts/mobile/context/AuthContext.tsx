@@ -134,12 +134,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearPendingNotification = useCallback(() => setPendingNotification(null), []);
 
-  // ── Helper: merge API stats into user state ─────────────────────────────────
-  // Uses service-role on the server → bypasses Supabase RLS completely.
-  // NEVER resets fields not returned by the API (e.g. email, joinDate).
-  const syncStatsFromApi = useCallback(async (token: string) => {
+  const lastSyncRef = React.useRef<number>(0);
+
+  const syncStatsFromApi = useCallback(async (token: string, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastSyncRef.current < 30_000) return;
     const stats = await fetchMyStats(token);
-    if (!stats) return; // network error — keep current state, never reset to 0
+    if (!stats) return;
+    lastSyncRef.current = Date.now();
     setUser(prev => {
       if (!prev) return prev;
       const updated: typeof prev = {
@@ -220,9 +222,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(s);
 
         if (s?.user) {
-          // Sync via API server (service-role) for guaranteed fresh data
           if (s.access_token) {
-            await syncStatsFromApi(s.access_token).catch(async () => {
+            await syncStatsFromApi(s.access_token, true).catch(async () => {
               // API failed — fall back to direct Supabase query
               const u = await buildUserFromSession(s.user!);
               setUser(u);
@@ -254,18 +255,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, s) => {
       setSession(s);
       if (s?.user) {
-        // Always sync via API server (service-role) for guaranteed fresh data.
-        // Fall back to buildUserFromSession only if API call fails.
-        if (s.access_token) {
-          await syncStatsFromApi(s.access_token).catch(async () => {
-            const u = await buildUserFromSession(s.user!);
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          if (s.access_token) {
+            await syncStatsFromApi(s.access_token, true).catch(async () => {
+              const u = await buildUserFromSession(s.user!);
+              setUser(u);
+              AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+            });
+          } else {
+            const u = await buildUserFromSession(s.user);
             setUser(u);
             AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
-          });
-        } else {
-          const u = await buildUserFromSession(s.user);
-          setUser(u);
-          AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(u)).catch(() => {});
+          }
         }
         setIsGuest(false);
         await AsyncStorage.removeItem("is_guest");

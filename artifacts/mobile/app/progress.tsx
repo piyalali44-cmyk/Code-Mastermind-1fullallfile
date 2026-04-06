@@ -282,6 +282,23 @@ export default function ProgressScreen() {
           )}
         </View>
 
+        {/* ── Quizzes ── */}
+        <Pressable
+          onPress={() => router.push("/quiz" as any)}
+          style={[styles.journeyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <View style={styles.journeyTop}>
+            <View style={{ gap: 2 }}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Quizzes</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Test your knowledge and earn XP</Text>
+            </View>
+            <View style={[styles.viewAllBtn, { backgroundColor: colors.gold + "18" }]}>
+              <Text style={[styles.viewAllText, { color: colors.goldLight }]}>Take Quiz</Text>
+              <Icon name="arrow-right" size={13} color={colors.goldLight} />
+            </View>
+          </View>
+        </Pressable>
+
         {/* ── Badges ── */}
         <View style={[styles.badgesCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>

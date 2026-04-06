@@ -176,6 +176,12 @@ Until deployed, fallbacks are in place for:
 - `admin_block_user/unblock/grant/revoke` → `UserDetail.tsx` (direct profile + subscriptions updates)
 - `check_and_award_badges` → fails silently (no impact on core flow)
 
+### ⚠️ Pending Migration: Quiz Attempts Table
+Run `artifacts/mobile/supabase/quiz_attempts_table.sql` in Supabase SQL Editor.
+This creates:
+- `quiz_attempts` table (user_id, quiz_id, score, total_questions, percentage, passed)
+- RLS policies: users can read/insert own attempts, admins can manage all
+
 ### ⚠️ Pending Migration: Image URL + Hadith Badges
 Run `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` in Supabase SQL Editor.
 This adds:
@@ -221,6 +227,8 @@ app/
     profile.tsx        — Profile tab
   quran/[id].tsx       — Surah detail with translation picker
   series/[id].tsx      — Series detail with episode list
+  quiz/index.tsx       — Quiz listing screen (active quizzes from DB)
+  quiz/[id].tsx        — Quiz-taking screen (questions, scoring, XP award on pass)
 
 context/
   AuthContext.tsx       — Auth state via Supabase
