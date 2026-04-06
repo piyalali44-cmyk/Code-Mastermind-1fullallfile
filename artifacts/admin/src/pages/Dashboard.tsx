@@ -298,6 +298,17 @@ export default function Dashboard() {
     }
 
     fetchDashboard();
+
+    const channel = supabase
+      .channel("admin-dashboard-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => { fetchDashboard(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "episodes" }, () => { fetchDashboard(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "series" }, () => { fetchDashboard(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "subscriptions" }, () => { fetchDashboard(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "admin_activity_log" }, () => { fetchDashboard(); })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [isSupportOnly, isAtLeast]);
 
   useEffect(() => { loadRevenue(); }, [loadRevenue]);

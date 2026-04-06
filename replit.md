@@ -182,6 +182,18 @@ This creates:
 - `quiz_attempts` table (user_id, quiz_id, score, total_questions, percentage, passed)
 - RLS policies: users can read/insert own attempts, admins can manage all
 
+### ⚠️ Pending Migration: Enable Realtime
+Run `artifacts/mobile/supabase/enable_realtime.sql` in Supabase SQL Editor.
+This enables Supabase Realtime publication for all tables that need live updates:
+- Content: categories, series, episodes, reciters, quizzes, quiz_questions
+- Users: profiles, user_xp, user_streaks, subscriptions
+- Config: app_settings, feature_flags, popup_notices
+- Engagement: notifications, favourites, bookmarks, listening_progress, donations, admin_activity_log
+
+### Realtime Subscriptions
+- **Mobile App**: ContentContext (series/episodes), AuthContext (profiles/user_xp/user_streaks), AppSettingsContext (app_settings/feature_flags/popup_notices), Notifications screen
+- **Admin Panel**: Dashboard (profiles/episodes/series/subscriptions/activity_log), Categories, Series, Episodes, UsersList (profiles), Transactions (subscriptions)
+
 ### ⚠️ Pending Migration: Image URL + Hadith Badges
 Run `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` in Supabase SQL Editor.
 This adds:

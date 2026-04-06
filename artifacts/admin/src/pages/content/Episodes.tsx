@@ -76,6 +76,14 @@ export default function Episodes() {
 
   useEffect(() => { load(); }, [page, pageSize, filterSeries, filterStatus, search]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-episodes-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "episodes" }, () => { load(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [page, pageSize, filterSeries, filterStatus, search]);
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   function openNew() { setForm(blank()); setEditing(null); setSheetOpen(true); }
