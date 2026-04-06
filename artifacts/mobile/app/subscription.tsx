@@ -171,7 +171,7 @@ export default function SubscriptionScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.background }}>
         <ScrollView
-          contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 60) + insets.bottom }}
+          contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 160 : 110) + insets.bottom }}
           showsVerticalScrollIndicator={false}
         >
           <LinearGradient

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SeriesCard } from "@/components/SeriesCard";
 import { SURAHS } from "@/constants/surahs";
 
-const TABS = ["Continue", "Favourites", "Bookmarks", "History", "Completed"];
+const TABS = ["Continue", "Favourites", "Bookmarks", "History", "Completed", "Downloads"];
 
 function formatDuration(ms: number): string {
   const totalMin = Math.round(ms / 60_000);
