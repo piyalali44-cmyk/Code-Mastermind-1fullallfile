@@ -404,7 +404,7 @@ export default function PlayerScreen() {
         }, user?.id);
       }
     } else if (nextEp && currentSeries) {
-      if (nextEp.isPremium && !user?.isPremium) {
+      if (settings.subscription_enabled && nextEp.isPremium && !user?.isPremium) {
         showToast("This episode requires a Premium subscription", "lock", colors.gold);
         setTimeout(() => router.push("/subscription"), 1200);
         return;
@@ -792,7 +792,7 @@ export default function PlayerScreen() {
             ) : (
               seriesEpisodes.map((ep, idx) => {
                 const isActive = nowPlaying?.id === ep.id;
-                const isLocked = ep.isPremium && !user?.isPremium;
+                const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
                 return (
                   <Pressable
                     key={ep.id}
@@ -851,7 +851,7 @@ export default function PlayerScreen() {
                         {isActive ? "Now playing · " : ""}Ep {ep.number} · {ep.duration}
                       </Text>
                     </View>
-                    {isActive ? null : ep.isPremium ? (
+                    {isActive ? null : settings.subscription_enabled && ep.isPremium ? (
                       <View style={[styles.proTag, { backgroundColor: colors.gold + "22" }]}>
                         <Text style={[styles.proTagText, { color: colors.goldLight }]}>PRO</Text>
                       </View>

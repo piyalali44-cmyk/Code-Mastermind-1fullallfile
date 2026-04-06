@@ -118,7 +118,7 @@ export default function SubscriptionScreen() {
           <Text style={[styles.heroSub, { color: colors.textSecondary, textAlign: "center", lineHeight: 22, marginTop: 8 }]}>
             Subscription is not yet available. All content is free while we get everything ready for you. JazakAllah Khayran!
           </Text>
-          <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold, marginTop: 24, width: "100%" }]}>
+          <Pressable onPress={() => router.replace("/(tabs)")} style={[styles.subscribeBtn, { backgroundColor: colors.gold, marginTop: 24, width: "100%" }]}>
             <Text style={styles.subscribeBtnText}>Continue Exploring</Text>
           </Pressable>
 
@@ -233,7 +233,7 @@ export default function SubscriptionScreen() {
                 </Pressable>
               </View>
             </View>
-            <Pressable onPress={() => router.back()} style={[styles.subscribeBtn, { backgroundColor: colors.gold }]}>
+            <Pressable onPress={() => router.replace("/(tabs)")} style={[styles.subscribeBtn, { backgroundColor: colors.gold }]}>
               <Text style={styles.subscribeBtnText}>Continue Exploring</Text>
             </Pressable>
           </View>
