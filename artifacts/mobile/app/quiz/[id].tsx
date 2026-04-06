@@ -46,7 +46,6 @@ export default function QuizTakeScreen() {
   const [score, setScore] = useState(0);
   const [passed, setPassed] = useState(false);
   const [xpAwarded, setXpAwarded] = useState(false);
-  const [alreadyPassedBefore, setAlreadyPassedBefore] = useState(false);
 
   const loadQuiz = useCallback(async () => {
     if (!id) return;
@@ -71,7 +70,6 @@ export default function QuizTakeScreen() {
           .eq("passed", true)
           .limit(1);
         if (priorPass && priorPass.length > 0) {
-          setAlreadyPassedBefore(true);
           setXpAwarded(true);
         }
       }

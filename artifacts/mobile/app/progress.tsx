@@ -284,7 +284,7 @@ export default function ProgressScreen() {
 
         {/* ── Quizzes ── */}
         <Pressable
-          onPress={() => router.push("/quiz" as any)}
+          onPress={() => router.push("/quiz" as never)}
           style={[styles.journeyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
           <View style={styles.journeyTop}>
