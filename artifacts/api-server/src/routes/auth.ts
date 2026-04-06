@@ -253,6 +253,39 @@ router.post("/auth/verify-otp", async (req, res) => {
   }
 });
 
+// ─── POST /auth/signin ────────────────────────────────────────────────────────
+// Server-side sign-in — returns tokens to the client so setSession() is used
+// instead of a second signInWithPassword call from the browser, which avoids
+// slow/blocked direct-to-Supabase network calls on mobile/web clients.
+router.post("/auth/signin", async (req, res) => {
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+
+    if (!email || !password) {
+      res.status(400).json({ error: "email and password are required" });
+      return;
+    }
+
+    const { data, error } = await getAnonClient().auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    if (error) {
+      res.status(401).json({ error: error.message });
+      return;
+    }
+
+    res.json({
+      access_token:  data.session?.access_token,
+      refresh_token: data.session?.refresh_token,
+      user:          data.user,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Internal server error" });
+  }
+});
+
 // ─── POST /auth/signup ────────────────────────────────────────────────────────
 // Creates the user + all required DB rows, then signs in server-side and
 // returns the session tokens so the client can call setSession() directly —
