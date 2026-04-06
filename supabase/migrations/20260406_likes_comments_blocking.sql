@@ -37,8 +37,16 @@ CREATE POLICY "Users can unlike (delete own)"
   ON public.content_likes FOR DELETE
   USING (auth.uid() = user_id);
 
--- Realtime
-ALTER publication supabase_realtime ADD TABLE public.content_likes;
+-- Realtime (idempotent — skip if already a member)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'content_likes'
+  ) THEN
+    ALTER publication supabase_realtime ADD TABLE public.content_likes;
+  END IF;
+END $$;
 
 
 -- ─── 2. CONTENT_COMMENTS ─────────────────────────────────────────────────────
@@ -81,8 +89,16 @@ CREATE POLICY "Users can soft-delete own comments"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Realtime
-ALTER publication supabase_realtime ADD TABLE public.content_comments;
+-- Realtime (idempotent — skip if already a member)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'content_comments'
+  ) THEN
+    ALTER publication supabase_realtime ADD TABLE public.content_comments;
+  END IF;
+END $$;
 
 
 -- ─── 3. COMMENT_BLOCKED_USERS ────────────────────────────────────────────────
