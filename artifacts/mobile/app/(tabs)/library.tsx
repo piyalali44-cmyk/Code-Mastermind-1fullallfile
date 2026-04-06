@@ -11,11 +11,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SeriesCard } from "@/components/SeriesCard";
 import { SURAHS } from "@/constants/surahs";
 import type { Episode, Series } from "@/data/mockData";
 
-const TABS = ["Continue", "Favourites", "Bookmarks", "History", "Completed", "Downloads"];
+const TABS = ["Continue", "Bookmarks", "History", "Completed", "Downloads"];
 
 function formatDuration(ms: number): string {
   const totalMin = Math.round(ms / 60_000);
@@ -54,14 +53,14 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const { user, isGuest, isLoading: authLoading } = useAuth();
   const { nowPlaying, play } = useAudio();
-  const { favourites, bookmarks, downloads, downloadProgress, removeDownloadedFile, refreshFromStorage } = useUserActions();
+  const { bookmarks, downloads, downloadProgress, removeDownloadedFile, refreshFromStorage } = useUserActions();
   const { settings } = useAppSettings();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     if (tabParam === "downloads") {
-      setActiveTab(5);
+      setActiveTab(4);
     }
   }, [tabParam]);
   const isWeb = Platform.OS === "web";
@@ -76,23 +75,8 @@ export default function LibraryScreen() {
 
   const { series: SERIES } = useContent();
 
-  const favouritedSeries = SERIES.filter((s) => favourites.has(`series:${s.id}`));
   const bookmarkedSeries = SERIES.filter((s) => bookmarks.has(`series:${s.id}`));
-  const favouritedSurahs = SURAHS.filter((s) => favourites.has(`surah:${s.number}`));
   const bookmarkedSurahs = SURAHS.filter((s) => bookmarks.has(`surah:${s.number}`));
-
-  const favouritedEpisodes = React.useMemo(() => {
-    const items: { episode: Episode; series: Series }[] = [];
-    favourites.forEach((key) => {
-      if (!key.startsWith("episode:")) return;
-      const epId = key.slice(8);
-      for (const s of SERIES) {
-        const ep = (s.episodes ?? []).find((e: Episode) => e.id === epId);
-        if (ep) { items.push({ episode: ep, series: s }); break; }
-      }
-    });
-    return items;
-  }, [favourites, SERIES]);
 
   const bookmarkedEpisodes = React.useMemo(() => {
     const items: { episode: Episode; series: Series }[] = [];
@@ -148,8 +132,8 @@ export default function LibraryScreen() {
 
   useEffect(() => {
     if (activeTab === 0) loadContinue();
-    if (activeTab === 3) loadHistory();
-    if (activeTab === 4) loadCompleted();
+    if (activeTab === 2) loadHistory();
+    if (activeTab === 3) loadCompleted();
   }, [activeTab, loadContinue, loadHistory, loadCompleted]);
 
   // Refresh favourites/bookmarks/downloads from storage every time the user navigates to Library
@@ -165,13 +149,13 @@ export default function LibraryScreen() {
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>My Library</Text>
           <Pressable
-            onPress={() => setActiveTab(5)}
+            onPress={() => setActiveTab(4)}
             style={[styles.downloadBtn, {
-              backgroundColor: activeTab === 5 ? colors.gold + "22" : colors.surfaceHigh,
-              borderColor: activeTab === 5 ? colors.gold + "44" : colors.border,
+              backgroundColor: activeTab === 4 ? colors.gold + "22" : colors.surfaceHigh,
+              borderColor: activeTab === 4 ? colors.gold + "44" : colors.border,
             }]}
           >
-            <Icon name="download" size={16} color={activeTab === 5 ? colors.goldLight : colors.textSecondary} />
+            <Icon name="download" size={16} color={activeTab === 4 ? colors.goldLight : colors.textSecondary} />
           </Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
@@ -248,78 +232,8 @@ export default function LibraryScreen() {
           </>
         )}
 
-        {/* ── Favourites ── */}
-        {activeTab === 1 && (
-          <>
-            {isGuest ? (
-              <GuestPrompt label="Sign in to save and view your favourite series and surahs" onSignIn={() => router.push("/login")} colors={colors} />
-            ) : favouritedSeries.length === 0 && favouritedSurahs.length === 0 && favouritedEpisodes.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Icon name="heart" size={40} color={colors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No favourites yet</Text>
-                <Text style={[styles.emptyDesc, { color: colors.textSecondary }]}>
-                  Tap the heart icon on any series, episode, or Qur'an surah to save it here.
-                </Text>
-              </View>
-            ) : (
-              <>
-                {favouritedSeries.length > 0 && (
-                  <>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Favourite Series</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-                      {favouritedSeries.map((s) => <SeriesCard key={s.id} series={s} />)}
-                    </View>
-                  </>
-                )}
-                {favouritedEpisodes.length > 0 && (
-                  <>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: favouritedSeries.length > 0 ? 8 : 0 }]}>Favourite Episodes</Text>
-                    {favouritedEpisodes.map(({ episode, series }) => (
-                      <Pressable
-                        key={episode.id}
-                        onPress={() => router.push(`/series/${series.id}` as never)}
-                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      >
-                        <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
-                          <Icon name="headphones" size={18} color={colors.goldLight} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{episode.title}</Text>
-                          <Text style={[styles.histMeta, { color: colors.textSecondary }]} numberOfLines={1}>{series.title}</Text>
-                        </View>
-                        <Icon name="heart" size={14} color={colors.gold} />
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-                {favouritedSurahs.length > 0 && (
-                  <>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: (favouritedSeries.length > 0 || favouritedEpisodes.length > 0) ? 8 : 0 }]}>Favourite Surahs</Text>
-                    {favouritedSurahs.map((s) => (
-                      <Pressable
-                        key={s.number}
-                        onPress={() => router.push(`/quran/${s.number}` as never)}
-                        style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                      >
-                        <View style={[styles.histCover, { backgroundColor: colors.gold + "22" }]}>
-                          <Text style={{ color: colors.goldLight, fontWeight: "700", fontSize: 13 }}>{s.number}</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.nameSimple}</Text>
-                          <Text style={[styles.histMeta, { color: colors.textSecondary }]}>{s.nameArabic} · {s.verseCount} verses</Text>
-                        </View>
-                        <Icon name="heart" size={14} color={colors.gold} />
-                      </Pressable>
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-          </>
-        )}
-
         {/* ── Bookmarks ── */}
-        {activeTab === 2 && (
+        {activeTab === 1 && (
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to bookmark series and surahs for quick access" onSignIn={() => router.push("/login")} colors={colors} />
@@ -402,7 +316,7 @@ export default function LibraryScreen() {
         )}
 
         {/* ── History ── */}
-        {activeTab === 3 && (
+        {activeTab === 2 && (
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to view your listening history" onSignIn={() => router.push("/login")} colors={colors} />
@@ -455,7 +369,7 @@ export default function LibraryScreen() {
         )}
 
         {/* ── Completed ── */}
-        {activeTab === 4 && (
+        {activeTab === 3 && (
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to see your completed content" onSignIn={() => router.push("/login")} colors={colors} />
@@ -513,7 +427,7 @@ export default function LibraryScreen() {
         )}
 
         {/* ── Downloads ── */}
-        {activeTab === 5 && (
+        {activeTab === 4 && (
           <>
             {isGuest ? (
               <GuestPrompt label="Sign in to download episodes and surahs for offline listening" onSignIn={() => router.push("/login")} colors={colors} />

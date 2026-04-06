@@ -257,7 +257,7 @@ export default function PlayerScreen() {
     ? `surah:${nowPlaying.surahNumber}`
     : nowPlaying?.seriesId
       ? `series:${nowPlaying.seriesId}`
-      : (nowPlaying?.id ?? "");
+      : `episode:${nowPlaying?.id ?? ""}`;
 
   // Download key — represents the exact audio track (episode or surah) to save:
   //   episode → "episode:<uuid>"   (matches Library Downloads + series/[id] checkmarks)
@@ -708,20 +708,16 @@ export default function PlayerScreen() {
           {/* Like — DB backed */}
           <Pressable onPress={handleLike} style={styles.actionBtnWithCount} hitSlop={8}>
             <Icon name="thumbs-up" size={21} color={isDbLiked ? colors.gold : colors.textSecondary} />
-            {likeCount > 0 && (
-              <Text style={[styles.actionBtnCount, { color: isDbLiked ? colors.gold : colors.textSecondary }]}>
-                {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
-              </Text>
-            )}
+            <Text style={[styles.actionBtnCount, { color: isDbLiked ? colors.gold : colors.textSecondary }]}>
+              {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
+            </Text>
           </Pressable>
           {/* Comment */}
           <Pressable onPress={handleOpenComments} style={styles.actionBtnWithCount} hitSlop={8}>
             <Icon name="message-circle" size={21} color={colors.textSecondary} />
-            {commentCount > 0 && (
-              <Text style={[styles.actionBtnCount, { color: colors.textSecondary }]}>
-                {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
-              </Text>
-            )}
+            <Text style={[styles.actionBtnCount, { color: colors.textSecondary }]}>
+              {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
+            </Text>
           </Pressable>
           {/* Bookmark */}
           <Pressable onPress={handleBookmark} style={styles.actionBtn} hitSlop={8}>
