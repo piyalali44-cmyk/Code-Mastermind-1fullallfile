@@ -58,6 +58,7 @@ export default function ProfileScreen() {
   const [myCode, setMyCode]                 = useState<string | null>(null);
   const [codeLoading, setCodeLoading]       = useState(false);
   const [refStats, setRefStats]             = useState<ReferralStats>({ friendsReferred: 0, xpEarned: 0 });
+  const [hoursListened, setHoursListened]   = useState<number>(0);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: string; iconColor?: string }>({
     visible: false, message: "", icon: "check",
   });
@@ -162,20 +163,25 @@ export default function ProfileScreen() {
     }
   };
 
-  // Load referral code + stats when the user is known
+  // Load referral code, stats + hours listened when the user is known
   useEffect(() => {
     if (!user) return;
     let active = true;
     setCodeLoading(true);
     (async () => {
-      const [code, stats] = await Promise.all([
+      const [code, stats, progressRes] = await Promise.all([
         getUserReferralCode(user.id),
         getReferralStats(user.id),
+        supabase.from("listening_progress").select("position_ms").eq("user_id", user.id),
       ]);
       if (!active) return;
       setMyCode(code);
       setCodeLoading(false);
       setRefStats(stats);
+      if (progressRes.data) {
+        const totalMs = progressRes.data.reduce((sum: number, r: any) => sum + (r.position_ms ?? 0), 0);
+        setHoursListened(Math.round((totalMs / 3_600_000) * 10) / 10);
+      }
     })();
     return () => { active = false; };
   }, [user?.id]);
@@ -340,7 +346,7 @@ export default function ProfileScreen() {
 
         <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.goldLight }]}>{user.totalHoursListened}</Text>
+            <Text style={[styles.statNum, { color: colors.goldLight }]}>{hoursListened}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Hours</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />

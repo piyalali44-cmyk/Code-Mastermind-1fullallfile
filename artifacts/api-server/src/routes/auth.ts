@@ -1,16 +1,32 @@
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 const router: IRouter = Router();
 
 const SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
 const SUPABASE_SERVICE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
-const SUPABASE_ANON_KEY = process.env["SUPABASE_ANON_KEY"] ?? SUPABASE_SERVICE_KEY;
+const SUPABASE_ANON_KEY   = process.env["SUPABASE_ANON_KEY"] ?? "";
 
-function getAdminClient() {
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+// ── Singleton clients (avoid per-request TLS handshake) ───────────────────────
+let _adminClient: SupabaseClient | null = null;
+let _anonClient:  SupabaseClient | null = null;
+
+function getAdminClient(): SupabaseClient {
+  if (!_adminClient) {
+    _adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return _adminClient;
+}
+
+function getAnonClient(): SupabaseClient {
+  if (!_anonClient) {
+    _anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY || SUPABASE_SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return _anonClient;
 }
 
 // ─── Custom In-Memory OTP Rate Limiter ────────────────────────────────────────
@@ -46,8 +62,7 @@ async function getRateLimitConfig(): Promise<RateLimitConfig> {
   };
 
   try {
-    const admin = getAdminClient();
-    const { data } = await admin
+    const { data } = await getAdminClient()
       .from("app_settings")
       .select("key,value")
       .in("key", [
@@ -119,13 +134,11 @@ async function checkRateLimit(
   record.timestamps.push(now);
   attemptStore.set(key, record);
 
-  try {
-    const admin = getAdminClient();
-    admin
-      .from("otp_rate_limit_log")
-      .insert({ identifier, otp_type: otpType })
-      .then(() => {}, (e) => console.warn("[rate-limit] log insert failed:", e));
-  } catch (_) {}
+  // Fire-and-forget log insert
+  getAdminClient()
+    .from("otp_rate_limit_log")
+    .insert({ identifier, otp_type: otpType })
+    .then(() => {}, (e) => console.warn("[rate-limit] log insert failed:", e));
 
   return { allowed: true };
 }
@@ -143,8 +156,6 @@ setInterval(() => {
 }, 10 * 60 * 1000);
 
 // ─── POST /auth/forgot-password ───────────────────────────────────────────────
-// Sends a password-reset email containing a 6-digit OTP code.
-// The Supabase "Reset Password" email template must use {{ .Token }}.
 router.post("/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body as { email?: string };
@@ -163,14 +174,13 @@ router.post("/auth/forgot-password", async (req, res) => {
     if (!allowed) {
       const minutes = Math.ceil((retryAfter ?? 3600) / 60);
       res.status(429).json({
-        error: `অনেক বেশি OTP পাঠানো হয়েছে। ${minutes} মিনিট পর আবার চেষ্টা করুন।`,
+        error: `Too many OTP requests. Please try again in ${minutes} minutes.`,
         retryAfter: retryAfter ?? 3600,
       });
       return;
     }
 
-    const admin = getAdminClient();
-    const { error } = await admin.auth.resetPasswordForEmail(normalizedEmail);
+    const { error } = await getAdminClient().auth.resetPasswordForEmail(normalizedEmail);
 
     if (error) {
       console.error("[forgot-password]", error.message);
@@ -179,7 +189,7 @@ router.post("/auth/forgot-password", async (req, res) => {
         error.message.toLowerCase().includes("too many")
       ) {
         res.status(429).json({
-          error: "অনেক বেশি reset email পাঠানো হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।",
+          error: "Too many reset emails sent. Please try again later.",
           retryAfter: 3600,
         });
         return;
@@ -192,8 +202,6 @@ router.post("/auth/forgot-password", async (req, res) => {
 });
 
 // ─── POST /auth/verify-otp ────────────────────────────────────────────────────
-// Verifies a Supabase OTP (recovery or signup) server-side and returns
-// access_token + refresh_token so the mobile client can set the session.
 router.post("/auth/verify-otp", async (req, res) => {
   try {
     const { email, token, type } = req.body as {
@@ -206,7 +214,6 @@ router.post("/auth/verify-otp", async (req, res) => {
       res.status(400).json({ error: "email, token and type are required" });
       return;
     }
-
     if (!SUPABASE_SERVICE_KEY) {
       res.status(500).json({ error: "Server misconfiguration: missing service key" });
       return;
@@ -215,7 +222,7 @@ router.post("/auth/verify-otp", async (req, res) => {
     const response = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_ANON_KEY,
+        apikey: SUPABASE_ANON_KEY || SUPABASE_SERVICE_KEY,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -247,6 +254,9 @@ router.post("/auth/verify-otp", async (req, res) => {
 });
 
 // ─── POST /auth/signup ────────────────────────────────────────────────────────
+// Creates the user + all required DB rows, then signs in server-side and
+// returns the session tokens so the client can call setSession() directly —
+// eliminating a second signInWithPassword round-trip.
 router.post("/auth/signup", async (req, res) => {
   try {
     const { email, password, name } = req.body as {
@@ -265,11 +275,15 @@ router.post("/auth/signup", async (req, res) => {
     }
 
     const admin = getAdminClient();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName  = name.trim();
+
+    // ── Step 1: Create the auth user ─────────────────────────────────────────
     const { data, error } = await admin.auth.admin.createUser({
-      email: email.trim(),
+      email: cleanEmail,
       password,
       email_confirm: true,
-      user_metadata: { display_name: name.trim() },
+      user_metadata: { display_name: cleanName },
     });
 
     if (error) {
@@ -278,15 +292,15 @@ router.post("/auth/signup", async (req, res) => {
     }
 
     const userId = data.user?.id;
+
+    // ── Step 2: Create all support rows BEFORE returning (so client has them) ─
     if (userId) {
       const referralCode = "SG" + userId.replace(/-/g, "").substring(0, 6).toUpperCase();
-      Promise.all([
-        admin.from("profiles").upsert({
-          id: userId,
-          display_name: name.trim(),
-          email: email.trim(),
-          referral_code: referralCode,
-        }, { onConflict: "id", ignoreDuplicates: true }),
+      await Promise.all([
+        admin.from("profiles").upsert(
+          { id: userId, display_name: cleanName, email: cleanEmail, referral_code: referralCode },
+          { onConflict: "id", ignoreDuplicates: true }
+        ),
         admin.from("user_xp").upsert(
           { user_id: userId, total_xp: 0, level: 1 },
           { onConflict: "user_id", ignoreDuplicates: true }
@@ -302,14 +316,34 @@ router.post("/auth/signup", async (req, res) => {
       ]).catch((e) => console.error("[signup] Row init error:", e?.message));
     }
 
-    res.json({ userId, email: data.user?.email });
+    // ── Step 3: Sign in server-side → return tokens to client ─────────────────
+    // This eliminates a second signInWithPassword round-trip from the mobile app.
+    let accessToken: string | undefined;
+    let refreshToken: string | undefined;
+
+    try {
+      const { data: signInData } = await getAnonClient().auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      accessToken  = signInData?.session?.access_token;
+      refreshToken = signInData?.session?.refresh_token;
+    } catch (signInErr) {
+      console.warn("[signup] Server-side sign-in failed (client will retry):", signInErr);
+    }
+
+    res.json({
+      userId,
+      email: data.user?.email,
+      access_token:  accessToken,
+      refresh_token: refreshToken,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? "Internal server error" });
   }
 });
 
 // ─── GET /auth/rate-limit-config ─────────────────────────────────────────────
-// Returns current rate limit config (for admin panel display/verification).
 router.get("/auth/rate-limit-config", async (req, res) => {
   try {
     const config = await getRateLimitConfig();
