@@ -573,6 +573,25 @@ const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
 
+// ── Fetch authoritative user stats from API server (service-role, bypasses RLS) ──
+// Use this instead of supabase client queries when you need guaranteed fresh data.
+export async function fetchMyStats(token: string): Promise<{
+  xp: number; level: number; streak: number; longest_streak: number;
+  is_premium: boolean; display_name: string | null; avatar_url: string | null;
+  bio: string | null; country: string | null; joined_at: string | null;
+} | null> {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8_000);
+    const resp = await fetch(`${API_BASE}/user/stats`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
 export async function applyReferralCode(code: string, token?: string): Promise<{
   success: boolean;
   error?: string;

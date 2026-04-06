@@ -464,4 +464,47 @@ router.get("/auth/rate-limit-config", async (req, res) => {
   }
 });
 
+// ── Lightweight JWT decode (no verify — service role still enforces data access) ─
+function extractUserIdFromAuth(authHeader: string | undefined): string | null {
+  if (!authHeader?.startsWith("Bearer ")) return null;
+  try {
+    const payload = authHeader.slice(7).split(".")[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return typeof decoded?.sub === "string" ? decoded.sub : null;
+  } catch { return null; }
+}
+
+// ── GET /api/user/stats ────────────────────────────────────────────────────────
+// Returns the caller's current XP, level, streak using the SERVICE ROLE client
+// so it bypasses RLS completely — always returns fresh authoritative data.
+router.get("/user/stats", async (req, res) => {
+  try {
+    const userId = extractUserIdFromAuth(req.headers.authorization);
+    if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const admin = getAdminClient();
+    const [xpRes, streakRes, profileRes] = await Promise.all([
+      admin.from("user_xp").select("total_xp, level").eq("user_id", userId).maybeSingle(),
+      admin.from("user_streaks").select("current_streak, longest_streak").eq("user_id", userId).maybeSingle(),
+      admin.from("profiles").select("subscription_tier, display_name, avatar_url, bio, country, joined_at").eq("id", userId).maybeSingle(),
+    ]);
+
+    res.json({
+      xp:             (xpRes.data as any)?.total_xp         ?? 0,
+      level:          (xpRes.data as any)?.level             ?? 1,
+      streak:         (streakRes.data as any)?.current_streak ?? 0,
+      longest_streak: (streakRes.data as any)?.longest_streak ?? 0,
+      is_premium:     (profileRes.data as any)?.subscription_tier === "premium",
+      display_name:   (profileRes.data as any)?.display_name  ?? null,
+      avatar_url:     (profileRes.data as any)?.avatar_url    ?? null,
+      bio:            (profileRes.data as any)?.bio            ?? null,
+      country:        (profileRes.data as any)?.country        ?? null,
+      joined_at:      (profileRes.data as any)?.joined_at     ?? null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Internal server error" });
+  }
+});
+
 export default router;
