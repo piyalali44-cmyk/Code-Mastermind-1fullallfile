@@ -988,17 +988,29 @@ export async function getContentComments(
   try {
     const { data, count } = await supabase
       .from("content_comments")
-      .select("id, user_id, body, created_at, profiles!user_id(display_name, avatar_url)", { count: "exact" })
+      .select("id, user_id, body, created_at", { count: "exact" })
       .eq("content_type", contentType)
       .eq("content_id", contentId)
       .eq("is_deleted", false)
       .order("created_at", { ascending: true })
       .limit(100);
-    const comments: ContentComment[] = (data ?? []).map((r: any) => ({
+
+    const rows = data ?? [];
+    const userIds = [...new Set(rows.map((r: any) => r.user_id as string))];
+    const profileMap = new Map<string, { display_name?: string; avatar_url?: string }>();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds);
+      (profiles ?? []).forEach((p: any) => profileMap.set(p.id, p));
+    }
+
+    const comments: ContentComment[] = rows.map((r: any) => ({
       id: r.id,
       userId: r.user_id,
-      displayName: r.profiles?.display_name ?? "User",
-      avatarUrl: r.profiles?.avatar_url ?? null,
+      displayName: profileMap.get(r.user_id)?.display_name ?? "User",
+      avatarUrl: profileMap.get(r.user_id)?.avatar_url ?? null,
       body: r.body,
       createdAt: r.created_at,
       isOwn: r.user_id === currentUserId,
@@ -1026,14 +1038,19 @@ export async function addContentComment(
     const { data, error } = await supabase
       .from("content_comments")
       .insert({ user_id: userId, content_type: contentType, content_id: contentId, body: trimmed })
-      .select("id, user_id, body, created_at, profiles!user_id(display_name, avatar_url)")
+      .select("id, user_id, body, created_at")
       .single();
     if (error) { console.warn("[addContentComment]", error.message); return null; }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("display_name, avatar_url")
+      .eq("id", userId)
+      .maybeSingle();
     return {
       id: data.id,
       userId: data.user_id,
-      displayName: (data as any).profiles?.display_name ?? "User",
-      avatarUrl: (data as any).profiles?.avatar_url ?? null,
+      displayName: profile?.display_name ?? "User",
+      avatarUrl: profile?.avatar_url ?? null,
       body: data.body,
       createdAt: data.created_at,
       isOwn: true,
