@@ -417,11 +417,9 @@ export default function SeriesDetailScreen() {
               }]}
             >
               <Icon name="thumbs-up" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
-              {likeCount > 0 && (
-                <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
-                  {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
-                </Text>
-              )}
+              <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
+                {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
+              </Text>
             </AnimatedIconBtn>
 
             {/* Comments */}
@@ -433,11 +431,9 @@ export default function SeriesDetailScreen() {
               }]}
             >
               <Icon name="message-circle" size={19} color={colors.textPrimary} />
-              {commentCount > 0 && (
-                <Text style={[styles.iconBtnCount, { color: colors.textMuted }]}>
-                  {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
-                </Text>
-              )}
+              <Text style={[styles.iconBtnCount, { color: colors.textMuted }]}>
+                {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
+              </Text>
             </AnimatedIconBtn>
 
             {/* Bookmark */}
