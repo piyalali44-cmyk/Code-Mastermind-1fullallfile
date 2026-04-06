@@ -45,6 +45,11 @@ CREATE POLICY "content_likes_delete_own"
   ON public.content_likes FOR DELETE
   USING (auth.uid() = user_id);
 
+-- Grant table-level privileges to Supabase roles
+-- (RLS policies are evaluated on top of these grants)
+GRANT SELECT ON public.content_likes TO anon;
+GRANT SELECT, INSERT, DELETE ON public.content_likes TO authenticated;
+
 -- Enable realtime (idempotent)
 DO $$
 BEGIN
@@ -107,6 +112,10 @@ CREATE POLICY "content_comments_update_own"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Grant table-level privileges
+GRANT SELECT ON public.content_comments TO anon;
+GRANT SELECT, INSERT, UPDATE ON public.content_comments TO authenticated;
+
 -- Enable realtime (idempotent)
 DO $$
 BEGIN
@@ -147,6 +156,9 @@ CREATE POLICY "comment_blocked_select_own"
   USING (auth.uid() = user_id);
 
 -- INSERT / UPDATE / DELETE done by admin via service-role key (no RLS needed)
+
+-- Grant SELECT so authenticated users can check their own block status (RLS enforces the filter)
+GRANT SELECT ON public.comment_blocked_users TO authenticated;
 
 
 -- ─── 4. HELPER: updated_at trigger ───────────────────────────────────────────
