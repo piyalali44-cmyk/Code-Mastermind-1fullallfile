@@ -12,6 +12,7 @@ import { Search, RefreshCw, UserCheck, ShieldAlert, Eye, ChevronRight } from "lu
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 interface UserRow {
   id: string;
@@ -27,8 +28,6 @@ interface UserRow {
   total_xp: number;
 }
 
-const PAGE_SIZE = 25;
-
 const db = supabaseAdmin || supabase;
 
 export default function UsersList() {
@@ -38,6 +37,7 @@ export default function UsersList() {
   const [filterTier, setFilterTier] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const [total, setTotal] = useState(0);
   const [, navigate] = useLocation();
   const isMobile = useIsMobile();
@@ -64,7 +64,7 @@ export default function UsersList() {
 
       const { data, error, count } = await query
         .order("joined_at", { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .range(page * pageSize, page * pageSize + pageSize - 1);
 
       if (error) throw error;
 
@@ -97,11 +97,9 @@ export default function UsersList() {
     } finally {
       setLoading(false);
     }
-  }, [page, filterTier, filterStatus, search]);
+  }, [page, pageSize, filterTier, filterStatus, search]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="space-y-5">
@@ -299,30 +297,24 @@ export default function UsersList() {
               </TableBody>
             </Table>
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t border-border">
-              <span className="text-sm text-muted-foreground">
-                Page {page + 1} of {totalPages} · {total.toLocaleString()} users
-              </span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</Button>
-              </div>
-            </div>
-          )}
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={size => { setPageSize(size); setPage(0); }}
+          />
         </Card>
       )}
 
-      {isMobile && totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            Page {page + 1}/{totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Prev</Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</Button>
-          </div>
-        </div>
+      {isMobile && (
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={size => { setPageSize(size); setPage(0); }}
+        />
       )}
     </div>
   );

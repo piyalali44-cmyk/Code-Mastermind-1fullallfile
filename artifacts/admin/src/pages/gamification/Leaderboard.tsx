@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 interface AllTimeRow {
   id: string; display_name: string; avatar_url: string | null;
@@ -28,6 +29,12 @@ export default function Leaderboard() {
   const [weekly, setWeekly]     = useState<WeeklyRow[]>([]);
   const [monthly, setMonthly]   = useState<MonthlyRow[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [atPage, setAtPage]     = useState(0);
+  const [atSize, setAtSize]     = useState(25);
+  const [wkPage, setWkPage]     = useState(0);
+  const [wkSize, setWkSize]     = useState(25);
+  const [moPage, setMoPage]     = useState(0);
+  const [moSize, setMoSize]     = useState(25);
 
   async function load() {
     setLoading(true);
@@ -139,7 +146,7 @@ export default function Leaderboard() {
 
         {/* All-Time */}
         <TabsContent value="alltime">
-          <Card>
+          <Card className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -154,7 +161,7 @@ export default function Leaderboard() {
               <TableBody>
                 {loading ? <SkeletonRows cols={6} />
                   : allTime.length === 0 ? <EmptyRow cols={6} />
-                  : allTime.map(row => (
+                  : allTime.slice(atPage * atSize, (atPage + 1) * atSize).map(row => (
                   <TableRow key={row.id} className={row.rank <= 3 ? "bg-primary/5" : ""}>
                     <TableCell className="text-center">{medal(row.rank)}</TableCell>
                     <TableCell><UserCell name={row.display_name} avatar={row.avatar_url} /></TableCell>
@@ -166,12 +173,17 @@ export default function Leaderboard() {
                 ))}
               </TableBody>
             </Table>
+            <PaginationBar
+              page={atPage} pageSize={atSize} total={allTime.length}
+              onPageChange={setAtPage}
+              onPageSizeChange={s => { setAtSize(s); setAtPage(0); }}
+            />
           </Card>
         </TabsContent>
 
         {/* Weekly */}
         <TabsContent value="weekly">
-          <Card>
+          <Card className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -184,7 +196,7 @@ export default function Leaderboard() {
               <TableBody>
                 {loading ? <SkeletonRows cols={4} />
                   : weekly.length === 0 ? <EmptyRow cols={4} />
-                  : weekly.map(row => (
+                  : weekly.slice(wkPage * wkSize, (wkPage + 1) * wkSize).map(row => (
                   <TableRow key={row.id} className={row.rank <= 3 ? "bg-primary/5" : ""}>
                     <TableCell className="text-center">{medal(row.rank)}</TableCell>
                     <TableCell><UserCell name={row.display_name} avatar={row.avatar_url} /></TableCell>
@@ -194,12 +206,17 @@ export default function Leaderboard() {
                 ))}
               </TableBody>
             </Table>
+            <PaginationBar
+              page={wkPage} pageSize={wkSize} total={weekly.length}
+              onPageChange={setWkPage}
+              onPageSizeChange={s => { setWkSize(s); setWkPage(0); }}
+            />
           </Card>
         </TabsContent>
 
         {/* Monthly */}
         <TabsContent value="monthly">
-          <Card>
+          <Card className="overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -212,7 +229,7 @@ export default function Leaderboard() {
               <TableBody>
                 {loading ? <SkeletonRows cols={4} />
                   : monthly.length === 0 ? <EmptyRow cols={4} />
-                  : monthly.map(row => (
+                  : monthly.slice(moPage * moSize, (moPage + 1) * moSize).map(row => (
                   <TableRow key={row.id} className={row.rank <= 3 ? "bg-primary/5" : ""}>
                     <TableCell className="text-center">{medal(row.rank)}</TableCell>
                     <TableCell><UserCell name={row.display_name} avatar={row.avatar_url} /></TableCell>
@@ -222,6 +239,11 @@ export default function Leaderboard() {
                 ))}
               </TableBody>
             </Table>
+            <PaginationBar
+              page={moPage} pageSize={moSize} total={monthly.length}
+              onPageChange={setMoPage}
+              onPageSizeChange={s => { setMoSize(s); setMoPage(0); }}
+            />
           </Card>
         </TabsContent>
       </Tabs>

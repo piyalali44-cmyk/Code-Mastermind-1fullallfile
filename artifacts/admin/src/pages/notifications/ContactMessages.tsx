@@ -13,6 +13,7 @@ import {
   RefreshCw, MessageSquare, Mail, Search, ChevronDown, ChevronUp,
   Calendar, Send, CheckCircle2, Clock, InboxIcon, X,
 } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { toast } from "sonner";
 
 interface ContactMessage {
@@ -45,6 +46,8 @@ export default function ContactMessages() {
   const [expanded, setExpanded]     = useState<string | null>(null);
   const [replyText, setReplyText]   = useState<Record<string, string>>({});
   const [sending, setSending]       = useState<string | null>(null);
+  const [cmPage, setCmPage]         = useState(0);
+  const [cmPageSize, setCmPageSize] = useState(25);
 
   async function load() {
     setLoading(true);
@@ -348,7 +351,7 @@ export default function ContactMessages() {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map(msg => (
+              filtered.slice(cmPage * cmPageSize, (cmPage + 1) * cmPageSize).map(msg => (
                 <>
                   {/* ─ Row ─ */}
                   <TableRow
@@ -489,6 +492,13 @@ export default function ContactMessages() {
             )}
           </TableBody>
         </Table>
+        <PaginationBar
+          page={cmPage}
+          pageSize={cmPageSize}
+          total={filtered.length}
+          onPageChange={p => { setCmPage(p); setExpanded(null); }}
+          onPageSizeChange={s => { setCmPageSize(s); setCmPage(0); setExpanded(null); }}
+        />
       </Card>
     </div>
   );
