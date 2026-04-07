@@ -12,7 +12,7 @@ import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useColors } from "@/hooks/useColors";
-import { ReferralStats, ReferralHistoryItem, applyReferralCode, getReferralHistory, getMyReferrer, getReferralStats, getUserReferralCode, getTotalHoursListened } from "@/lib/db";
+import { ReferralStats, ReferralHistoryItem, applyReferralCode, getReferralHistory, getMyReferrer, getReferralStats, getUserReferralCode } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 
 interface MenuItemProps {
@@ -61,7 +61,6 @@ export default function ProfileScreen() {
   const [refHistory, setRefHistory]         = useState<ReferralHistoryItem[]>([]);
   const [myReferrer, setMyReferrer]         = useState<{ name: string; code: string } | null>(null);
   const [refHistoryLoading, setRefHistoryLoading] = useState(false);
-  const [hoursListened, setHoursListened]   = useState<number>(user?.totalHoursListened ?? 0);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: string; iconColor?: string }>({
     visible: false, message: "", icon: "check",
   });
@@ -167,29 +166,23 @@ export default function ProfileScreen() {
     }
   };
 
-  // Keep hoursListened in sync with auth context (updated by buildUserFromSession)
-  useEffect(() => {
-    if (user?.totalHoursListened && user.totalHoursListened > 0) {
-      setHoursListened(user.totalHoursListened);
-    }
-  }, [user?.totalHoursListened]);
-
-  // Load referral code, stats + refresh hours when the user is known
+  // Load referral code + stats when the user is known.
+  // Listening time is NOT fetched here — it comes from user.totalHoursListened
+  // which is synced by the auth context (same path as XP/streak) and cached
+  // in AsyncStorage, so it shows instantly without a separate DB call.
   useEffect(() => {
     if (!user) return;
     let active = true;
     setCodeLoading(true);
     (async () => {
-      const [code, stats, hrs] = await Promise.all([
+      const [code, stats] = await Promise.all([
         getUserReferralCode(user.id),
         getReferralStats(user.id),
-        getTotalHoursListened(user.id),
       ]);
       if (!active) return;
       setMyCode(code);
       setCodeLoading(false);
       setRefStats(stats);
-      if (hrs > 0) setHoursListened(hrs);
     })();
     return () => { active = false; };
   }, [user?.id]);
@@ -375,10 +368,10 @@ export default function ProfileScreen() {
         <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statItem}>
             <Text style={[styles.statNum, { color: colors.goldLight }]}>
-              {hoursListened >= 1
-                ? `${hoursListened}h`
-                : hoursListened > 0
-                  ? `${Math.round(hoursListened * 60)}m`
+              {(user.totalHoursListened ?? 0) >= 1
+                ? `${user.totalHoursListened}h`
+                : (user.totalHoursListened ?? 0) > 0
+                  ? `${Math.round((user.totalHoursListened ?? 0) * 60)}m`
                   : "0m"}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Listened</Text>
