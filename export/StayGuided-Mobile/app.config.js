@@ -1,33 +1,24 @@
 const config = require("./app.json");
 
-// ── Environment variable resolution ─────────────────────────────────────────
-// Expo embeds EXPO_PUBLIC_* variables at Metro bundler start time.
-// On Replit, REPLIT_DEV_DOMAIN is available as a runtime secret, so we can
-// build the correct API URL without hardcoding a specific domain.
+// ── Supabase Configuration ───────────────────────────────────────────────────
+// The anon key is safe to embed (it's a public key, not a secret).
+// You can override via EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.
 
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://tkruzfskhtcazjxdracm.supabase.co";
+const SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
+const SUPABASE_ANON_KEY = "REPLACE_WITH_YOUR_SUPABASE_ANON_KEY";
 
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
-  process.env.SUPABASE_ANON_KEY ??
-  "";
+// ── API Server URL ───────────────────────────────────────────────────────────
+// Point this to your deployed Replit API server.
+// Format: https://YOUR-REPLIT-PROJECT.replit.app/api-server
+const API_BASE_URL = "REPLACE_WITH_YOUR_API_SERVER_URL";
 
-const apiBaseUrl =
-  process.env.EXPO_PUBLIC_API_BASE_URL ??
-  process.env.EXPO_PUBLIC_API_URL ??
-  (process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-    : process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}/api`
-    : "http://localhost:8080/api");
+// Env var overrides (for local development)
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? SUPABASE_ANON_KEY;
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? API_BASE_URL;
 
-// Warn at startup if critical env vars are missing
-if (!supabaseAnonKey) {
-  console.warn(
-    "[app.config] EXPO_PUBLIC_SUPABASE_ANON_KEY is not set. " +
-    "Authentication and all Supabase operations will fail.",
-  );
+if (!supabaseAnonKey || supabaseAnonKey === "REPLACE_WITH_YOUR_SUPABASE_ANON_KEY") {
+  console.warn("[app.config] Set EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file!");
 }
 
 module.exports = {
