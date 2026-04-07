@@ -28,7 +28,8 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - **Subscription columns** (store, product_id, original_transaction_id) confirmed present ✅
 - **profiles.push_token** column confirmed present ✅
 - **Hadith badges** (hadith_start, hadith_10, hadith_40) seeded at every API server start ✅
-- **Missing column**: `episodes.image_url` — run `artifacts/mobile/supabase/master_patches.sql` in Supabase Dashboard to apply
+- **episodes.image_url** column applied and exposed in admin episode editor ✅
+- **Admin RPC functions** (admin_award_xp, admin_award_badge, apply_referral_code, redeem_code, etc.) all in master_patches.sql ✅
 
 ### Migration Files
 - `artifacts/mobile/supabase/complete_setup.sql` — Full schema (run once on fresh DB)
@@ -40,14 +41,14 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 At startup, `applySchemaPatches()` in `artifacts/api-server/src/lib/supabaseMigrations.ts` runs:
 
 1. **RPC path (self-healing, preferred)** — calls `supabase.rpc('stayguided_apply_patches')`.
-   This Postgres function lives in Supabase and runs DDL with full database-level permissions.
-   After `master_patches.sql` is run once in the Supabase SQL Editor, every subsequent
-   server restart automatically applies all schema patches. No personal access token needed.
+   The comprehensive RPC reapplies ALL patches on every restart using only the service-role key:
+   columns, indexes, admin RLS policies, admin functions, coupon tables, referral functions, grants,
+   badge/settings seeds. No personal access token needed once the function exists in DB.
 
-2. **Management API fallback** — if the RPC function doesn't exist yet, attempts DDL via
-   `https://api.supabase.com/v1/projects/{ref}/database/query`. Requires `SUPABASE_ACCESS_TOKEN`
-   to be a personal access token from supabase.com/dashboard/account/tokens (NOT the service-role
-   key). The token currently set returns 401, so this path is currently a no-op.
+2. **Management API fallback** — if the RPC function doesn't exist yet (fresh DB), applies
+   master_patches.sql via `https://api.supabase.com/v1/projects/{ref}/database/query`.
+   Requires `SUPABASE_ACCESS_TOKEN` (set as a Replit secret). After this first-run bootstrap,
+   subsequent restarts use the RPC path exclusively.
 
 3. **Data seeding (always runs)** — seeds hadith badges, lifetime_price_usd, and normalises
    referral codes to uppercase via the service-role client (works unconditionally).
@@ -56,9 +57,7 @@ At startup, `applySchemaPatches()` in `artifacts/api-server/src/lib/supabaseMigr
 
 - Schema health endpoint: `GET /api/health/schema` (requires `Authorization: Bearer <service-role-key>`)
 - SQL statement splitting is dollar-quote-aware to handle `DO $$ ... $$;` and `$func$` blocks
-
-**One-time setup**: Run `artifacts/mobile/supabase/master_patches.sql` in the Supabase Dashboard
-SQL Editor once. This installs `stayguided_apply_patches()` so all future server restarts are automatic.
+- **No manual SQL execution required** — bootstrap is automatic via SUPABASE_ACCESS_TOKEN on fresh deploy.
 
 ---
 
@@ -106,8 +105,7 @@ SQL Editor once. This installs `stayguided_apply_patches()` so all future server
 
 ### Status: FULLY BUILT — all 30 pages wired to Supabase, zero TypeScript errors
 - **AuthContext**: Fixed — queries `from("profiles").eq("id", userId)`, handles stale `refresh_token_not_found` errors gracefully
-- **User action**: Run `migration_patch.sql` in Supabase SQL Editor to deploy all missing functions
-- **Login**: Create admin user in Supabase Auth, then run the SQL to promote to `super_admin`
+- **Login**: Create admin user in Supabase Auth, then update role to `super_admin` in profiles table
 - **DialogContent warning**: Fixed — `aria-describedby={undefined}` suppresses Radix UI warning
 - **Admin block/premium fallbacks**: `UserDetail.tsx` falls back to direct table updates if RPCs don't exist
 
@@ -208,43 +206,26 @@ SQL Editor once. This installs `stayguided_apply_patches()` so all future server
 - `artifacts/mobile: expo` — Port 18115, path /
 - `artifacts/mockup-sandbox: Component Preview Server` — Port 8081, path /__mockup
 
-### ⚠️ Database Functions NOT YET DEPLOYED
-The following Postgres functions do NOT exist in the database yet (must be run in Supabase SQL Editor):
-`apply_referral_code`, `check_and_award_badges`, `award_badge`, `admin_block_user`, `admin_unblock_user`, `admin_grant_premium`, `admin_revoke_premium`, `log_admin_action`, `handle_new_user` trigger
+### Database Functions
+All required database functions are included in `master_patches.sql` and applied automatically:
+- `apply_referral_code` — mobile referral code redemption (authenticated)
+- `process_referral_by_id` — API server referral processing (service role)
+- `admin_award_xp`, `admin_award_badge`, `admin_revoke_badge` — admin gamification management
+- `redeem_code` — unified coupon + referral code redemption
+- `check_and_award_badges`, `award_badge` — automatic badge awarding on progress
+- `stayguided_apply_patches` — self-healing startup migration RPC
 
-**Fix**: Run `artifacts/mobile/supabase/migration_patch.sql` in Supabase SQL Editor → https://supabase.com/dashboard/project/tkruzfskhtcazjxdracm/sql
+Fallbacks remain in place for functions from earlier setup:
+- `admin_block_user/unblock/grant/revoke` → `UserDetail.tsx` direct profile + subscriptions updates
+- `check_and_award_badges` → fails silently if not yet applied (no impact on core flow)
 
-Until deployed, fallbacks are in place for:
-- `apply_referral_code` → routed through API server `/api/referral/apply` (uses service_role key to bypass RLS)
-- `admin_block_user/unblock/grant/revoke` → `UserDetail.tsx` (direct profile + subscriptions updates)
-- `check_and_award_badges` → fails silently (no impact on core flow)
-
-### ⚠️ Pending Migration: Quiz Attempts Table
-Run `artifacts/mobile/supabase/quiz_attempts_table.sql` in Supabase SQL Editor.
-This creates:
-- `quiz_attempts` table (user_id, quiz_id, score, total_questions, percentage, passed)
-- RLS policies: users can read/insert own attempts, admins can manage all
-
-### ⚠️ Pending Migration: Enable Realtime
-Run `artifacts/mobile/supabase/enable_realtime.sql` in Supabase SQL Editor.
-This enables Supabase Realtime publication for all tables that need live updates:
-- Content: categories, series, episodes, reciters, quizzes, quiz_questions
-- Users: profiles, user_xp, user_streaks, subscriptions
-- Config: app_settings, feature_flags, popup_notices
-- Engagement: notifications, favourites, bookmarks, listening_progress, admin_activity_log
+### ⚠️ One-time Manual Steps (if not already applied)
+- **Quiz attempts table**: Run `artifacts/mobile/supabase/quiz_attempts_table.sql` in Supabase SQL Editor
+- **Enable Realtime**: Run `artifacts/mobile/supabase/enable_realtime.sql` in Supabase SQL Editor
 
 ### Realtime Subscriptions
 - **Mobile App**: ContentContext (series/episodes), AuthContext (profiles/user_xp/user_streaks), AppSettingsContext (app_settings/feature_flags/popup_notices), Notifications screen
 - **Admin Panel**: Dashboard (profiles/episodes/series/subscriptions/activity_log), Categories, Series, Episodes, UsersList (profiles), Transactions (subscriptions)
-
-### ⚠️ Pending Migration: Image URL + Hadith Badges
-Run `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` in Supabase SQL Editor.
-This adds:
-- `image_url TEXT` column to `push_campaigns` and `notifications` tables
-- 3 hadith badges (`hadith_start`, `hadith_10`, `hadith_40`) to badges table
-- Updated `check_and_award_badges` function with hadith episode counting
-- Note: Without this migration, push notification images store in `action_payload` JSONB as fallback
-- Hadith badges already seeded in badges table via REST API
 
 ### Key RLS Notes
 - `app_settings` and `feature_flags` allow **anon** SELECT (guest users need maintenance_mode, pricing, etc.)
