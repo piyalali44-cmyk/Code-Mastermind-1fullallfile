@@ -1,5 +1,5 @@
 import { Icon } from "@/components/Icon";
-
+import FadeImage from "@/components/FadeImage";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -30,7 +30,7 @@ export default function SearchScreen() {
   const episodeResults = useMemo(() => {
     if (query.length < 2) return [];
     const q = query.toLowerCase();
-    const results: { seriesId: string; seriesTitle: string; episodeId: string; episodeTitle: string; episodeNumber: number; coverColor: string }[] = [];
+    const results: { seriesId: string; seriesTitle: string; episodeId: string; episodeTitle: string; episodeNumber: number; coverColor: string; coverUrl: string }[] = [];
     for (const s of allSeries) {
       for (const ep of s.episodes) {
         if (ep.title.toLowerCase().includes(q) || ep.description.toLowerCase().includes(q)) {
@@ -41,6 +41,7 @@ export default function SearchScreen() {
             episodeTitle: ep.title,
             episodeNumber: ep.number,
             coverColor: s.coverColor,
+            coverUrl: ep.coverUrl || s.coverUrl,
           });
           if (results.length >= 10) break;
         }
@@ -143,7 +144,11 @@ export default function SearchScreen() {
                         style={[styles.resultRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.resultCover, { backgroundColor: s.coverColor }]}>
-                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                          {s.coverUrl ? (
+                            <FadeImage uri={s.coverUrl} style={StyleSheet.absoluteFill} />
+                          ) : (
+                            <Icon name="headphones" size={18} color={colors.goldLight} />
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.resultTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.title}</Text>
@@ -164,7 +169,11 @@ export default function SearchScreen() {
                         style={[styles.resultRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.resultCover, { backgroundColor: ep.coverColor }]}>
-                          <Icon name="play" size={16} color={colors.goldLight} />
+                          {ep.coverUrl ? (
+                            <FadeImage uri={ep.coverUrl} style={StyleSheet.absoluteFill} />
+                          ) : (
+                            <Icon name="play" size={16} color={colors.goldLight} />
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.resultTitle, { color: colors.textPrimary }]} numberOfLines={1}>{ep.episodeTitle}</Text>
@@ -256,7 +265,7 @@ const styles = StyleSheet.create({
   suggestionText: { fontSize: 14 },
   resultLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 1 },
   resultRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  resultCover: { width: 44, height: 44, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  resultCover: { width: 44, height: 44, borderRadius: 8, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   resultTitle: { fontSize: 14, fontWeight: "600" },
   resultMeta: { fontSize: 12, marginTop: 2 },
   numBadge: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },

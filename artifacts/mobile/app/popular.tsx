@@ -5,6 +5,7 @@ import React, { useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import FadeImage from "@/components/FadeImage";
 import { useContent } from "@/context/ContentContext";
 import { useColors } from "@/hooks/useColors";
 import type { Series } from "@/data/mockData";
@@ -51,6 +52,9 @@ function PopularCard({ item }: { item: Series }) {
       onPress={() => router.push(`/series/${item.id}`)}
     >
       <Animated.View style={[styles.card, { backgroundColor: item.coverColor, transform: [{ scale }] }]}>
+        {item.coverUrl ? (
+          <FadeImage uri={item.coverUrl} style={StyleSheet.absoluteFill} />
+        ) : null}
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} style={styles.grad}>
           <View style={[styles.catBadge, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
             <Text style={styles.catText}>{item.category}</Text>
