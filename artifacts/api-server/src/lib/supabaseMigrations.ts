@@ -43,26 +43,81 @@ function getAdmin() {
   });
 }
 
-// ── Statement categorisation ──────────────────────────────────────────────────
+// ── Statement splitting (dollar-quote aware) ──────────────────────────────────
 
-const DDL_KEYWORDS = [
-  /^\s*(CREATE|ALTER|DROP|GRANT|REVOKE|NOTIFY|DO\b)/i,
-  /^\s*NOTIFY\b/i,
-];
+const DDL_KEYWORDS = /^\s*(CREATE|ALTER|DROP|GRANT|REVOKE|NOTIFY|DO\b)/i;
 
 function isDDL(stmt: string): boolean {
-  return DDL_KEYWORDS.some((re) => re.test(stmt));
+  return DDL_KEYWORDS.test(stmt);
 }
 
 /**
- * Split a SQL file into individual statements separated by semicolons,
- * skipping blank lines and comment-only blocks.
+ * Split a SQL script into individual statements, correctly handling:
+ *  - Dollar-quoted blocks: $$ ... $$ and $tag$ ... $tag$
+ *  - Single-line comments (-- …)
+ *  - Regular semicolon-terminated statements
+ *
+ * A semicolon only ends a statement when we are NOT inside a dollar-quoted block.
  */
 function splitStatements(sql: string): string[] {
-  const raw = sql.split(/;\s*\n/);
-  return raw
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !/^(--.*)$/.test(s));
+  const statements: string[] = [];
+  let current = "";
+  let dollarTag: string | null = null; // non-null when inside $tag$...$tag$ block
+  let i = 0;
+
+  while (i < sql.length) {
+    // Skip single-line comments when not in a dollar-quoted block
+    if (dollarTag === null && sql[i] === "-" && sql[i + 1] === "-") {
+      while (i < sql.length && sql[i] !== "\n") i++;
+      current += "\n";
+      continue;
+    }
+
+    // Detect start/end of a dollar-quoted block
+    if (sql[i] === "$") {
+      // Look ahead for matching $...$ tag
+      const rest = sql.slice(i);
+      const m = rest.match(/^\$([A-Za-z_]*)\$/);
+      if (m) {
+        const tag = m[0]; // e.g. "$$" or "$func$"
+        if (dollarTag === null) {
+          // Enter dollar-quoted block
+          dollarTag = tag;
+          current += tag;
+          i += tag.length;
+          continue;
+        } else if (tag === dollarTag) {
+          // Exit dollar-quoted block
+          dollarTag = null;
+          current += tag;
+          i += tag.length;
+          continue;
+        }
+      }
+    }
+
+    // Semicolon outside dollar-quoted block = statement boundary
+    if (sql[i] === ";" && dollarTag === null) {
+      const stmt = current.trim();
+      if (stmt.length > 0 && !/^-/.test(stmt)) {
+        statements.push(stmt);
+      }
+      current = "";
+      i++;
+      continue;
+    }
+
+    current += sql[i];
+    i++;
+  }
+
+  // Capture any trailing statement without a trailing semicolon
+  const trailing = current.trim();
+  if (trailing.length > 0 && !/^-/.test(trailing)) {
+    statements.push(trailing);
+  }
+
+  return statements;
 }
 
 // ── Management API executor ───────────────────────────────────────────────────

@@ -12,16 +12,14 @@ router.get(["/healthz", "/health"], (_req, res) => {
 });
 
 // Extended health check with schema status.
-// Protected by a shared secret: pass ?key=<SUPABASE_SERVICE_ROLE_KEY> or use
-// the Authorization: Bearer <service-role-key> header.
+// Protected: requires Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> header.
 router.get("/health/schema", async (req, res) => {
   const authHeader = req.headers.authorization ?? "";
-  const queryKey = req.query["key"] as string | undefined;
   const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
-
-  const provided = authHeader.replace(/^Bearer\s+/i, "").trim() || queryKey || "";
+  const provided = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!serviceKey || provided !== serviceKey) {
-    return res.status(401).json({ status: "unauthorized" });
+    res.status(401).json({ status: "unauthorized" });
+    return;
   }
 
   try {
