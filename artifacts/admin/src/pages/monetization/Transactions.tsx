@@ -170,7 +170,7 @@ export default function Transactions() {
         return;
       }
 
-      const subs: SubscriptionRow[] = (finalSubsRes.data ?? []) as SubscriptionRow[];
+      const subs: SubscriptionRow[] = (finalSubsRes.data ?? []) as unknown as SubscriptionRow[];
 
       /* fetch profiles separately to avoid FK-join issues */
       let enriched: Subscription[] = subs.map(s => ({ ...s, profile: null }));

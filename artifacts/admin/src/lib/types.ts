@@ -92,6 +92,7 @@ export interface Episode {
   pub_status: "draft" | "under_review" | "approved" | "scheduled" | "published" | "unpublished";
   scheduled_publish_at?: string;
   language: string;
+  image_url?: string;
   cover_override_url?: string;
   play_count?: number;
   created_at: string;
