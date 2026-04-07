@@ -27,6 +27,29 @@ export default function SearchScreen() {
     [query, allSeries]
   );
 
+  const episodeResults = useMemo(() => {
+    if (query.length < 2) return [];
+    const q = query.toLowerCase();
+    const results: { seriesId: string; seriesTitle: string; episodeId: string; episodeTitle: string; episodeNumber: number; coverColor: string }[] = [];
+    for (const s of allSeries) {
+      for (const ep of s.episodes) {
+        if (ep.title.toLowerCase().includes(q) || ep.description.toLowerCase().includes(q)) {
+          results.push({
+            seriesId: s.id,
+            seriesTitle: s.title,
+            episodeId: ep.id,
+            episodeTitle: ep.title,
+            episodeNumber: ep.number,
+            coverColor: s.coverColor,
+          });
+          if (results.length >= 10) break;
+        }
+      }
+      if (results.length >= 10) break;
+    }
+    return results;
+  }, [query, allSeries]);
+
   const surahResults = useMemo(() =>
     query.length > 1
       ? SURAHS.filter((s) => s.nameSimple.toLowerCase().includes(query.toLowerCase()) || s.nameArabic.includes(query)).slice(0, 5)
@@ -34,7 +57,7 @@ export default function SearchScreen() {
     [query]
   );
 
-  const hasResults = seriesResults.length > 0 || surahResults.length > 0;
+  const hasResults = seriesResults.length > 0 || episodeResults.length > 0 || surahResults.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -112,7 +135,7 @@ export default function SearchScreen() {
               <View style={{ gap: 16 }}>
                 {seriesResults.length > 0 && (
                   <View style={{ gap: 8 }}>
-                    <Text style={[styles.resultLabel, { color: colors.textMuted }]}>SERIES</Text>
+                    <Text style={[styles.resultLabel, { color: colors.textMuted }]}>SERIES ({seriesResults.length})</Text>
                     {seriesResults.map((s) => (
                       <Pressable
                         key={s.id}
@@ -131,9 +154,32 @@ export default function SearchScreen() {
                     ))}
                   </View>
                 )}
+                {episodeResults.length > 0 && (
+                  <View style={{ gap: 8 }}>
+                    <Text style={[styles.resultLabel, { color: colors.textMuted }]}>EPISODES ({episodeResults.length})</Text>
+                    {episodeResults.map((ep) => (
+                      <Pressable
+                        key={ep.episodeId}
+                        onPress={() => router.push(`/series/${ep.seriesId}`)}
+                        style={[styles.resultRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                      >
+                        <View style={[styles.resultCover, { backgroundColor: ep.coverColor }]}>
+                          <Icon name="play" size={16} color={colors.goldLight} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.resultTitle, { color: colors.textPrimary }]} numberOfLines={1}>{ep.episodeTitle}</Text>
+                          <Text style={[styles.resultMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                            Ep {ep.episodeNumber} · {ep.seriesTitle}
+                          </Text>
+                        </View>
+                        <Icon name="chevron-right" size={18} color={colors.textMuted} />
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
                 {surahResults.length > 0 && (
                   <View style={{ gap: 8 }}>
-                    <Text style={[styles.resultLabel, { color: colors.textMuted }]}>QUR'AN</Text>
+                    <Text style={[styles.resultLabel, { color: colors.textMuted }]}>QUR'AN ({surahResults.length})</Text>
                     {surahResults.map((s) => (
                       <Pressable
                         key={s.number}

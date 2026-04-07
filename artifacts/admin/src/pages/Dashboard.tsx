@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { Link } from "wouter";
+import MigrationBanner from "@/components/MigrationBanner";
 
 interface LogEntry {
   id: string; action: string; entity_type: string | null; created_at: string;
@@ -414,6 +415,8 @@ export default function Dashboard() {
         <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Live overview of StayGuided Me</p>
       </div>
+
+      <MigrationBanner />
 
       <div className={`grid gap-3 md:gap-4 ${colClass}`}>
         {kpis.map((kpi, i) => (
