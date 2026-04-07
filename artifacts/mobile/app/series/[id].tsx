@@ -285,13 +285,12 @@ export default function SeriesDetailScreen() {
         )}
       </AnimatedIconBtn>
 
-      {/* Main FlatList — hero scrolls away, Episodes header stays sticky */}
+      {/* Main FlatList */}
       <FlatList
-        data={[{ _type: "header" as const, id: "__ep_header__" }, ...series.episodes.map(ep => ({ _type: "episode" as const, ...ep }))]}
+        data={series.episodes}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
         ListHeaderComponent={
           <>
             {/* Hero — YT Music / Pocket FM style */}
@@ -391,7 +390,7 @@ export default function SeriesDetailScreen() {
                 </View>
               )}
 
-              {/* Action buttons */}
+              {/* Action buttons row */}
               <View style={styles.btnRow}>
                 <Pressable
                   onPressIn={() => Animated.spring(playBtnScale, { toValue: 0.95, useNativeDriver: true, tension: 250 }).start()}
@@ -445,29 +444,30 @@ export default function SeriesDetailScreen() {
               </View>
             </View>
 
+            {/* Episodes section header — inside ListHeaderComponent, no special padding needed */}
+            <View style={[styles.epHeader, {
+              backgroundColor: colors.background,
+              borderBottomColor: colors.divider,
+            }]}>
+              <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
+                Episodes
+                <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
+              </Text>
+              {series.episodeCount > 0 && (
+                <View style={[styles.episodeCountBadge, { backgroundColor: colors.surfaceHigh }]}>
+                  <Icon name="list" size={12} color={colors.textSecondary} />
+                </View>
+              )}
+            </View>
           </>
         }
-        renderItem={({ item }) => {
-          if (item._type === "header") {
-            return (
-              <View style={[styles.epHeader, {
-                backgroundColor: colors.background,
-                borderBottomColor: colors.divider,
-                paddingHorizontal: 20,
-                paddingTop: insets.top + 58,
-                paddingBottom: 10,
-              }]}>
-                <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
-                  Episodes
-                  <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
-                </Text>
-              </View>
-            );
-          }
-          const ep = item;
+        data={series.episodes}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item: ep }) => {
           const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
           const isPlaying = nowPlaying?.id === ep.id;
           const noAudio = !ep.hasAudio;
+          const thumbUrl = ep.coverUrl || series.coverUrl;
           return (
             <Pressable
               onPress={() => isLocked ? router.push("/subscription") : handlePlayEpisode(ep.id)}
@@ -476,28 +476,46 @@ export default function SeriesDetailScreen() {
                 {
                   borderBottomColor: colors.divider,
                   backgroundColor: pressed ? colors.surfaceHigh : "transparent",
-                  opacity: isLocked ? 0.7 : 1,
+                  opacity: isLocked ? 0.75 : 1,
                 },
               ]}
             >
-              <View style={[styles.epNumWrap, { backgroundColor: isPlaying ? colors.gold + "22" : colors.surfaceHigh }]}>
+              {/* Left accent bar for currently playing */}
+              {isPlaying && (
+                <View style={[styles.epPlayingBar, { backgroundColor: colors.gold }]} />
+              )}
+
+              {/* Thumbnail */}
+              <View style={[styles.epThumb, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
+                {thumbUrl ? (
+                  <FadeImage uri={thumbUrl} style={StyleSheet.absoluteFill} />
+                ) : null}
                 {isLocked ? (
-                  <Icon name="lock" size={14} color={colors.gold} />
+                  <View style={styles.epThumbOverlay}>
+                    <Icon name="lock" size={16} color={colors.gold} />
+                  </View>
                 ) : isPlaying ? (
-                  <Icon name="volume-2" size={14} color={colors.gold} />
+                  <View style={styles.epThumbOverlay}>
+                    <Icon name="volume-2" size={16} color={colors.gold} />
+                  </View>
                 ) : (
-                  <Text style={[styles.epNum, { color: colors.textMuted }]}>{ep.number}</Text>
+                  <View style={styles.epNumBadge}>
+                    <Text style={styles.epNumBadgeText}>{ep.number}</Text>
+                  </View>
                 )}
               </View>
 
+              {/* Info */}
               <View style={styles.epInfo}>
                 <View style={styles.epTitleRow}>
                   <Text
                     style={[styles.epTitle, { color: isPlaying ? colors.goldLight : colors.textPrimary }]}
-                    numberOfLines={1}
+                    numberOfLines={2}
                   >
                     {ep.title}
                   </Text>
+                </View>
+                <View style={styles.epMeta}>
                   {settings.subscription_enabled && ep.isPremium && (
                     <View style={[styles.premBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
                       <Icon name="star" size={8} color={colors.goldLight} />
@@ -511,7 +529,6 @@ export default function SeriesDetailScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={[styles.epDesc, { color: colors.textSecondary }]} numberOfLines={1}>{ep.description}</Text>
                 <View style={styles.epBottom}>
                   <Icon name="clock" size={10} color={colors.textMuted} />
                   <Text style={[styles.epDuration, { color: colors.textMuted }]}>{ep.duration}</Text>
@@ -525,7 +542,7 @@ export default function SeriesDetailScreen() {
                   )}
                   {ep.progress === 100 && (
                     <View style={styles.completedBadge}>
-                      <Icon name="check-circle" size={12} color={colors.green} />
+                      <Icon name="check-circle" size={11} color={colors.green} />
                       <Text style={[styles.completedText, { color: colors.green }]}>Done</Text>
                     </View>
                   )}
@@ -950,33 +967,69 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   epHeader: {
-    borderBottomWidth: 1,
-    paddingBottom: 12,
-    marginTop: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   episodesLabel: {
     fontSize: 18,
     fontWeight: "700",
   },
-  episodeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: 0.5,
-    borderRadius: 10,
-  },
-  epNumWrap: {
-    width: 34,
-    height: 34,
+  episodeCountBadge: {
+    width: 30,
+    height: 30,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  epNum: {
-    fontSize: 13,
-    fontWeight: "600",
+  episodeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  epPlayingBar: {
+    position: "absolute",
+    left: 0,
+    top: 10,
+    bottom: 10,
+    width: 3,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+  },
+  epThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  epThumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  } as any,
+  epNumBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 5,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  epNumBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
   },
   epInfo: {
     flex: 1,
@@ -984,13 +1037,20 @@ const styles = StyleSheet.create({
   },
   epTitleRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+    alignItems: "flex-start",
+    gap: 6,
   },
   epTitle: {
     fontSize: 14,
     fontWeight: "600",
     flex: 1,
+    lineHeight: 20,
+  },
+  epMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    flexWrap: "wrap",
   },
   premBadge: {
     flexDirection: "row",
@@ -1006,15 +1066,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  epDesc: {
-    fontSize: 12,
-    lineHeight: 17,
-  },
   epBottom: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: 2,
+    marginTop: 1,
   },
   epDuration: {
     fontSize: 11,
@@ -1023,8 +1079,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 3,
     borderRadius: 2,
-    marginLeft: 4,
+    marginLeft: 2,
     overflow: "hidden",
+    maxWidth: 80,
   },
   epProgFill: {
     height: 3,
@@ -1034,25 +1091,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginLeft: 4,
+    marginLeft: 2,
   },
   completedText: {
     fontSize: 11,
     fontWeight: "600",
   },
   epPlayWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  epDownloadWrap: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  epDownloadWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
 });
