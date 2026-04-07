@@ -38,6 +38,7 @@ import {
   isUserCommentBlocked,
   type ContentComment,
 } from "@/lib/db";
+import ReportModal from "@/components/ReportModal";
 
 function AnimatedIconBtn({ onPress, children, style, containerStyle }: any) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -82,6 +83,7 @@ export default function SeriesDetailScreen() {
   const isBookmarked = isItemBookmarked(`series:${series.id}`);
 
   const [moreModal, setMoreModal] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: any; iconColor?: string }>({ visible: false, message: "", icon: "check" });
   const bookmarkScale = useRef(new Animated.Value(1)).current;
   const playBtnScale = useRef(new Animated.Value(1)).current;
@@ -693,13 +695,21 @@ export default function SeriesDetailScreen() {
               <Icon name="bookmark" size={18} color={isBookmarked ? colors.gold : colors.textSecondary} />
               <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>{isBookmarked ? "Remove from Library" : "Save to Library"}</Text>
             </Pressable>
-            <Pressable onPress={() => { setMoreModal(false); }} style={moreStyles.row}>
-              <Icon name="flag" size={18} color={colors.textSecondary} />
-              <Text style={[moreStyles.rowLabel, { color: colors.textPrimary }]}>Report an Issue</Text>
+            <Pressable onPress={() => { setMoreModal(false); setReportModal(true); }} style={moreStyles.row}>
+              <Icon name="flag" size={18} color="#f87171" />
+              <Text style={[moreStyles.rowLabel, { color: "#f87171" }]}>Report an Issue</Text>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
+
+      <ReportModal
+        visible={reportModal}
+        onClose={() => setReportModal(false)}
+        contentId={series.id}
+        contentType="series"
+        contentTitle={series.title}
+      />
     </View>
   );
 }

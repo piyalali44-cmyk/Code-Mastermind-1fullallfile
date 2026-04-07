@@ -215,13 +215,15 @@ export interface PushNotification {
 export interface ContentReport {
   id: string;
   content_id: string;
-  content_type: "episode" | "series";
+  content_type: "episode" | "series" | "surah";
+  content_title?: string;
   episode?: Episode;
   series?: Series;
   reporter_id: string;
   reporter?: Profile;
   reason: "incorrect_info" | "poor_audio" | "misleading" | "inappropriate" | "copyright" | "other";
   description?: string;
+  admin_note?: string;
   status: "pending" | "reviewing" | "resolved" | "dismissed";
   reviewed_by?: string;
   reviewed_at?: string;

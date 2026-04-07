@@ -28,6 +28,7 @@ import { useColors } from "@/hooks/useColors";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/context/ThemeContext";
 import FadeImage from "@/components/FadeImage";
+import ReportModal from "@/components/ReportModal";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -167,6 +168,7 @@ export default function PlayerScreen() {
   const [speedModal, setSpeedModal] = useState(false);
   const [sleepModal, setSleepModal] = useState(false);
   const [moreModal, setMoreModal] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
   const [commentModal, setCommentModal] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState<ContentComment[]>([]);
@@ -1049,9 +1051,9 @@ export default function PlayerScreen() {
               <Icon name={isDownloaded ? "check-circle" : "download"} size={16} color={isDownloaded ? colors.green : colors.textSecondary} />
               <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>{isDownloaded ? "Remove Download" : "Download"}</Text>
             </Pressable>
-            <Pressable onPress={() => { setMoreModal(false); }} style={styles.speedOption}>
-              <Icon name="flag" size={16} color={colors.textSecondary} />
-              <Text style={[styles.speedOptionText, { color: colors.textPrimary }]}>Report an Issue</Text>
+            <Pressable onPress={() => { setMoreModal(false); setReportModal(true); }} style={styles.speedOption}>
+              <Icon name="flag" size={16} color="#f87171" />
+              <Text style={[styles.speedOptionText, { color: "#f87171" }]}>Report an Issue</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -1204,6 +1206,15 @@ export default function PlayerScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Report Modal */}
+      <ReportModal
+        visible={reportModal}
+        onClose={() => setReportModal(false)}
+        contentId={contentId}
+        contentType={contentType as "episode" | "series" | "surah"}
+        contentTitle={nowPlaying?.title ?? ""}
+      />
     </Animated.View>
   );
 }
