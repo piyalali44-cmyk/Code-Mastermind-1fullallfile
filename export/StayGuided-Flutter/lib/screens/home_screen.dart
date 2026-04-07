@@ -38,7 +38,7 @@ class HomeScreen extends ConsumerWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'সালাম, ${profile?.displayName ?? 'বন্ধু'} 👋',
+                            'সালাম, ${profile?.displayNameOrEmail ?? 'বন্ধু'} 👋',
                             style: const TextStyle(color: AppConfig.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
                           ),
                           const Text(
@@ -174,9 +174,6 @@ class FeaturedCard extends StatelessWidget {
                 ),
               const SizedBox(height: 6),
               Text(series.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              if (series.reciterName != null)
-                Text(series.reciterName!, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
             ],
           ),
         ),
@@ -217,9 +214,6 @@ class _HorizontalSeriesRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(series.title, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 14, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
-                  if (series.reciterName != null)
-                    Text(series.reciterName!, style: const TextStyle(color: AppConfig.textSecondary, fontSize: 12)),
                   const SizedBox(height: 4),
                   Row(
                     children: [

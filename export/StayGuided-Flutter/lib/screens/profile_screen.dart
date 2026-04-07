@@ -55,13 +55,13 @@ class ProfileScreen extends ConsumerWidget {
                       ? ClipOval(child: Image.network(profile.avatarUrl!, fit: BoxFit.cover))
                       : Center(
                           child: Text(
-                            profile.displayName.substring(0, 1).toUpperCase(),
+                            profile.displayNameOrEmail.substring(0, 1).toUpperCase(),
                             style: const TextStyle(color: AppConfig.gold, fontSize: 36, fontWeight: FontWeight.bold),
                           ),
                         ),
                 ),
                 const SizedBox(height: 12),
-                Text(profile.displayName, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(profile.displayNameOrEmail, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                 Text(profile.email, style: const TextStyle(color: AppConfig.textSecondary, fontSize: 13)),
                 const SizedBox(height: 8),
                 if (profile.isPremium)
@@ -92,7 +92,8 @@ class ProfileScreen extends ConsumerWidget {
                     const SizedBox(width: 12),
                     _StatCard(
                       icon: Icons.headphones_rounded,
-                      value: _formatTime(profile.totalListenSecs),
+                      // totalListeningHours is in the profiles table (NUMERIC, hours)
+                      value: profile.formattedListeningTime,
                       label: 'Listened',
                     ),
                   ],
@@ -117,11 +118,6 @@ class ProfileScreen extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  String _formatTime(int secs) {
-    if (secs < 3600) return '${secs ~/ 60}m';
-    return '${secs ~/ 3600}h ${(secs % 3600) ~/ 60}m';
   }
 
   void _confirmLogout(BuildContext context, WidgetRef ref) {

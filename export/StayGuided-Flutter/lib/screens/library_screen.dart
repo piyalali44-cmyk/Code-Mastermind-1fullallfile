@@ -61,30 +61,32 @@ class LibraryScreen extends ConsumerWidget {
                     error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppConfig.error))),
                     data: (items) => items.isEmpty
                         ? _emptyState(Icons.headphones_outlined, 'এখনো কিছু শোনেননি', 'Home থেকে series শুরু করুন')
+                        // recentlyPlayedProvider returns rows from listening_history:
+                        // { content_id, series_id, title, series_name, duration_ms, listened_at }
                         : ListView.builder(
                             padding: const EdgeInsets.all(20),
                             itemCount: items.length,
                             itemBuilder: (_, i) {
                               final item = items[i];
-                              final ep = item['episodes'] as Map?;
-                              final s = ep?['series'] as Map?;
+                              final title = item['title']?.toString() ?? '';
+                              final seriesName = item['series_name']?.toString() ?? '';
+                              final seriesId = item['series_id']?.toString();
                               return ListTile(
                                 contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: SizedBox(
-                                    width: 56,
-                                    height: 56,
-                                    child: s?['cover_url'] != null
-                                        ? Image.network(s!['cover_url'], fit: BoxFit.cover)
-                                        : Container(color: AppConfig.bgCard, child: const Icon(Icons.headphones_rounded, color: AppConfig.textMuted)),
+                                leading: Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: AppConfig.bgCard,
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
+                                  child: const Icon(Icons.headphones_rounded, color: AppConfig.gold),
                                 ),
-                                title: Text(ep?['title']?.toString() ?? '', style: const TextStyle(color: AppConfig.textPrimary, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                subtitle: Text(s?['title']?.toString() ?? '', style: const TextStyle(color: AppConfig.textSecondary, fontSize: 12)),
+                                title: Text(title, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                subtitle: Text(seriesName, style: const TextStyle(color: AppConfig.textSecondary, fontSize: 12)),
+                                trailing: const Icon(Icons.play_circle_outline, color: AppConfig.gold),
                                 onTap: () {
-                                  final sId = ep?['series_id']?.toString();
-                                  if (sId != null) context.push('/series/$sId');
+                                  if (seriesId != null) context.push('/series/$seriesId');
                                 },
                               );
                             },

@@ -27,11 +27,14 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
     if (mounted) setState(() => _saved = saved);
   }
 
+  String _seriesTitle = '';
+
   Future<void> _toggleSave() async {
     if (_saved) {
       await SupabaseService().unsaveSeries(widget.seriesId);
     } else {
-      await SupabaseService().saveSeries(widget.seriesId);
+      // Pass title so bookmarks table has content for display
+      await SupabaseService().saveSeries(widget.seriesId, _seriesTitle);
     }
     setState(() => _saved = !_saved);
   }
@@ -49,6 +52,8 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
         error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AppConfig.error))),
         data: (series) {
           if (series == null) return const Center(child: Text('Series পাওয়া যায়নি', style: TextStyle(color: AppConfig.textSecondary)));
+          // Store title for save operation
+          WidgetsBinding.instance.addPostFrameCallback((_) { _seriesTitle = series.title; });
 
           return CustomScrollView(
             slivers: [
@@ -112,15 +117,6 @@ class _SeriesDetailScreenState extends ConsumerState<SeriesDetailScreen> {
                           child: const Text('Premium Content', style: TextStyle(color: AppConfig.gold, fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       Text(series.title, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      if (series.reciterName != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.mic_rounded, size: 16, color: AppConfig.gold),
-                            const SizedBox(width: 6),
-                            Text(series.reciterName!, style: const TextStyle(color: AppConfig.gold, fontSize: 14)),
-                          ],
-                        ),
                       const SizedBox(height: 12),
                       Text(series.description, style: const TextStyle(color: AppConfig.textSecondary, fontSize: 14, height: 1.6)),
                       const SizedBox(height: 16),

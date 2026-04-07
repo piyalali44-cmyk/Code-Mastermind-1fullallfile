@@ -39,11 +39,12 @@ class AudioPlayerService extends ChangeNotifier {
       _position = pos;
       notifyListeners();
       // Save progress every 10 seconds
+      // saveProgress expects milliseconds — DB columns are position_ms, duration_ms
       if (pos.inSeconds % 10 == 0 && _currentEpisode != null) {
         _db.saveProgress(
           _currentEpisode!.id,
-          pos.inSeconds,
-          _duration.inSeconds,
+          pos.inMilliseconds,
+          _duration.inMilliseconds,
         );
       }
     });

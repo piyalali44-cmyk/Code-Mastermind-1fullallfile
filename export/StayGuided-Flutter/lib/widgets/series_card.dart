@@ -41,8 +41,8 @@ class SeriesCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(series.title, style: const TextStyle(color: AppConfig.textPrimary, fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-          if (series.reciterName != null)
-            Text(series.reciterName!, style: const TextStyle(color: AppConfig.textSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+          if (series.episodeCount > 0)
+            Text('${series.episodeCount} episodes', style: const TextStyle(color: AppConfig.textSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
     );
