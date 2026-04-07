@@ -256,67 +256,117 @@ async function getMissingColumns(): Promise<string[]> {
 
 // ── Main entry points ─────────────────────────────────────────────────────────
 
+/**
+ * Try to call the `stayguided_apply_patches()` PostgreSQL function via the
+ * service-role client. This function is defined in master_patches.sql (PART 7)
+ * and runs all column/index additions idempotently inside the database, where
+ * DDL permissions are not restricted.
+ *
+ * Returns:
+ *  "ok"       – function ran successfully
+ *  "missing"  – function does not exist (master_patches.sql not yet run)
+ *  "error"    – function exists but returned an error
+ */
+async function runPatches_ViaRPC(): Promise<"ok" | "missing" | "error"> {
+  const admin = getAdmin();
+  if (!admin) return "missing";
+
+  try {
+    const { data, error } = await admin.rpc("stayguided_apply_patches");
+
+    if (error) {
+      // "Could not find the function" → not yet defined
+      if (/Could not find|function.*does not exist/i.test(error.message)) {
+        return "missing";
+      }
+      console.warn("[migrations/rpc] stayguided_apply_patches error:", error.message);
+      return "error";
+    }
+
+    const result = data as { ok: boolean; error?: string; applied_at?: string } | null;
+    if (result?.ok === false) {
+      console.warn("[migrations/rpc] patch function reported failure:", result.error);
+      return "error";
+    }
+
+    return "ok";
+  } catch (e: any) {
+    console.warn("[migrations/rpc] Unexpected error:", e.message);
+    return "error";
+  }
+}
+
 export async function applySchemaPatches(): Promise<void> {
   if (!SUPABASE_SERVICE_KEY && !SUPABASE_ACCESS_TOKEN) {
     console.warn("[migrations] No credentials available — skipping schema patches");
     return;
   }
 
-  // ── 1. Load consolidated patch file ────────────────────────────────────────
-  let patchSQL = "";
-  try {
-    patchSQL = readFileSync(MASTER_PATCHES_PATH, "utf-8");
-  } catch {
-    console.warn("[migrations] Could not read master_patches.sql — skipping DDL");
-  }
+  // ── 1. Try the RPC-based patch runner (self-healing after initial setup) ────
+  //       stayguided_apply_patches() lives inside Supabase so it runs DDL with
+  //       full database-level permissions, no personal access token needed.
+  const rpcResult = await runPatches_ViaRPC();
 
-  // ── 2. Execute DDL statements via Management API ────────────────────────────
-  let ddlOk = 0, ddlSkipped = 0, ddlFailed = 0;
+  if (rpcResult === "ok") {
+    console.log("[migrations] stayguided_apply_patches() RPC executed successfully");
+    // RPC handles DML too (badges, settings, referral codes) so skip separate seeds
+  } else {
+    if (rpcResult === "missing") {
+      // ── 2a. RPC not yet deployed → try Management API as fallback ─────────
+      let patchSQL = "";
+      try {
+        patchSQL = readFileSync(MASTER_PATCHES_PATH, "utf-8");
+      } catch {
+        console.warn("[migrations] Could not read master_patches.sql");
+      }
 
-  if (patchSQL && SUPABASE_ACCESS_TOKEN) {
-    const statements = splitStatements(patchSQL);
-    const ddlStatements = statements.filter(isDDL);
+      if (patchSQL && SUPABASE_ACCESS_TOKEN) {
+        const statements = splitStatements(patchSQL);
+        const ddlStatements = statements.filter(isDDL);
+        let ddlOk = 0, ddlFailed = 0;
 
-    for (const stmt of ddlStatements) {
-      const result = await runDDLViaManagementAPI(stmt + ";");
-      if (result === "ok")           ddlOk++;
-      else if (result === "skipped") ddlSkipped++;
-      else                           ddlFailed++;
+        for (const stmt of ddlStatements) {
+          const result = await runDDLViaManagementAPI(stmt + ";");
+          if (result === "ok") ddlOk++;
+          else if (result === "error") ddlFailed++;
+        }
+
+        if (_managementApiFailed) {
+          console.warn(
+            "[migrations] DDL skipped — SUPABASE_ACCESS_TOKEN is not a personal access token.\n" +
+            "To enable self-healing migrations:\n" +
+            "  1. Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor\n" +
+            "  2. This creates stayguided_apply_patches() so future restarts apply patches automatically."
+          );
+        } else {
+          console.log(`[migrations] Management API DDL: ${ddlOk} applied, ${ddlFailed} failed`);
+        }
+      } else {
+        // No PAT either — log one-time setup instructions
+        console.warn(
+          "[migrations] Schema patches require one-time manual setup:\n" +
+          "  Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor\n" +
+          "  This installs stayguided_apply_patches() so all future restarts are automatic."
+        );
+      }
     }
 
-    if (_managementApiFailed) {
-      console.warn(
-        "[migrations] Supabase Management API returned 401 — " +
-        "SUPABASE_ACCESS_TOKEN must be a personal access token from " +
-        "supabase.com/dashboard/account/tokens (NOT the service-role key).\n" +
-        "DDL patches not applied. Run artifacts/mobile/supabase/master_patches.sql " +
-        "in the Supabase Dashboard → SQL Editor to apply missing schema changes."
-      );
-    } else if (ddlOk > 0 || ddlFailed > 0) {
-      console.log(
-        `[migrations] DDL complete: ${ddlOk} applied, ${ddlFailed} failed, ${ddlSkipped} skipped`
-      );
-    }
-  } else if (!SUPABASE_ACCESS_TOKEN) {
-    console.warn(
-      "[migrations] SUPABASE_ACCESS_TOKEN not set — DDL patches skipped.\n" +
-      "Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor."
-    );
+    // ── 2b. Always run data-only seeds regardless of DDL outcome ─────────────
+    await seedBadges().catch((e) => console.warn("[migrations/seed] Badges:", e.message));
+    await seedSettings().catch((e) => console.warn("[migrations/seed] Settings:", e.message));
+    await normaliseReferralCodes().catch(() => {});
   }
 
-  // ── 3. Always run data operations via admin client ──────────────────────────
-  await seedBadges().catch((e) => console.warn("[migrations/seed] Badges:", e.message));
-  await seedSettings().catch((e) => console.warn("[migrations/seed] Settings:", e.message));
-  await normaliseReferralCodes().catch(() => {});
-
-  // ── 4. Report schema status ─────────────────────────────────────────────────
+  // ── 3. Report schema status ─────────────────────────────────────────────────
   const missing = await getMissingColumns().catch(() => [] as string[]);
   if (missing.length === 0) {
     console.log("[migrations] Schema check passed — all required columns present");
   } else {
     console.warn(
-      `[migrations] Missing columns: ${missing.join(", ")}.\n` +
-      "Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor."
+      `[migrations] Missing columns: ${missing.join(", ")}.` +
+      (rpcResult === "missing"
+        ? " Run master_patches.sql in Supabase Dashboard to fix."
+        : " Schema patch reported an error — check logs above.")
     );
   }
 }

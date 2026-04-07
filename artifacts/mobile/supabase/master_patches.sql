@@ -215,4 +215,64 @@ $func$;
 
 NOTIFY pgrst, 'reload schema';
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 7: stayguided_apply_patches() RPC
+-- API server calls this at startup via service-role client.
+-- After this file is run once in Supabase SQL Editor, every subsequent
+-- API server restart is self-healing for column additions and indexes.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.stayguided_apply_patches()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Column additions (all idempotent: ADD COLUMN IF NOT EXISTS)
+  ALTER TABLE public.episodes        ADD COLUMN IF NOT EXISTS image_url TEXT;
+  ALTER TABLE public.push_campaigns  ADD COLUMN IF NOT EXISTS image_url TEXT;
+  ALTER TABLE public.notifications   ADD COLUMN IF NOT EXISTS image_url TEXT;
+  ALTER TABLE public.profiles        ADD COLUMN IF NOT EXISTS push_token TEXT;
+  ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS store TEXT;
+  ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS product_id TEXT;
+  ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS original_transaction_id TEXT;
+
+  -- Indexes (all idempotent: CREATE INDEX IF NOT EXISTS)
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_store
+    ON public.subscriptions (store);
+  CREATE INDEX IF NOT EXISTS idx_profiles_referral_code_upper
+    ON public.profiles (upper(referral_code));
+  CREATE INDEX IF NOT EXISTS idx_profiles_referral_code
+    ON public.profiles (referral_code)
+    WHERE referral_code IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_referrals_referred_id
+    ON public.referrals (referred_id);
+
+  -- Data normalisation: uppercase all referral codes
+  UPDATE public.profiles
+  SET referral_code = upper(referral_code)
+  WHERE referral_code IS NOT NULL
+    AND referral_code != upper(referral_code);
+
+  -- Re-seed hadith badges (ON CONFLICT DO NOTHING = idempotent)
+  INSERT INTO public.badges (slug, name, description, icon, xp_reward) VALUES
+    ('hadith_start', 'Hadith Seeker',  'First hadith episode completed',  '📜', 15),
+    ('hadith_10',    'Hadith Student', 'Completed 10 hadith episodes',    '📚', 75),
+    ('hadith_40',    'Hadith Scholar', 'Completed 40 hadith episodes',    '🏛️', 300)
+  ON CONFLICT (slug) DO NOTHING;
+
+  -- Re-seed lifetime price setting (ON CONFLICT DO NOTHING = idempotent)
+  INSERT INTO public.app_settings (key, value, description, type)
+  VALUES ('lifetime_price_usd', '49.99', 'Lifetime subscription price (USD)', 'number')
+  ON CONFLICT (key) DO NOTHING;
+
+  RETURN jsonb_build_object('ok', true, 'applied_at', NOW()::text);
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object('ok', false, 'error', SQLERRM, 'state', SQLSTATE);
+END;
+$$;
+
+NOTIFY pgrst, 'reload schema';
+
 SELECT 'master_patches applied successfully' AS result;
