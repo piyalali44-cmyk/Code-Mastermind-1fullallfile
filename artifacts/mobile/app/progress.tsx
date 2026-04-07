@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
+import { useAppSettings } from "@/context/AppSettingsContext";
 import { checkAndAwardBadges, getEarnedBadgeSlugs, getHeatmapActivity, getJourneyCompletion, getWeeklyListeningMinutes } from "@/lib/db";
 import { useColors } from "@/hooks/useColors";
 
@@ -32,6 +33,7 @@ export default function ProgressScreen() {
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
   const { nowPlaying } = useAudio();
+  const { featureFlags } = useAppSettings();
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
 
@@ -283,21 +285,23 @@ export default function ProgressScreen() {
         </View>
 
         {/* ── Quizzes ── */}
-        <Pressable
-          onPress={() => router.push("/quiz" as never)}
-          style={[styles.journeyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        >
-          <View style={styles.journeyTop}>
-            <View style={{ gap: 2 }}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Quizzes</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Test your knowledge and earn XP</Text>
+        {featureFlags.quiz_mode && (
+          <Pressable
+            onPress={() => router.push("/quiz" as never)}
+            style={[styles.journeyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          >
+            <View style={styles.journeyTop}>
+              <View style={{ gap: 2 }}>
+                <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Quizzes</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Test your knowledge and earn XP</Text>
+              </View>
+              <View style={[styles.viewAllBtn, { backgroundColor: colors.gold + "18" }]}>
+                <Text style={[styles.viewAllText, { color: colors.goldLight }]}>Take Quiz</Text>
+                <Icon name="arrow-right" size={13} color={colors.goldLight} />
+              </View>
             </View>
-            <View style={[styles.viewAllBtn, { backgroundColor: colors.gold + "18" }]}>
-              <Text style={[styles.viewAllText, { color: colors.goldLight }]}>Take Quiz</Text>
-              <Icon name="arrow-right" size={13} color={colors.goldLight} />
-            </View>
-          </View>
-        </Pressable>
+          </Pressable>
+        )}
 
         {/* ── Badges ── */}
         <View style={[styles.badgesCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
