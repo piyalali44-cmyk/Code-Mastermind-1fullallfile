@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 
 class AppConfig {
   // ── Supabase ─────────────────────────────────────────────────────────────
-  // Pass these at build time via --dart-define flags:
-  //   flutter build apk \
-  //     --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-  //     --dart-define=SUPABASE_ANON_KEY=your-anon-key
-  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  static const String supabaseAnonKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY');
+  // Pass values at build time via --dart-define, e.g.:
+  //   flutter run --dart-define=SUPABASE_URL=https://... --dart-define=SUPABASE_ANON_KEY=ey...
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://tkruzfskhtcazjxdracm.supabase.co',
+  );
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: '',
+  );
 
   // ── App Info ──────────────────────────────────────────────────────────────
   static const String appName = 'StayGuided Me';
