@@ -604,7 +604,7 @@ export default function SeriesDetailScreen() {
 
       {/* Comment Modal */}
       <Modal visible={commentModal} transparent animationType="slide" onRequestClose={() => setCommentModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
             <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCommentModal(false)} />
             <View style={[cmtStyles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>

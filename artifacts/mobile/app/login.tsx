@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Icon } from "@/components/Icon";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { ReferralCodeInput } from "@/components/ReferralCodeInput";
 import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAuth, PENDING_REFERRAL_KEY } from "@/context/AuthContext";
@@ -9,10 +10,8 @@ import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -141,18 +140,16 @@ export default function LoginScreen() {
   });
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollViewCompat
       style={{ flex: 1, backgroundColor: colors.background }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 40 },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bottomOffset={Platform.OS === "ios" ? 20 : 40}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.container,
-          { paddingTop: insets.top + 48, paddingBottom: insets.bottom + 40 },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
         <View style={styles.header}>
           <View style={[styles.logoWrap, { backgroundColor: colors.gold + "1A", borderColor: colors.gold + "40" }]}>
             <View style={[styles.logoBg, { backgroundColor: colors.gold }]}>
@@ -286,9 +283,7 @@ export default function LoginScreen() {
             <Text style={{ color: colors.goldLight, textDecorationLine: "underline" }} onPress={() => router.push("/privacy-policy" as Href)}>Privacy Policy</Text>
           </Text>
         </View>
-      </ScrollView>
-
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollViewCompat>
   );
 }
 
