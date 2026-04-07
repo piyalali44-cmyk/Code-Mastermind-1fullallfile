@@ -45,7 +45,7 @@ export async function ensureLikesCommentsTables(): Promise<void> {
   }
 }
 
-const SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
+const SUPABASE_URL = process.env["SUPABASE_URL"] ?? "https://tkruzfskhtcazjxdracm.supabase.co";
 const SUPABASE_SERVICE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
 
 export async function seedRateLimitDefaults(): Promise<void> {
