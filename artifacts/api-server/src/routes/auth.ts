@@ -494,7 +494,7 @@ router.get("/user/stats", async (req, res) => {
     const [xpRes, streakRes, profileRes, historyRes, progressRes] = await Promise.all([
       admin.from("user_xp").select("total_xp, level").eq("user_id", userId).maybeSingle(),
       admin.from("user_streaks").select("current_streak, longest_streak").eq("user_id", userId).maybeSingle(),
-      admin.from("profiles").select("subscription_tier, display_name, avatar_url, bio, country, joined_at").eq("id", userId).maybeSingle(),
+      admin.from("profiles").select("subscription_tier, display_name, avatar_url, bio, country, joined_at, first_active_at").eq("id", userId).maybeSingle(),
       admin.from("listening_history").select("duration_ms").eq("user_id", userId),
       admin.from("listening_progress").select("position_ms").eq("user_id", userId),
     ]);
@@ -524,7 +524,8 @@ router.get("/user/stats", async (req, res) => {
       avatar_url:           (profileRes.data as any)?.avatar_url    ?? null,
       bio:                  (profileRes.data as any)?.bio            ?? null,
       country:              (profileRes.data as any)?.country        ?? null,
-      joined_at:            (profileRes.data as any)?.joined_at     ?? null,
+      joined_at:            (profileRes.data as any)?.joined_at      ?? null,
+      first_active_at:      (profileRes.data as any)?.first_active_at ?? null,
       total_hours_listened: totalHoursListened,
     });
   } catch (err: any) {

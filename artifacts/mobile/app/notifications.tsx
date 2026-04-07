@@ -96,7 +96,7 @@ export default function NotificationsScreen() {
     if (!user) { setLoading(false); return; }
     let active = true;
     const load = async () => {
-      const notifs = await getNotifications(user.id, user.joinDate);
+      const notifs = await getNotifications(user.id, user.joinDate, user.firstActiveAt);
       if (active) {
         setNotifications(notifs);
         setLoading(false);
@@ -113,7 +113,7 @@ export default function NotificationsScreen() {
         table: "notifications",
         filter: `user_id=eq.${user.id}`,
       }, () => {
-        getNotifications(user.id, user.joinDate).then((notifs) => {
+        getNotifications(user.id, user.joinDate, user.firstActiveAt).then((notifs) => {
           if (active) setNotifications(notifs);
         });
       })

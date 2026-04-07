@@ -617,7 +617,7 @@ export async function fetchMyStats(token: string): Promise<{
   xp: number; level: number; streak: number; longest_streak: number;
   is_premium: boolean; display_name: string | null; avatar_url: string | null;
   bio: string | null; country: string | null; joined_at: string | null;
-  total_hours_listened: number;
+  first_active_at: string | null; total_hours_listened: number;
 } | null> {
   try {
     const controller = new AbortController();
@@ -799,7 +799,7 @@ export interface DbNotification {
   created_at: string;
 }
 
-export async function getNotifications(userId: string, joinedAt?: string): Promise<DbNotification[]> {
+export async function getNotifications(userId: string, joinedAt?: string, firstActiveAt?: string): Promise<DbNotification[]> {
   try {
     let query = supabase
       .from("notifications")
@@ -807,8 +807,13 @@ export async function getNotifications(userId: string, joinedAt?: string): Promi
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
-    if (joinedAt) {
-      query = query.gte("created_at", joinedAt);
+    // Use the later of joinedAt / firstActiveAt as the inbox start so campaigns
+    // sent before the user actually installed the app don't flood their inbox.
+    const cutoff = firstActiveAt && joinedAt
+      ? (firstActiveAt > joinedAt ? firstActiveAt : joinedAt)
+      : (firstActiveAt ?? joinedAt);
+    if (cutoff) {
+      query = query.gte("created_at", cutoff);
     }
     const { data, error } = await query;
     if (error) throw error;
