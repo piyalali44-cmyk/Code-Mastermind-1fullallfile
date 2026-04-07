@@ -6,7 +6,7 @@
  *     Reapplies ALL patches: columns, indexes, admin functions, RLS policies,
  *     coupon tables, referral functions, grants, and data seeds.
  *  2. If RPC missing (fresh DB) → apply master_patches.sql via Management API
- *     (uses SUPABASE_ACCESS_TOKEN, set as a Replit secret).
+ *     (uses SUPABASE_ACCESS_TOKEN, set as an environment variable/secret).
  *     This creates stayguided_apply_patches() so step 1 works on every future restart.
  *  3. Seed DML (badges, settings, referral codes) via service-role JS client.
  *  4. Final schema status check and log.
@@ -15,8 +15,8 @@
  *  - Normal operation (RPC exists): fully self-healing with service-role key only.
  *    Every restart re-creates all functions, RLS policies, and columns.
  *  - Fresh deploy (RPC not yet created): requires SUPABASE_ACCESS_TOKEN PAT once
- *    to bootstrap stayguided_apply_patches() via Management API. The PAT is set
- *    as a Replit secret so this path is automatic on first deployment.
+ *    to bootstrap stayguided_apply_patches() via Management API. Set the PAT
+ *    as an environment variable/secret for automatic bootstrapping on first deploy.
  *  - No manual SQL Editor step is ever required.
  */
 

@@ -461,8 +461,6 @@ export default function SeriesDetailScreen() {
             </View>
           </>
         }
-        data={series.episodes}
-        keyExtractor={(item) => item.id}
         renderItem={({ item: ep }) => {
           const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
           const isPlaying = nowPlaying?.id === ep.id;

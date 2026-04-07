@@ -41,7 +41,7 @@ export default function SearchScreen() {
             episodeTitle: ep.title,
             episodeNumber: ep.number,
             coverColor: s.coverColor,
-            coverUrl: ep.coverUrl || s.coverUrl,
+            coverUrl: ep.coverUrl || s.coverUrl || "",
           });
           if (results.length >= 10) break;
         }

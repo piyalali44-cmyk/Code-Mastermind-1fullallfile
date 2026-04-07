@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
 
@@ -31,23 +30,8 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
   ],
   define: {
-    // Public Supabase configuration — safe to embed in the browser bundle.
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
       process.env.VITE_SUPABASE_URL ||
       process.env.EXPO_PUBLIC_SUPABASE_URL ||
@@ -58,11 +42,8 @@ export default defineConfig({
       process.env.VITE_SUPABASE_ANON_KEY ||
       ""
     ),
-    // NOTE: The service-role key is NOT injected here — it must never be
-    // embedded in the browser bundle. Admin operations that require the
-    // service role (invite/delete user) are proxied through /api/admin/*
-    // endpoints in the API server, which holds the key server-side only.
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
+      process.env.VITE_API_BASE_URL ||
       process.env.EXPO_PUBLIC_API_BASE_URL ||
       process.env.EXPO_PUBLIC_API_URL ||
       (process.env.REPLIT_DEV_DOMAIN

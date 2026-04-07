@@ -26,8 +26,8 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - Env vars set (shared): `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `SUPABASE_URL`, `VITE_SUPABASE_URL`
 - Admin panel uses Vite `define` in vite.config.ts to expose: `VITE_SUPABASE_ANON_KEY` (from `EXPO_PUBLIC_SUPABASE_ANON_KEY`) and `VITE_SUPABASE_SERVICE_KEY` (from `SUPABASE_SERVICE_ROLE_KEY`)
 - API server uses Replit's built-in `DATABASE_URL` for local PostgreSQL (likes/comments tables) and Supabase JS client with `SUPABASE_SERVICE_ROLE_KEY` for all Supabase operations
-- `VITE_API_BASE_URL` in admin panel dynamically resolves to `https://$REPLIT_DEV_DOMAIN/api`
-- Mobile app `app.config.js` uses `REPLIT_DEV_DOMAIN` to set `EXPO_PUBLIC_API_BASE_URL` at startup
+- `VITE_API_BASE_URL` in admin panel resolves via: `VITE_API_BASE_URL` → `EXPO_PUBLIC_API_BASE_URL` → `REPLIT_DEV_DOMAIN` → `/api` (relative fallback)
+- Mobile app `app.config.js` resolves API URL via: `EXPO_PUBLIC_API_BASE_URL` → `EXPO_PUBLIC_DOMAIN` → `REPLIT_DEV_DOMAIN` → `localhost:8080/api`
 - **NOTE**: Direct PostgreSQL connections to Supabase (port 5432) are blocked from Replit; use Supabase JS client via REST API instead
 
 ### Database Status

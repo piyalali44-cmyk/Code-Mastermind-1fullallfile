@@ -28,19 +28,18 @@ app.use(
 );
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Base patterns that cover the Replit dev proxy and local development.
+// Base patterns that allow localhost development and Replit-hosted previews.
+// For production on any other host, add origins via the ALLOWED_ORIGINS env var.
 const BASE_ORIGIN_PATTERNS: RegExp[] = [
   /\.replit\.dev$/,
-  /\.sisko\.replit\.dev$/,
-  /\.expo\.sisko\.replit\.dev$/,
   /\.replit\.app$/,
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
 
-// ALLOWED_ORIGINS — comma-separated list of exact origins added at deploy time.
+// ALLOWED_ORIGINS — comma-separated list of exact origins for production.
 // Example: ALLOWED_ORIGINS=https://admin.example.com,https://app.example.com
-// In production these should include any custom domain or deployed app origin.
+// Set this environment variable to permit your production client origins.
 const envOrigins: string[] =
   (process.env.ALLOWED_ORIGINS ?? "")
     .split(",")
@@ -49,9 +48,8 @@ const envOrigins: string[] =
 
 if (process.env.NODE_ENV === "production" && envOrigins.length === 0) {
   logger.warn(
-    "ALLOWED_ORIGINS is not set. CORS will use only Replit pattern defaults. " +
-    "Set ALLOWED_ORIGINS to a comma-separated list of deployed origin URLs " +
-    "to explicitly permit production clients.",
+    "ALLOWED_ORIGINS is not set. " +
+    "Set ALLOWED_ORIGINS to a comma-separated list of your production client origins.",
   );
 }
 

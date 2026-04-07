@@ -865,7 +865,7 @@ export default function HomeScreen() {
               data={continueItems.slice(0, 5)}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.episodeId}
+              keyExtractor={(item) => item.contentId}
               contentContainerStyle={{ paddingLeft: 16, gap: 12 }}
               removeClippedSubviews={true}
               initialNumToRender={3}
