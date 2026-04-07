@@ -2,19 +2,22 @@
  * Supabase schema migration runner.
  *
  * Strategy (order matters, all steps are safe to re-run):
- *  1. Quick schema check — if all required columns are present, skip heavy work.
- *  2. Try RPC stayguided_apply_patches() — fast, needs no external token.
- *  3. If RPC missing or schema still incomplete → run DDL via Management API
- *     (requires SUPABASE_ACCESS_TOKEN personal access token).
- *  4. Seed DML (badges, settings, referral codes) via service-role JS client.
- *  5. Final schema check and log.
+ *  1. Try RPC stayguided_apply_patches() — comprehensive, no external token needed.
+ *     Reapplies ALL patches: columns, indexes, admin functions, RLS policies,
+ *     coupon tables, referral functions, grants, and data seeds.
+ *  2. If RPC missing (fresh DB) → apply master_patches.sql via Management API
+ *     (uses SUPABASE_ACCESS_TOKEN, set as a Replit secret).
+ *     This creates stayguided_apply_patches() so step 1 works on every future restart.
+ *  3. Seed DML (badges, settings, referral codes) via service-role JS client.
+ *  4. Final schema status check and log.
  *
- * This means:
- *  - On a fresh deploy with a valid PAT: Management API applies DDL automatically.
- *  - After the first successful run: the RPC exists and handles future restarts
- *    without any external token.
- *  - No manual SQL Editor step is ever required as long as SUPABASE_ACCESS_TOKEN
- *    is present (it is set as a Replit secret).
+ * Self-healing guarantees:
+ *  - Normal operation (RPC exists): fully self-healing with service-role key only.
+ *    Every restart re-creates all functions, RLS policies, and columns.
+ *  - Fresh deploy (RPC not yet created): requires SUPABASE_ACCESS_TOKEN PAT once
+ *    to bootstrap stayguided_apply_patches() via Management API. The PAT is set
+ *    as a Replit secret so this path is automatic on first deployment.
+ *  - No manual SQL Editor step is ever required.
  */
 
 import { createClient } from "@supabase/supabase-js";
