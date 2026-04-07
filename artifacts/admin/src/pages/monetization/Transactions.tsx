@@ -170,7 +170,21 @@ export default function Transactions() {
         return;
       }
 
-      const subs: SubscriptionRow[] = (finalSubsRes.data ?? []) as unknown as SubscriptionRow[];
+      const rawRows = (finalSubsRes.data ?? []) as unknown as Array<Record<string, unknown>>;
+      const subs: SubscriptionRow[] = rawRows.map(row => ({
+        id: row["id"] as string,
+        user_id: row["user_id"] as string,
+        plan: row["plan"] as SubscriptionRow["plan"],
+        status: row["status"] as SubscriptionRow["status"],
+        started_at: row["started_at"] as string,
+        expires_at: (row["expires_at"] as string) ?? null,
+        provider: (row["provider"] as string) ?? "",
+        provider_subscription_id: (row["provider_subscription_id"] as string) ?? null,
+        store: (row["store"] as string) ?? null,
+        product_id: (row["product_id"] as string) ?? null,
+        original_transaction_id: (row["original_transaction_id"] as string) ?? null,
+        created_at: row["created_at"] as string,
+      }));
 
       /* fetch profiles separately to avoid FK-join issues */
       let enriched: Subscription[] = subs.map(s => ({ ...s, profile: null }));
