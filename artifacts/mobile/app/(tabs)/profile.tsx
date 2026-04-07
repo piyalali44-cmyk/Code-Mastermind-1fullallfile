@@ -12,7 +12,7 @@ import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useColors } from "@/hooks/useColors";
-import { ReferralStats, ReferralHistoryItem, applyReferralCode, getReferralHistory, getMyReferrer, getReferralStats, getUserReferralCode } from "@/lib/db";
+import { ReferralStats, ReferralHistoryItem, applyReferralCode, getReferralHistory, getMyReferrer, getReferralStats, getUserReferralCode, getTotalHoursListened } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 
 interface MenuItemProps {
@@ -179,20 +179,16 @@ export default function ProfileScreen() {
     let active = true;
     setCodeLoading(true);
     (async () => {
-      const [code, stats, progressRes] = await Promise.all([
+      const [code, stats, hrs] = await Promise.all([
         getUserReferralCode(user.id),
         getReferralStats(user.id),
-        supabase.from("listening_progress").select("position_ms").eq("user_id", user.id),
+        getTotalHoursListened(user.id),
       ]);
       if (!active) return;
       setMyCode(code);
       setCodeLoading(false);
       setRefStats(stats);
-      if (progressRes.data) {
-        const totalMs = progressRes.data.reduce((sum: number, r: any) => sum + (r.position_ms ?? 0), 0);
-        const hrs = Math.round((totalMs / 3_600_000) * 10) / 10;
-        if (hrs > 0) setHoursListened(hrs);
-      }
+      if (hrs > 0) setHoursListened(hrs);
     })();
     return () => { active = false; };
   }, [user?.id]);
@@ -377,8 +373,14 @@ export default function ProfileScreen() {
 
         <View style={[styles.statsRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.goldLight }]}>{hoursListened}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Hours</Text>
+            <Text style={[styles.statNum, { color: colors.goldLight }]}>
+              {hoursListened >= 1
+                ? `${hoursListened}h`
+                : hoursListened > 0
+                  ? `${Math.round(hoursListened * 60)}m`
+                  : "0m"}
+            </Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Listened</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.divider }]} />
           <View style={styles.statItem}>

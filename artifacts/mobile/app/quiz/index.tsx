@@ -62,8 +62,8 @@ export default function QuizListScreen() {
 
       setQuizzes(
         (data ?? [])
-          .filter((q: { id: string }) => (counts[q.id] ?? 0) > 0)
-          .map((q: { id: string }) => ({ ...q, question_count: counts[q.id] ?? 0 }))
+          .filter((q: any) => (counts[q.id] ?? 0) > 0)
+          .map((q: any) => ({ ...q, question_count: counts[q.id] ?? 0 } as Quiz))
       );
 
       if (user?.id) {

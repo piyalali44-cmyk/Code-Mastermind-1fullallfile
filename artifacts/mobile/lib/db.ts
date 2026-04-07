@@ -111,6 +111,7 @@ export async function addToHistory(userId: string, entry: { contentType: "surah"
       series_name: entry.seriesName ?? null,
       series_id: entry.seriesId ?? null,
       duration_ms: entry.durationMs ?? 0,
+      listened_at: new Date().toISOString(),
     }).select("id").single();
     if (error) console.warn("[addToHistory]", error.message);
     return data?.id ?? null;
