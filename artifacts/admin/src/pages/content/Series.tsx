@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,27 +60,50 @@ export default function SeriesPage() {
   const [pageSize, setPageSize] = useState(25);
 
   const { profile } = useAuth();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingRef = useRef(false);
 
-  async function load() {
+  const load = useCallback(async (debounce = false) => {
+    if (debounce) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => loadNow(), 400);
+      return;
+    }
+    loadNow();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadNow() {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     const [{ data: seriesData }, { data: cats }] = await Promise.all([
       supabase.from("series").select("*, category:categories(id,name)").order("created_at", { ascending: false }),
       supabase.from("categories").select("*").order("order_index"),
     ]);
-    setItems(seriesData ?? []);
+    // Deduplicate by id
+    const raw = seriesData ?? [];
+    const seen = new Set<string>();
+    const unique = raw.filter((s: Series) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+    setItems(unique);
     setCategories(cats ?? []);
     setLoading(false);
+    loadingRef.current = false;
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     const channel = supabase
       .channel("admin-series-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "series" }, () => { load(); })
-      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => { load(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "series" }, () => { load(true); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => { load(true); })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function openNew() { setForm(blank()); setEditing(null); setSheetOpen(true); }
