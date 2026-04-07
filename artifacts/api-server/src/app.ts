@@ -28,28 +28,49 @@ app.use(
 );
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Allow requests from the Replit dev domain and any localhost origin in dev.
-// In production this is locked to the deployed domain via the REPLIT_DEV_DOMAIN
-// environment variable.
-const allowedOrigins = [
+// Base patterns that cover the Replit dev proxy and local development.
+const BASE_ORIGIN_PATTERNS: RegExp[] = [
   /\.replit\.dev$/,
   /\.sisko\.replit\.dev$/,
   /\.expo\.sisko\.replit\.dev$/,
+  /\.replit\.app$/,
   /^http:\/\/localhost(:\d+)?$/,
   /^http:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
 
+// ALLOWED_ORIGINS — comma-separated list of exact origins added at deploy time.
+// Example: ALLOWED_ORIGINS=https://admin.example.com,https://app.example.com
+// In production these should include any custom domain or deployed app origin.
+const envOrigins: string[] =
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+if (process.env.NODE_ENV === "production" && envOrigins.length === 0) {
+  logger.warn(
+    "ALLOWED_ORIGINS is not set. CORS will use only Replit pattern defaults. " +
+    "Set ALLOWED_ORIGINS to a comma-separated list of deployed origin URLs " +
+    "to explicitly permit production clients.",
+  );
+}
+
+function isOriginAllowed(origin: string): boolean {
+  // Check exact matches from ALLOWED_ORIGINS env var
+  if (envOrigins.includes(origin)) return true;
+  // Check built-in patterns
+  return BASE_ORIGIN_PATTERNS.some((pattern) => pattern.test(origin));
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no Origin header (e.g. mobile native, Postman, server-to-server).
       if (!origin) {
         callback(null, true);
         return;
       }
-      const allowed = allowedOrigins.some((pattern) =>
-        typeof pattern === "string" ? pattern === origin : pattern.test(origin),
-      );
-      callback(null, allowed);
+      callback(null, isOriginAllowed(origin));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
