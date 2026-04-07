@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -126,6 +128,10 @@ export default function ReportModal({ visible, onClose, contentId, contentType, 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
       <Pressable style={s.overlay} onPress={handleClose}>
         <Pressable
           style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -253,6 +259,7 @@ export default function ReportModal({ visible, onClose, contentId, contentType, 
           )}
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -4,8 +4,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -77,7 +78,7 @@ export default function ContactScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: hasMiniplayer ? 148 : 108 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -186,7 +187,7 @@ export default function ContactScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Toast
         visible={toast.visible}

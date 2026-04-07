@@ -5,8 +5,9 @@ import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -110,7 +111,7 @@ export default function EditProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 24, gap: 28 }} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollViewCompat contentContainerStyle={{ padding: 24, gap: 28 }} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: "center", gap: 12 }}>
           <Pressable onPress={pickImage} style={{ alignItems: "center" }}>
             <View style={[styles.avatarWrap, { backgroundColor: colors.gold, borderColor: colors.gold + "44" }]}>
@@ -175,7 +176,7 @@ export default function EditProfileScreen() {
             Your profile is visible to others on the leaderboard. Choose a display name you're comfortable sharing.
           </Text>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Toast
         visible={toast.visible}

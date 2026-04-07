@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -445,7 +445,7 @@ export default function ResetPasswordScreen() {
         </View>
       )}
 
-      <ScrollView
+      <KeyboardAwareScrollViewCompat
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -454,7 +454,7 @@ export default function ResetPasswordScreen() {
         {step === "code" && renderCodeStep()}
         {step === "newPassword" && renderNewPasswordStep()}
         {step === "done" && renderDoneStep()}
-      </ScrollView>
+      </KeyboardAwareScrollViewCompat>
 
       <Toast
         visible={toast.visible}
