@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit2, Trash2, GripVertical, FolderTree, ImageIcon } from "lucide-react";
 import ImageUpload from "@/components/ImageUpload";
@@ -21,6 +22,14 @@ export default function Categories() {
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [associatedSeriesCount, setAssociatedSeriesCount] = useState(0);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+
   const { profile } = useAuth();
   const { toast } = useToast();
 
@@ -96,6 +105,57 @@ export default function Categories() {
     }
   }
 
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.from("categories").delete().in("id", ids);
+      if (error) throw error;
+      if (profile) {
+        supabase.from("admin_activity_log").insert({
+          admin_id: profile.id,
+          action: "bulk_categories_deleted",
+          entity_type: "category",
+          details: { count: ids.length, ids }
+        }).then(() => {}, () => {});
+      }
+      toast({ title: "Deleted", description: `${ids.length} ${ids.length === 1 ? "category" : "categories"} deleted` });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      fetchCategories();
+    } catch (err: unknown) {
+      toast({ variant: "destructive", title: "Error", description: (err as Error).message });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const pageItems = categories.slice(page * pageSize, (page + 1) * pageSize);
+  const allPageSelected = pageItems.length > 0 && pageItems.every(c => selectedIds.has(c.id));
+  const somePageSelected = pageItems.some(c => selectedIds.has(c.id));
+
+  function toggleSelectAll() {
+    if (allPageSelected) {
+      const next = new Set(selectedIds);
+      pageItems.forEach(c => next.delete(c.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      pageItems.forEach(c => next.add(c.id));
+      setSelectedIds(next);
+    }
+  }
+
+  const colSpan = 7;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -103,17 +163,34 @@ export default function Categories() {
           <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">Categories</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{categories.length} categories configured</p>
         </div>
-        <CategoryForm onSave={fetchCategories}>
-          <Button className="gap-2 shrink-0"><Plus className="w-4 h-4"/> <span className="hidden sm:inline">New</span> Category</Button>
-        </CategoryForm>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="w-4 h-4" />
+              Delete ({selectedIds.size})
+            </Button>
+          )}
+          <CategoryForm onSave={fetchCategories}>
+            <Button className="gap-2 shrink-0"><Plus className="w-4 h-4"/> <span className="hidden sm:inline">New</span> Category</Button>
+          </CategoryForm>
+        </div>
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="w-10 pl-4">
+                  <input
+                    type="checkbox"
+                    className="rounded border-border cursor-pointer"
+                    checked={allPageSelected}
+                    ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                    onChange={toggleSelectAll}
+                  />
+                </TableHead>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Access</TableHead>
@@ -125,14 +202,14 @@ export default function Categories() {
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 6 }).map((__, j) => (
+                    {Array.from({ length: colSpan }).map((__, j) => (
                       <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : categories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-16 text-center">
+                  <TableCell colSpan={colSpan} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <FolderTree className="h-10 w-10 opacity-30" />
                       <p className="font-medium">No categories found</p>
@@ -141,8 +218,16 @@ export default function Categories() {
                   </TableCell>
                 </TableRow>
               ) : (
-                categories.map((cat) => (
-                  <TableRow key={cat.id} className="transition-colors hover:bg-muted/20">
+                pageItems.map((cat) => (
+                  <TableRow key={cat.id} className={`transition-colors hover:bg-muted/20 ${selectedIds.has(cat.id) ? "bg-primary/5" : ""}`}>
+                    <TableCell className="pl-4">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border cursor-pointer"
+                        checked={selectedIds.has(cat.id)}
+                        onChange={() => toggleSelect(cat.id)}
+                      />
+                    </TableCell>
                     <TableCell><GripVertical className="w-4 h-4 text-muted-foreground cursor-move" /></TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
@@ -186,8 +271,17 @@ export default function Categories() {
             </TableBody>
           </Table>
         </CardContent>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={categories.length}
+          pageSizeOptions={[10, 25, 50]}
+          onPageChange={p => { setPage(p); setSelectedIds(new Set()); }}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
+      {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -208,6 +302,24 @@ export default function Categories() {
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" disabled={deleteLoading} onClick={() => deleteTarget && deleteCategory(deleteTarget)}>
               {deleteLoading ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={o => !o && setBulkDeleteOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} {selectedIds.size === 1 ? "Category" : "Categories"}</DialogTitle>
+            <DialogDescription>
+              Permanently delete <strong>{selectedIds.size} selected {selectedIds.size === 1 ? "category" : "categories"}</strong>? This may affect associated series and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
+              {bulkDeleting ? "Deleting..." : `Delete ${selectedIds.size}`}
             </Button>
           </DialogFooter>
         </DialogContent>

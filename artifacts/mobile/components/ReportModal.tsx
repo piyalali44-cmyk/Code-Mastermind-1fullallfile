@@ -32,13 +32,13 @@ interface Props {
   contentTitle: string;
 }
 
-const REASONS: { key: ReportReason; label: string; icon: string; desc: string }[] = [
-  { key: "incorrect_info", label: "Incorrect Information",  icon: "alert-circle",   desc: "Facts or details are wrong or outdated" },
-  { key: "poor_audio",     label: "Poor Audio Quality",     icon: "volume-x",       desc: "Audio is distorted, unclear or missing" },
-  { key: "misleading",     label: "Misleading Content",     icon: "alert-triangle", desc: "Title or description does not match content" },
-  { key: "inappropriate",  label: "Inappropriate Content",  icon: "shield-off",     desc: "Content violates Islamic values or guidelines" },
-  { key: "copyright",      label: "Copyright Issue",        icon: "lock",           desc: "Content uses material without permission" },
-  { key: "other",          label: "Other",                  icon: "more-horizontal", desc: "Something else — please describe below" },
+const REASONS: { key: ReportReason; label: string; icon: string; desc: string; color: string }[] = [
+  { key: "incorrect_info", label: "Incorrect Information",  icon: "alert-circle",   desc: "Facts or details are wrong or outdated",             color: "#f59e0b" },
+  { key: "poor_audio",     label: "Poor Audio Quality",     icon: "volume-x",       desc: "Audio is distorted, unclear or missing",             color: "#3b82f6" },
+  { key: "misleading",     label: "Misleading Content",     icon: "alert-triangle", desc: "Title or description does not match content",        color: "#eab308" },
+  { key: "inappropriate",  label: "Inappropriate Content",  icon: "shield-off",     desc: "Content violates Islamic values or guidelines",      color: "#ef4444" },
+  { key: "copyright",      label: "Copyright Issue",        icon: "lock",           desc: "Content uses material without permission",           color: "#8b5cf6" },
+  { key: "other",          label: "Other",                  icon: "more-horizontal", desc: "Something else — please describe below",            color: "#6b7280" },
 ];
 
 type Step = "select" | "describe" | "done";
@@ -166,8 +166,8 @@ export default function ReportModal({ visible, onClose, contentId, contentType, 
                   ]}
                   onPress={() => handleSelectReason(r.key)}
                 >
-                  <View style={[s.reasonIcon, { backgroundColor: colors.surfaceHigh }]}>
-                    <Icon name={r.icon} size={18} color={colors.goldLight} />
+                  <View style={[s.reasonIcon, { backgroundColor: r.color + "22" }]}>
+                    <Icon name={r.icon} size={18} color={r.color} />
                   </View>
                   <View style={s.reasonText}>
                     <Text style={[s.reasonLabel, { color: colors.textPrimary }]}>{r.label}</Text>
@@ -189,9 +189,9 @@ export default function ReportModal({ visible, onClose, contentId, contentType, 
               </Pressable>
 
               {selectedReason && (
-                <View style={[s.reasonRow, { backgroundColor: colors.goldLight + "12", borderColor: colors.goldLight + "40" }]}>
-                  <View style={[s.reasonIcon, { backgroundColor: colors.goldLight + "20" }]}>
-                    <Icon name={selectedReason.icon} size={18} color={colors.goldLight} />
+                <View style={[s.reasonRow, { backgroundColor: selectedReason.color + "12", borderColor: selectedReason.color + "40" }]}>
+                  <View style={[s.reasonIcon, { backgroundColor: selectedReason.color + "22" }]}>
+                    <Icon name={selectedReason.icon} size={18} color={selectedReason.color} />
                   </View>
                   <View style={s.reasonText}>
                     <Text style={[s.reasonLabel, { color: colors.textPrimary }]}>{selectedReason.label}</Text>

@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Search, BookOpen } from "lucide-react";
 import ImageUpload from "@/components/ImageUpload";
@@ -43,6 +44,14 @@ export default function SeriesPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Series | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+
   const { profile } = useAuth();
 
   async function load() {
@@ -115,11 +124,60 @@ export default function SeriesPage() {
     } catch (err: unknown) { toast.error((err as Error).message); }
   }
 
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.from("series").delete().in("id", ids);
+      if (error) throw error;
+      supabase.from("admin_activity_log").insert({
+        admin_id: profile?.id, action: "Bulk deleted series",
+        entity_type: "series", details: { count: ids.length, ids },
+      }).then(() => {}, () => {});
+      toast.success(`${ids.length} ${ids.length === 1 ? "series" : "series"} deleted`);
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      load();
+    } catch (err: unknown) { toast.error((err as Error).message); }
+    finally { setBulkDeleting(false); }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   const filtered = items.filter(s => {
     const matchSearch = !search || s.title.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === "all" || s.pub_status === filterStatus;
     return matchSearch && matchStatus;
   });
+
+  const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const allPageSelected = pageItems.length > 0 && pageItems.every(s => selectedIds.has(s.id));
+  const somePageSelected = pageItems.some(s => selectedIds.has(s.id));
+
+  function toggleSelectAll() {
+    if (allPageSelected) {
+      const next = new Set(selectedIds);
+      pageItems.forEach(s => next.delete(s.id));
+      setSelectedIds(next);
+    } else {
+      const next = new Set(selectedIds);
+      pageItems.forEach(s => next.add(s.id));
+      setSelectedIds(next);
+    }
+  }
+
+  function handleFilterChange() {
+    setPage(0);
+    setSelectedIds(new Set());
+  }
+
+  const colSpan = 9;
 
   return (
     <div className="space-y-5">
@@ -128,94 +186,102 @@ export default function SeriesPage() {
           <h1 className="text-xl md:text-2xl font-bold text-foreground">Series</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{items.length} series total</p>
         </div>
-        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <SheetTrigger asChild>
-            <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />New Series</Button>
-          </SheetTrigger>
-          <SheetContent className="w-[500px] overflow-y-auto">
-            <SheetHeader><SheetTitle>{editing ? "Edit Series" : "New Series"}</SheetTitle></SheetHeader>
-            <div className="space-y-4 mt-6">
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete ({selectedIds.size})
+            </Button>
+          )}
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />New Series</Button>
+            </SheetTrigger>
+            <SheetContent className="w-[500px] overflow-y-auto">
+              <SheetHeader><SheetTitle>{editing ? "Edit Series" : "New Series"}</SheetTitle></SheetHeader>
+              <div className="space-y-4 mt-6">
 
-              <ImageUpload
-                value={form.cover_url || ""}
-                onChange={(url) => setForm(f => ({ ...f, cover_url: url }))}
-                label="Cover Image"
-                folder="series"
-                shape="square"
-                placeholder="Upload cover or paste URL"
-              />
+                <ImageUpload
+                  value={form.cover_url || ""}
+                  onChange={(url) => setForm(f => ({ ...f, cover_url: url }))}
+                  label="Cover Image"
+                  folder="series"
+                  shape="square"
+                  placeholder="Upload cover or paste URL"
+                />
 
-              <div className="space-y-1">
-                <Label>Title *</Label>
-                <Input value={form.title || ""} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Series title" />
-              </div>
-              <div className="space-y-1">
-                <Label>Category</Label>
-                <Select value={form.category_id || ""} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Short Summary</Label>
-                <Input value={form.short_summary || ""} onChange={e => setForm(f => ({ ...f, short_summary: e.target.value }))} placeholder="Brief description shown in listings" />
-              </div>
-              <div className="space-y-1">
-                <Label>Full Description</Label>
-                <Textarea rows={4} value={form.description || ""} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Detailed description of this series" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label>Language</Label>
-                  <Select value={form.language || "en"} onValueChange={v => setForm(f => ({ ...f, language: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                  <Label>Title *</Label>
+                  <Input value={form.title || ""} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Series title" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Category</Label>
+                  <Select value={form.category_id || ""} onValueChange={v => setForm(f => ({ ...f, category_id: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                     <SelectContent>
-                      {[["en","English"],["ar","Arabic"],["ur","Urdu"],["fr","French"],["tr","Turkish"]].map(([v,l]) => (
-                        <SelectItem key={v} value={v}>{l}</SelectItem>
-                      ))}
+                      {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Status</Label>
-                  <Select value={form.pub_status || "draft"} onValueChange={v => setForm(f => ({ ...f, pub_status: v as Series["pub_status"] }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["draft","under_review","approved","scheduled","published","unpublished"].map(s => (
-                        <SelectItem key={s} value={s}>{s.replace(/_/g," ")}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Short Summary</Label>
+                  <Input value={form.short_summary || ""} onChange={e => setForm(f => ({ ...f, short_summary: e.target.value }))} placeholder="Brief description shown in listings" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Full Description</Label>
+                  <Textarea rows={4} value={form.description || ""} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Detailed description of this series" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Language</Label>
+                    <Select value={form.language || "en"} onValueChange={v => setForm(f => ({ ...f, language: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {[["en","English"],["ar","Arabic"],["ur","Urdu"],["fr","French"],["tr","Turkish"]].map(([v,l]) => (
+                          <SelectItem key={v} value={v}>{l}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Status</Label>
+                    <Select value={form.pub_status || "draft"} onValueChange={v => setForm(f => ({ ...f, pub_status: v as Series["pub_status"] }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {["draft","under_review","approved","scheduled","published","unpublished"].map(s => (
+                          <SelectItem key={s} value={s}>{s.replace(/_/g," ")}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex gap-6 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Switch id="premium" checked={!!form.is_premium} onCheckedChange={v => setForm(f => ({ ...f, is_premium: v }))} />
+                    <Label htmlFor="premium">Premium only</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id="featured" checked={!!form.is_featured} onCheckedChange={v => setForm(f => ({ ...f, is_featured: v }))} />
+                    <Label htmlFor="featured">Featured</Label>
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <Button className="flex-1" onClick={save} disabled={saving}>{saving ? "Saving…" : editing ? "Save Changes" : "Create Series"}</Button>
+                  <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
                 </div>
               </div>
-              <div className="flex gap-6 pt-1">
-                <div className="flex items-center gap-2">
-                  <Switch id="premium" checked={!!form.is_premium} onCheckedChange={v => setForm(f => ({ ...f, is_premium: v }))} />
-                  <Label htmlFor="premium">Premium only</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="featured" checked={!!form.is_featured} onCheckedChange={v => setForm(f => ({ ...f, is_featured: v }))} />
-                  <Label htmlFor="featured">Featured</Label>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button className="flex-1" onClick={save} disabled={saving}>{saving ? "Saving…" : editing ? "Save Changes" : "Create Series"}</Button>
-                <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       <Card>
         <CardContent className="p-4 flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search series…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Search series…" value={search} onChange={e => { setSearch(e.target.value); handleFilterChange(); }} className="pl-9" />
           </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); handleFilterChange(); }}>
             <SelectTrigger className="w-44"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
@@ -232,6 +298,15 @@ export default function SeriesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10 pl-4">
+                <input
+                  type="checkbox"
+                  className="rounded border-border cursor-pointer"
+                  checked={allPageSelected}
+                  ref={el => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                  onChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Series</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Lang</TableHead>
@@ -245,13 +320,13 @@ export default function SeriesPage() {
           <TableBody>
             {loading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 8 }).map((__, j) => (
+                {Array.from({ length: colSpan }).map((__, j) => (
                   <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>
                 ))}
               </TableRow>
             )) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-16 text-center">
+                <TableCell colSpan={colSpan} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <BookOpen className="h-10 w-10 opacity-30" />
                     <p className="font-medium">No series found</p>
@@ -259,8 +334,16 @@ export default function SeriesPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filtered.map(s => (
-              <TableRow key={s.id}>
+            ) : pageItems.map(s => (
+              <TableRow key={s.id} className={selectedIds.has(s.id) ? "bg-primary/5" : ""}>
+                <TableCell className="pl-4">
+                  <input
+                    type="checkbox"
+                    className="rounded border-border cursor-pointer"
+                    checked={selectedIds.has(s.id)}
+                    onChange={() => toggleSelect(s.id)}
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     {s.cover_url ? (
@@ -302,8 +385,17 @@ export default function SeriesPage() {
           </TableBody>
         </Table>
         </div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={filtered.length}
+          pageSizeOptions={[10, 25, 50]}
+          onPageChange={p => { setPage(p); setSelectedIds(new Set()); }}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
+      {/* Single delete dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
@@ -315,6 +407,24 @@ export default function SeriesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteTarget && deleteSeries(deleteTarget)}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={o => !o && setBulkDeleteOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} Series</DialogTitle>
+            <DialogDescription>
+              Permanently delete <strong>{selectedIds.size} selected series</strong> and all their episodes? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>Cancel</Button>
+            <Button variant="destructive" disabled={bulkDeleting} onClick={handleBulkDelete}>
+              {bulkDeleting ? "Deleting..." : `Delete ${selectedIds.size}`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
