@@ -211,39 +211,87 @@ export default function ProgressScreen() {
 
         {/* ── Weekly Chart ── */}
         <View style={[styles.chartCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>This Week</Text>
-            <Text style={{ color: colors.textMuted, fontSize: 12 }}>minutes listened</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>This Week</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Daily listening activity</Text>
+            </View>
+            {(() => {
+              const totalMins = weekMins.reduce((a, b) => a + b, 0);
+              return totalMins > 0 ? (
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ color: colors.goldLight, fontSize: 20, fontWeight: "700" }}>
+                    {totalMins >= 60
+                      ? `${Math.floor(totalMins / 60)}h ${totalMins % 60 > 0 ? `${totalMins % 60}m` : ""}`
+                      : `${totalMins}m`}
+                  </Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11 }}>total this week</Text>
+                </View>
+              ) : null;
+            })()}
           </View>
           {statsLoading ? (
-            <View style={{ height: 110, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ height: 130, alignItems: "center", justifyContent: "center" }}>
               <ActivityIndicator size="small" color={colors.gold} />
             </View>
           ) : (
-            <View style={styles.chart}>
-              {weekMins.map((mins, i) => {
-                const today = (new Date().getDay() + 6) % 7; // 0 = Mon
-                const isToday = i === today;
-                return (
-                  <View key={i} style={styles.barCol}>
-                    {isToday && mins > 0 && (
-                      <Text style={[styles.barMins, { color: colors.goldLight }]}>{mins}m</Text>
-                    )}
-                    <View style={[styles.barBg, { backgroundColor: colors.divider }]}>
-                      <View style={[styles.barFill, {
-                        height: `${(mins / maxBar) * 100}%`,
-                        backgroundColor: isToday ? colors.gold : colors.gold + "55",
-                      }]} />
+            <View style={{ marginTop: 4 }}>
+              {/* Reference lines */}
+              {maxBar > 0 && (
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 120, justifyContent: "space-between", paddingVertical: 0 }}>
+                  {[1, 0.5].map((frac) => (
+                    <View key={frac} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ color: colors.textMuted, fontSize: 9, width: 26, textAlign: "right" }}>
+                        {Math.round(maxBar * frac)}m
+                      </Text>
+                      <View style={{ flex: 1, height: 0.5, backgroundColor: colors.divider }} />
                     </View>
-                    <Text style={[styles.barDay, {
-                      color: isToday ? colors.goldLight : colors.textMuted,
-                      fontWeight: isToday ? "700" : "400",
-                    }]}>
-                      {DAYS[i]}
-                    </Text>
-                  </View>
-                );
-              })}
+                  ))}
+                </View>
+              )}
+              {/* Bars */}
+              <View style={[styles.chart, { paddingLeft: 32 }]}>
+                {weekMins.map((mins, i) => {
+                  const todayIdx = (new Date().getDay() + 6) % 7;
+                  const isToday = i === todayIdx;
+                  const barH = maxBar > 0 ? (mins / maxBar) * 100 : 0;
+                  return (
+                    <View key={i} style={styles.barCol}>
+                      {mins > 0 && (
+                        <Text style={[styles.barMins, {
+                          color: isToday ? colors.goldLight : colors.textSecondary,
+                          fontWeight: isToday ? "700" : "500",
+                          fontSize: 10,
+                        }]}>
+                          {mins >= 60 ? `${Math.floor(mins / 60)}h` : `${mins}m`}
+                        </Text>
+                      )}
+                      <View style={[styles.barBg, { backgroundColor: colors.divider + "88" }]}>
+                        <View style={[styles.barFill, {
+                          height: `${barH}%`,
+                          backgroundColor: isToday ? colors.gold : colors.gold + "66",
+                          borderRadius: 6,
+                        }]} />
+                      </View>
+                      <View style={{ alignItems: "center", gap: 2 }}>
+                        {isToday && (
+                          <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.goldLight }} />
+                        )}
+                        <Text style={[styles.barDay, {
+                          color: isToday ? colors.goldLight : colors.textMuted,
+                          fontWeight: isToday ? "700" : "400",
+                        }]}>{DAYS[i]}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              {weekMins.every(m => m === 0) && (
+                <View style={{ alignItems: "center", paddingVertical: 12 }}>
+                  <Text style={{ color: colors.textMuted, fontSize: 13 }}>No listening activity yet this week</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>Play something to see your stats here</Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -371,11 +419,11 @@ const styles = StyleSheet.create({
   heatCell: { width: 14, height: 14, borderRadius: 3 },
   chartCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 14 },
   cardTitle: { fontSize: 16, fontWeight: "700" },
-  chart: { flexDirection: "row", alignItems: "flex-end", gap: 6, height: 110 },
-  barCol: { flex: 1, alignItems: "center", gap: 4 },
+  chart: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: 130 },
+  barCol: { flex: 1, alignItems: "center", gap: 3 },
   barMins: { fontSize: 9 },
-  barBg: { flex: 1, width: "100%", borderRadius: 4, justifyContent: "flex-end" },
-  barFill: { borderRadius: 4, width: "100%" },
+  barBg: { flex: 1, width: "100%", borderRadius: 6, justifyContent: "flex-end", overflow: "hidden" },
+  barFill: { borderRadius: 6, width: "100%" },
   barDay: { fontSize: 10 },
   journeyCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   journeyTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },

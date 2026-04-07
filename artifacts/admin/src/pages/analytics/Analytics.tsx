@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingUp, Users, Headphones, CreditCard, RefreshCw, DollarSign, Calendar, Globe } from "lucide-react";
+import { TrendingUp, Users, Headphones, CreditCard, RefreshCw, DollarSign, Calendar, Globe, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,8 @@ export default function Analytics() {
   const [userGrowth, setUserGrowth] = useState<{ date: string; users: number; premium: number }[]>([]);
   const [contentStats, setContentStats] = useState<{ name: string; value: number }[]>([]);
   const [xpStats, setXpStats] = useState<{ date: string; xp: number }[]>([]);
+  const [listeningStats, setListeningStats] = useState<{ date: string; minutes: number; sessions: number }[]>([]);
+  const [listeningKpis, setListeningKpis] = useState({ totalMinutes: 0, totalSessions: 0, avgMinPerSession: 0 });
   const [tierBreakdown, setTierBreakdown] = useState<{ name: string; value: number; color: string }[]>([]);
   const [countryStats, setCountryStats] = useState<{ flag: string; code: string; count: number }[]>([]);
   const [kpis, setKpis] = useState({ totalUsers: 0, premiumUsers: 0, totalEpisodes: 0, totalSeries: 0 });
@@ -138,7 +140,7 @@ export default function Analytics() {
     const [
       { count: totalUsers }, { count: premiumUsers }, { count: totalEpisodes }, { count: totalSeries },
       { data: profiles }, { data: premiumProfiles }, { data: xpLog }, { data: episodes },
-      { count: freeCount }, { count: trialCount }, { data: countryRows },
+      { count: freeCount }, { count: trialCount }, { data: countryRows }, { data: historyRows },
     ] = await Promise.all([
       supabase.from("profiles").select("*", { count: "exact", head: true }),
       supabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_tier", "premium"),
@@ -151,6 +153,7 @@ export default function Analytics() {
       supabase.from("profiles").select("*", { count: "exact", head: true }).eq("subscription_tier", "free"),
       supabase.from("subscriptions").select("*", { count: "exact", head: true }).eq("status", "trial"),
       supabase.from("profiles").select("country").not("country", "is", null),
+      supabase.from("listening_history").select("duration_ms,listened_at").gte("listened_at", from).not("duration_ms", "is", null),
     ]);
 
     setKpis({ totalUsers: totalUsers ?? 0, premiumUsers: premiumUsers ?? 0, totalEpisodes: totalEpisodes ?? 0, totalSeries: totalSeries ?? 0 });
@@ -199,6 +202,37 @@ export default function Analytics() {
       .slice(0, 12)
       .map(([code, count]) => ({ flag: countryToFlag(code), code, count }));
     setCountryStats(sortedCountries);
+
+    // ── Listening stats ────────────────────────────────────────────────────────
+    const listenByDate: Record<string, { minutes: number; sessions: number }> = {};
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      listenByDate[d] = { minutes: 0, sessions: 0 };
+    }
+    let totalMs = 0;
+    let totalSessions = 0;
+    (historyRows || []).forEach((r: { duration_ms: number | null; listened_at: string | null }) => {
+      const ms = r.duration_ms ?? 0;
+      const k = r.listened_at?.slice(0, 10);
+      if (k && listenByDate[k] !== undefined) {
+        listenByDate[k].minutes += Math.round(ms / 60000);
+        listenByDate[k].sessions += 1;
+      }
+      totalMs += ms;
+      totalSessions += 1;
+    });
+    const listenArr = Object.entries(listenByDate).map(([date, v]) => ({
+      date: new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+      minutes: v.minutes,
+      sessions: v.sessions,
+    }));
+    setListeningStats(listenArr);
+    const totalMinutes = Math.round(totalMs / 60000);
+    setListeningKpis({
+      totalMinutes,
+      totalSessions,
+      avgMinPerSession: totalSessions > 0 ? Math.round(totalMinutes / totalSessions) : 0,
+    });
 
     setLoading(false);
   }
@@ -393,6 +427,62 @@ export default function Analytics() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Listening Activity ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <Clock className="h-3.5 w-3.5 text-amber-400" />
+              </div>
+              Listening Activity
+            </CardTitle>
+            <div className="flex gap-6 text-right">
+              <div>
+                <p className="text-lg font-bold text-foreground">
+                  {listeningKpis.totalMinutes >= 60
+                    ? `${Math.floor(listeningKpis.totalMinutes / 60)}h ${listeningKpis.totalMinutes % 60}m`
+                    : `${listeningKpis.totalMinutes}m`}
+                </p>
+                <p className="text-xs text-muted-foreground">Total listened</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-foreground">{listeningKpis.totalSessions.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Sessions</p>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-foreground">{listeningKpis.avgMinPerSession}m</p>
+                <p className="text-xs text-muted-foreground">Avg per session</p>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="h-[220px]">
+          {loading ? (
+            <div className="h-full bg-muted/30 animate-pulse rounded-lg" />
+          ) : listeningStats.every(s => s.minutes === 0) ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No listening data in this period yet</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={listeningStats} barCategoryGap="30%">
+                <XAxis dataKey="date" stroke="#4A5568" fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis stroke="#4A5568" fontSize={10} tickLine={false} axisLine={false} tickFormatter={v => `${v}m`} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value: number, name: string) => [
+                    name === "minutes" ? (value >= 60 ? `${Math.floor(value / 60)}h ${value % 60}m` : `${value}m`) : value,
+                    name === "minutes" ? "Listened" : "Sessions",
+                  ]}
+                />
+                <Bar dataKey="minutes" fill={GOLD} radius={[4, 4, 0, 0]} name="minutes" />
+                <Bar dataKey="sessions" fill="#10B981" radius={[4, 4, 0, 0]} name="sessions" opacity={0.6} />
+                <Legend formatter={(v) => v === "minutes" ? "Minutes listened" : "Sessions"} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

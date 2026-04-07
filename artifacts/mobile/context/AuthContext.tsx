@@ -76,10 +76,11 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let totalHoursListened = 0;
 
   try {
-    const [profileRes, xpRes, streakRes, progressRes] = await Promise.all([
+    const [profileRes, xpRes, streakRes, historyRes, progressRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", supabaseUser.id).single(),
       supabase.from("user_xp").select("total_xp,level").eq("user_id", supabaseUser.id).single(),
       supabase.from("user_streaks").select("current_streak,longest_streak").eq("user_id", supabaseUser.id).single(),
+      supabase.from("listening_history").select("duration_ms").eq("user_id", supabaseUser.id),
       supabase.from("listening_progress").select("position_ms").eq("user_id", supabaseUser.id),
     ]);
 
@@ -103,7 +104,10 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
       streak = streakRes.data.current_streak;
       longestStreak = streakRes.data.longest_streak ?? 0;
     }
-    if (progressRes.data && progressRes.data.length > 0) {
+    const histMs = (historyRes.data as any[] ?? []).reduce((sum: number, r: any) => sum + (r.duration_ms ?? 0), 0);
+    if (histMs > 0) {
+      totalHoursListened = Math.round((histMs / 3_600_000) * 10) / 10;
+    } else if (progressRes.data && progressRes.data.length > 0) {
       const totalMs = (progressRes.data as any[]).reduce((sum, r) => sum + (r.position_ms ?? 0), 0);
       totalHoursListened = Math.round((totalMs / 3_600_000) * 10) / 10;
     }
