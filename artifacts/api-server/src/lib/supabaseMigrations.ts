@@ -1,4 +1,21 @@
+/**
+ * Supabase schema migration runner.
+ *
+ * Strategy:
+ *  1. Load master_patches.sql (consolidated, idempotent patch set).
+ *  2. Split into individual statements; categorise as DDL vs. DML.
+ *  3. For DDL — attempt via the Supabase Management API.
+ *     Requires SUPABASE_ACCESS_TOKEN to be a personal-access-token from
+ *     supabase.com/dashboard/account/tokens (NOT the service-role key).
+ *  4. For DML (INSERT … ON CONFLICT, UPDATE) — execute via the service-role
+ *     Supabase JS client, which always works.
+ *  5. Log a clear summary so operators know what was applied vs. what needs
+ *     to be run manually in the Supabase SQL Editor.
+ */
+
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const SUPABASE_URL = process.env["SUPABASE_URL"] ?? "https://tkruzfskhtcazjxdracm.supabase.co";
 const SUPABASE_SERVICE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
@@ -8,6 +25,17 @@ const PROJECT_REF =
   process.env["EXPO_PUBLIC_SUPABASE_PROJECT_REF"] ??
   "tkruzfskhtcazjxdracm";
 
+/**
+ * Path to the consolidated idempotent patch file.
+ * process.cwd() at runtime = /home/runner/workspace/artifacts/api-server/
+ * (the directory where `node dist/index.mjs` is executed from)
+ * So ../mobile/supabase/master_patches.sql → artifacts/mobile/supabase/master_patches.sql
+ */
+const MASTER_PATCHES_PATH = resolve(
+  process.cwd(),
+  "../mobile/supabase/master_patches.sql"
+);
+
 function getAdmin() {
   if (!SUPABASE_SERVICE_KEY) return null;
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -15,8 +43,36 @@ function getAdmin() {
   });
 }
 
-async function runSQLViaManagementAPI(sql: string, label: string): Promise<boolean> {
-  if (!SUPABASE_ACCESS_TOKEN) return false;
+// ── Statement categorisation ──────────────────────────────────────────────────
+
+const DDL_KEYWORDS = [
+  /^\s*(CREATE|ALTER|DROP|GRANT|REVOKE|NOTIFY|DO\b)/i,
+  /^\s*NOTIFY\b/i,
+];
+
+function isDDL(stmt: string): boolean {
+  return DDL_KEYWORDS.some((re) => re.test(stmt));
+}
+
+/**
+ * Split a SQL file into individual statements separated by semicolons,
+ * skipping blank lines and comment-only blocks.
+ */
+function splitStatements(sql: string): string[] {
+  const raw = sql.split(/;\s*\n/);
+  return raw
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !/^(--.*)$/.test(s));
+}
+
+// ── Management API executor ───────────────────────────────────────────────────
+
+let _managementApiFailed = false;
+
+async function runDDLViaManagementAPI(sql: string): Promise<"ok" | "skipped" | "error"> {
+  if (!SUPABASE_ACCESS_TOKEN) return "skipped";
+  if (_managementApiFailed) return "skipped";
+
   try {
     const resp = await fetch(
       `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`,
@@ -29,87 +85,26 @@ async function runSQLViaManagementAPI(sql: string, label: string): Promise<boole
         body: JSON.stringify({ query: sql }),
       }
     );
-    if (resp.ok) {
-      console.log(`[migrations] Applied via API: ${label}`);
-      return true;
-    }
-    const text = await resp.text().catch(() => "");
+
+    if (resp.ok) return "ok";
+
     if (resp.status === 401) {
-      console.warn(`[migrations] Management API: unauthorized (token may be a service-role key, not a personal access token). Run master_patches.sql manually.`);
-    } else {
-      console.warn(`[migrations] "${label}" API failed (${resp.status}): ${text.slice(0, 120)}`);
+      _managementApiFailed = true;
+      return "skipped";
     }
-    return false;
+
+    const text = await resp.text().catch(() => "");
+    console.warn(`[migrations/ddl] (${resp.status}): ${text.slice(0, 150)}`);
+    return "error";
   } catch (e: any) {
-    console.warn(`[migrations] "${label}" API error: ${e.message}`);
-    return false;
+    console.warn("[migrations/ddl] Network error:", e.message);
+    return "error";
   }
 }
 
-interface ColumnCheck {
-  table: string;
-  column: string;
-  addSql: string;
-  label: string;
-}
+// ── Seed known-good data via structured client calls ─────────────────────────
 
-const REQUIRED_COLUMNS: ColumnCheck[] = [
-  {
-    table: "subscriptions",
-    column: "store",
-    addSql: "ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS store TEXT;",
-    label: "subscriptions.store",
-  },
-  {
-    table: "subscriptions",
-    column: "product_id",
-    addSql: "ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS product_id TEXT;",
-    label: "subscriptions.product_id",
-  },
-  {
-    table: "subscriptions",
-    column: "original_transaction_id",
-    addSql: "ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS original_transaction_id TEXT;",
-    label: "subscriptions.original_transaction_id",
-  },
-  {
-    table: "episodes",
-    column: "image_url",
-    addSql: "ALTER TABLE public.episodes ADD COLUMN IF NOT EXISTS image_url TEXT;",
-    label: "episodes.image_url",
-  },
-  {
-    table: "profiles",
-    column: "push_token",
-    addSql: "ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS push_token TEXT;",
-    label: "profiles.push_token",
-  },
-];
-
-async function checkMissingColumns(): Promise<ColumnCheck[]> {
-  const admin = getAdmin();
-  if (!admin) return [];
-
-  const missing: ColumnCheck[] = [];
-
-  for (const check of REQUIRED_COLUMNS) {
-    try {
-      const { error } = await admin
-        .from(check.table)
-        .select(check.column)
-        .limit(1);
-
-      if (error && (error.code === "PGRST204" || error.message?.includes("does not exist") || error.message?.includes("column"))) {
-        missing.push(check);
-      }
-    } catch {
-      missing.push(check);
-    }
-  }
-  return missing;
-}
-
-async function seedHadithBadges(): Promise<void> {
+async function seedBadges(): Promise<void> {
   const admin = getAdmin();
   if (!admin) return;
 
@@ -123,14 +118,11 @@ async function seedHadithBadges(): Promise<void> {
     const { error } = await admin
       .from("badges")
       .upsert(badge, { onConflict: "slug", ignoreDuplicates: true });
-    if (error) {
-      console.warn(`[migrations] Badge upsert failed (${badge.slug}):`, error.message);
-    }
+    if (error) console.warn(`[migrations/seed] Badge (${badge.slug}):`, error.message);
   }
-  console.log("[migrations] Hadith badges seeded");
 }
 
-async function seedAppSettings(): Promise<void> {
+async function seedSettings(): Promise<void> {
   const admin = getAdmin();
   if (!admin) return;
 
@@ -139,47 +131,139 @@ async function seedAppSettings(): Promise<void> {
   ];
 
   for (const s of settings) {
-    await admin
-      .from("app_settings")
-      .upsert(s, { onConflict: "key", ignoreDuplicates: true });
+    await admin.from("app_settings").upsert(s, { onConflict: "key", ignoreDuplicates: true });
   }
 }
 
+async function normaliseReferralCodes(): Promise<void> {
+  const admin = getAdmin();
+  if (!admin) return;
+
+  // Fetch profiles with mixed-case referral codes and uppercase them individually.
+  // This avoids raw SQL and works within RLS+service-role.
+  try {
+    const { data } = await admin
+      .from("profiles")
+      .select("id, referral_code")
+      .not("referral_code", "is", null);
+
+    if (!data) return;
+
+    const toFix = data.filter(
+      (p: { referral_code: string }) =>
+        p.referral_code && p.referral_code !== p.referral_code.toUpperCase()
+    );
+
+    for (const p of toFix) {
+      await admin
+        .from("profiles")
+        .update({ referral_code: p.referral_code.toUpperCase() })
+        .eq("id", p.id);
+    }
+
+    if (toFix.length > 0) {
+      console.log(`[migrations/seed] Normalised ${toFix.length} referral codes to uppercase`);
+    }
+  } catch {
+    // Non-critical; skip silently
+  }
+}
+
+// ── Schema status check ───────────────────────────────────────────────────────
+
+interface ColumnCheck { table: string; column: string }
+
+const REQUIRED_COLUMNS: ColumnCheck[] = [
+  { table: "subscriptions", column: "store" },
+  { table: "subscriptions", column: "product_id" },
+  { table: "subscriptions", column: "original_transaction_id" },
+  { table: "episodes",      column: "image_url" },
+  { table: "profiles",      column: "push_token" },
+];
+
+async function getMissingColumns(): Promise<string[]> {
+  const admin = getAdmin();
+  if (!admin) return [];
+
+  const missing: string[] = [];
+  for (const { table, column } of REQUIRED_COLUMNS) {
+    try {
+      const { error } = await admin.from(table).select(column).limit(1);
+      if (error && /column|does not exist|PGRST204/i.test(error.message + (error.code ?? ""))) {
+        missing.push(`${table}.${column}`);
+      }
+    } catch {
+      missing.push(`${table}.${column}`);
+    }
+  }
+  return missing;
+}
+
+// ── Main entry points ─────────────────────────────────────────────────────────
+
 export async function applySchemaPatches(): Promise<void> {
   if (!SUPABASE_SERVICE_KEY && !SUPABASE_ACCESS_TOKEN) {
-    console.warn("[migrations] No credentials — skipping schema patches");
+    console.warn("[migrations] No credentials available — skipping schema patches");
     return;
   }
 
-  const missing = await checkMissingColumns().catch(() => [] as ColumnCheck[]);
-
-  if (missing.length > 0) {
-    const missingSql = missing.map((c) => c.addSql).join("\n");
-    let appliedCount = 0;
-
-    for (const col of missing) {
-      const ok = await runSQLViaManagementAPI(col.addSql, col.label);
-      if (ok) appliedCount++;
-    }
-
-    if (appliedCount < missing.length) {
-      console.warn(
-        `[migrations] ${missing.length - appliedCount} column(s) still missing — run master_patches.sql in Supabase Dashboard:\n` +
-        `  artifacts/mobile/supabase/master_patches.sql\n` +
-        `Missing: ${missing.map((c) => c.label).join(", ")}`
-      );
-    }
-  } else {
-    console.log("[migrations] Schema up to date — all required columns present");
+  // ── 1. Load consolidated patch file ────────────────────────────────────────
+  let patchSQL = "";
+  try {
+    patchSQL = readFileSync(MASTER_PATCHES_PATH, "utf-8");
+  } catch {
+    console.warn("[migrations] Could not read master_patches.sql — skipping DDL");
   }
 
-  await seedHadithBadges().catch((e) =>
-    console.warn("[migrations] Badge seeding error:", e.message)
-  );
+  // ── 2. Execute DDL statements via Management API ────────────────────────────
+  let ddlOk = 0, ddlSkipped = 0, ddlFailed = 0;
 
-  await seedAppSettings().catch((e) =>
-    console.warn("[migrations] App settings seeding error:", e.message)
-  );
+  if (patchSQL && SUPABASE_ACCESS_TOKEN) {
+    const statements = splitStatements(patchSQL);
+    const ddlStatements = statements.filter(isDDL);
+
+    for (const stmt of ddlStatements) {
+      const result = await runDDLViaManagementAPI(stmt + ";");
+      if (result === "ok")           ddlOk++;
+      else if (result === "skipped") ddlSkipped++;
+      else                           ddlFailed++;
+    }
+
+    if (_managementApiFailed) {
+      console.warn(
+        "[migrations] Supabase Management API returned 401 — " +
+        "SUPABASE_ACCESS_TOKEN must be a personal access token from " +
+        "supabase.com/dashboard/account/tokens (NOT the service-role key).\n" +
+        "DDL patches not applied. Run artifacts/mobile/supabase/master_patches.sql " +
+        "in the Supabase Dashboard → SQL Editor to apply missing schema changes."
+      );
+    } else if (ddlOk > 0 || ddlFailed > 0) {
+      console.log(
+        `[migrations] DDL complete: ${ddlOk} applied, ${ddlFailed} failed, ${ddlSkipped} skipped`
+      );
+    }
+  } else if (!SUPABASE_ACCESS_TOKEN) {
+    console.warn(
+      "[migrations] SUPABASE_ACCESS_TOKEN not set — DDL patches skipped.\n" +
+      "Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor."
+    );
+  }
+
+  // ── 3. Always run data operations via admin client ──────────────────────────
+  await seedBadges().catch((e) => console.warn("[migrations/seed] Badges:", e.message));
+  await seedSettings().catch((e) => console.warn("[migrations/seed] Settings:", e.message));
+  await normaliseReferralCodes().catch(() => {});
+
+  // ── 4. Report schema status ─────────────────────────────────────────────────
+  const missing = await getMissingColumns().catch(() => [] as string[]);
+  if (missing.length === 0) {
+    console.log("[migrations] Schema check passed — all required columns present");
+  } else {
+    console.warn(
+      `[migrations] Missing columns: ${missing.join(", ")}.\n` +
+      "Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor."
+    );
+  }
 }
 
 export async function getSchemaStatus(): Promise<{
@@ -187,13 +271,13 @@ export async function getSchemaStatus(): Promise<{
   missing: string[];
   message: string;
 }> {
-  const missing = await checkMissingColumns().catch(() => [] as ColumnCheck[]);
+  const missing = await getMissingColumns().catch(() => [] as string[]);
   return {
     ok: missing.length === 0,
-    missing: missing.map((c) => c.label),
+    missing,
     message:
       missing.length === 0
         ? "All required schema columns are present"
-        : `Missing columns: ${missing.map((c) => c.label).join(", ")}. Run master_patches.sql to fix.`,
+        : `Missing columns: ${missing.join(", ")}. Run master_patches.sql in Supabase Dashboard.`,
   };
 }

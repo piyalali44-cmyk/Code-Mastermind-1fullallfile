@@ -11,19 +11,24 @@ router.get(["/healthz", "/health"], (_req, res) => {
   res.json(data);
 });
 
-// Extended health check with schema status — admin use only
-router.get("/health/schema", async (_req, res) => {
+// Extended health check with schema status.
+// Protected by a shared secret: pass ?key=<SUPABASE_SERVICE_ROLE_KEY> or use
+// the Authorization: Bearer <service-role-key> header.
+router.get("/health/schema", async (req, res) => {
+  const authHeader = req.headers.authorization ?? "";
+  const queryKey = req.query["key"] as string | undefined;
+  const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
+
+  const provided = authHeader.replace(/^Bearer\s+/i, "").trim() || queryKey || "";
+  if (!serviceKey || provided !== serviceKey) {
+    return res.status(401).json({ status: "unauthorized" });
+  }
+
   try {
     const schema = await getSchemaStatus();
     res.json({
       status: schema.ok ? "ok" : "degraded",
       schema,
-      supabase: {
-        url: process.env["SUPABASE_URL"] ?? "https://tkruzfskhtcazjxdracm.supabase.co",
-        hasAnonKey: !!process.env["SUPABASE_ANON_KEY"],
-        hasServiceKey: !!process.env["SUPABASE_SERVICE_ROLE_KEY"],
-        hasAccessToken: !!process.env["SUPABASE_ACCESS_TOKEN"],
-      },
     });
   } catch (err: any) {
     res.status(500).json({ status: "error", error: err.message });
