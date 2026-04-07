@@ -13,8 +13,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, ChevronRight, HelpCircle, CheckCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, ChevronRight, HelpCircle, CheckCircle, AlertTriangle, ExternalLink } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useLocation } from "wouter";
 
 interface Quiz { id: string; title: string; description: string | null; category: string | null; is_active: boolean; pass_percentage: number; xp_reward: number; created_at: string; question_count?: number; }
 interface Question { id: string; quiz_id: string; question: string; options: string[]; correct_index: number; explanation: string | null; sort_order: number; }
@@ -34,7 +35,26 @@ export default function QuizBuilder() {
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [questionDialog, setQuestionDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quizModeEnabled, setQuizModeEnabled] = useState<boolean | null>(null);
   const { profile } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    supabase.from("feature_flags").select("is_enabled").eq("key", "quiz_mode").single().then(({ data }) => {
+      setQuizModeEnabled(data ? data.is_enabled : false);
+    });
+  }, []);
+
+  async function toggleQuizMode() {
+    const newVal = !quizModeEnabled;
+    const { error } = await supabase.from("feature_flags").update({ is_enabled: newVal, updated_at: new Date().toISOString() }).eq("key", "quiz_mode");
+    if (!error) {
+      setQuizModeEnabled(newVal);
+      toast.success(`Quiz mode ${newVal ? "enabled" : "disabled"}`);
+    } else {
+      toast.error("Failed to update quiz mode");
+    }
+  }
 
   async function loadQuizzes() {
     setLoading(true);
@@ -134,6 +154,36 @@ export default function QuizBuilder() {
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2"><HelpCircle className="h-6 w-6 text-primary" />Quiz Builder</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{quizzes.length} quizzes total</p>
+        </div>
+      </div>
+
+      {/* Quiz Mode toggle banner */}
+      <div className={`flex items-center justify-between rounded-xl border px-4 py-3 ${quizModeEnabled ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+        <div className="flex items-center gap-3">
+          {quizModeEnabled
+            ? <CheckCircle className="h-5 w-5 text-green-400 shrink-0" />
+            : <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0" />}
+          <div>
+            <p className={`text-sm font-semibold ${quizModeEnabled ? "text-green-400" : "text-yellow-400"}`}>
+              Quiz Mode is {quizModeEnabled === null ? "loading…" : quizModeEnabled ? "ON" : "OFF"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {quizModeEnabled
+                ? "Quizzes are visible to users in the mobile app."
+                : "Quizzes are hidden from users. Toggle to make them visible."}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <Switch checked={!!quizModeEnabled} onCheckedChange={toggleQuizMode} disabled={quizModeEnabled === null} />
+          <Button variant="ghost" size="sm" className="text-xs gap-1" onClick={() => navigate("/settings/feature-flags")}>
+            <ExternalLink className="h-3.5 w-3.5" />All flags
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
         </div>
         <Sheet open={quizSheet} onOpenChange={setQuizSheet}>
           <SheetTrigger asChild><Button onClick={openNewQuiz}><Plus className="h-4 w-4 mr-2" />New Quiz</Button></SheetTrigger>

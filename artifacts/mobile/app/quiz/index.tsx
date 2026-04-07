@@ -1,5 +1,6 @@
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/context/AuthContext";
+import { useAppSettings } from "@/context/AppSettingsContext";
 import { useColors } from "@/hooks/useColors";
 import { useAudio } from "@/context/AudioContext";
 import { supabase } from "@/lib/supabase";
@@ -24,8 +25,13 @@ export default function QuizListScreen() {
   const insets = useSafeAreaInsets();
   const { user, isGuest } = useAuth();
   const { nowPlaying } = useAudio();
+  const { featureFlags } = useAppSettings();
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
+
+  useEffect(() => {
+    if (!featureFlags.quiz_mode) router.replace("/progress" as never);
+  }, [featureFlags.quiz_mode]);
 
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
