@@ -1,5 +1,4 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PaginationBarProps {
@@ -31,24 +30,22 @@ export function PaginationBar({
   const NavBtn = ({
     onClick,
     disabled,
-    title,
     children,
+    title,
   }: {
     onClick: () => void;
     disabled: boolean;
-    title: string;
     children: React.ReactNode;
+    title?: string;
   }) => (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
       className={cn(
-        "inline-flex items-center justify-center h-8 w-8 rounded-md text-sm transition-colors",
-        "border border-border/60 bg-card/50",
-        "hover:bg-muted hover:border-border",
-        "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-border/60",
-        "text-muted-foreground hover:text-foreground"
+        "h-8 min-w-[2rem] px-1.5 rounded text-sm select-none transition-colors",
+        "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+        "disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
       )}
     >
       {children}
@@ -57,67 +54,76 @@ export function PaginationBar({
 
   return (
     <div className={cn(
-      "flex flex-wrap items-center justify-between gap-4 px-5 py-3",
-      "border-t border-border/50 bg-card/20",
-      "text-xs text-muted-foreground",
+      "flex flex-wrap items-center justify-between gap-4 px-5 py-2.5",
+      "border-t border-border/40 text-xs text-muted-foreground",
       className
     )}>
       {/* Record count */}
       <span className="shrink-0 tabular-nums">
-        {total === 0
-          ? "No records found"
-          : <><span className="text-foreground font-medium">{from.toLocaleString()}–{to.toLocaleString()}</span> of <span className="text-foreground font-medium">{total.toLocaleString()}</span> records</>
-        }
+        {total === 0 ? (
+          "No records"
+        ) : (
+          <>
+            <span className="font-semibold text-foreground">{from.toLocaleString()}–{to.toLocaleString()}</span>
+            {" of "}
+            <span className="font-semibold text-foreground">{total.toLocaleString()}</span>
+            {" records"}
+          </>
+        )}
       </span>
 
       {/* Page navigation */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <NavBtn onClick={() => onPageChange(0)} disabled={page === 0} title="First page">
-          <ChevronsLeft className="h-3.5 w-3.5" />
+          «
         </NavBtn>
         <NavBtn onClick={() => onPageChange(page - 1)} disabled={page === 0} title="Previous page">
-          <ChevronLeft className="h-3.5 w-3.5" />
+          ‹
         </NavBtn>
 
-        <div className="flex items-center gap-1 mx-1">
-          {windowStart > 0 && (
-            <span className="inline-flex items-center justify-center h-8 w-6 text-muted-foreground/40 text-xs select-none">…</span>
-          )}
-          {windowPages.map(pg => (
-            <button
-              key={pg}
-              onClick={() => onPageChange(pg)}
-              className={cn(
-                "inline-flex items-center justify-center h-8 min-w-[2rem] px-1 rounded-md text-xs font-medium transition-colors",
-                pg === page
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "border border-border/60 bg-card/50 text-muted-foreground hover:bg-muted hover:text-foreground hover:border-border"
-              )}
-            >
-              {pg + 1}
-            </button>
-          ))}
-          {windowStart + 5 < totalPages && (
-            <span className="inline-flex items-center justify-center h-8 w-6 text-muted-foreground/40 text-xs select-none">…</span>
-          )}
-        </div>
+        {windowStart > 0 && (
+          <span className="h-8 min-w-[2rem] px-1.5 flex items-center justify-center text-muted-foreground/40 select-none">
+            …
+          </span>
+        )}
+
+        {windowPages.map(pg => (
+          <button
+            key={pg}
+            onClick={() => onPageChange(pg)}
+            className={cn(
+              "h-8 min-w-[2rem] px-1.5 rounded text-xs font-medium transition-colors select-none",
+              pg === page
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            )}
+          >
+            {pg + 1}
+          </button>
+        ))}
+
+        {windowStart + 5 < totalPages && (
+          <span className="h-8 min-w-[2rem] px-1.5 flex items-center justify-center text-muted-foreground/40 select-none">
+            …
+          </span>
+        )}
 
         <NavBtn onClick={() => onPageChange(page + 1)} disabled={page >= totalPages - 1} title="Next page">
-          <ChevronRight className="h-3.5 w-3.5" />
+          ›
         </NavBtn>
         <NavBtn onClick={() => onPageChange(totalPages - 1)} disabled={page >= totalPages - 1} title="Last page">
-          <ChevronsRight className="h-3.5 w-3.5" />
+          »
         </NavBtn>
       </div>
 
       {/* Rows per page */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className="text-muted-foreground">Rows per page</span>
+        <span>Rows per page</span>
         <Select
           value={String(pageSize)}
           onValueChange={v => { onPageSizeChange(Number(v)); onPageChange(0); }}
         >
-          <SelectTrigger className="h-8 w-[68px] text-xs border-border/60 bg-card/50 hover:bg-muted">
+          <SelectTrigger className="h-7 w-[60px] text-xs border-border/50 bg-transparent hover:bg-muted/60 focus:ring-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
