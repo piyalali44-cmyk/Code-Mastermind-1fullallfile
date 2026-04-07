@@ -99,8 +99,9 @@ export default function ProfileScreen() {
     try {
       // Route OTP verification through the API server to avoid direct
       // Supabase network calls from the mobile device (which can time out).
+      const _pd = process.env.EXPO_PUBLIC_DOMAIN || "";
       const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-        || "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
+        || (_pd ? `https://${_pd}/api` : "http://localhost:8080/api");
       const res = await fetch(`${API_BASE}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

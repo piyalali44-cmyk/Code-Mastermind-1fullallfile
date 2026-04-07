@@ -9,8 +9,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 
+const _cd = process.env.EXPO_PUBLIC_DOMAIN || "";
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-  || "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+  || (_cd ? `https://${_cd}/api` : "http://localhost:8080/api");
 
 export default function ContactScreen() {
   const colors = useColors();

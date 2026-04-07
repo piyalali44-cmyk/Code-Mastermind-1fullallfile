@@ -424,8 +424,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {}); // Never block — onAuthStateChange will update state when ready
   }, []);
 
+  const _authDomain = process.env.EXPO_PUBLIC_DOMAIN || "";
   const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL
-    ?? "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
+    ?? (_authDomain ? `https://${_authDomain}/api` : "http://localhost:8080/api");
 
   const login = useCallback(async (email: string, password: string) => {
     // Route through API server so the Supabase auth call happens server-side.

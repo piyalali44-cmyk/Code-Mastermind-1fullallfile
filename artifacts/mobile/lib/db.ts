@@ -605,10 +605,11 @@ export async function getReferralStats(userId: string): Promise<ReferralStats> {
   } catch { return { friendsReferred: 0, xpEarned: 0 }; }
 }
 
+const _domain = process.env.EXPO_PUBLIC_DOMAIN || "";
 const API_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
   process.env.EXPO_PUBLIC_API_BASE_URL ||
-  "https://b3066f7f-4587-47c6-b796-d666ca698a6e-00-2fxwjwo5j3r6u.pike.replit.dev/api";
+  (_domain ? `https://${_domain}/api` : "http://localhost:8080/api");
 
 // ── Fetch authoritative user stats from API server (service-role, bypasses RLS) ──
 // Use this instead of supabase client queries when you need guaranteed fresh data.

@@ -142,7 +142,7 @@ export default function AdminUsers() {
     try {
       const API_BASE: string =
         (import.meta.env as Record<string, string>).VITE_API_BASE_URL ||
-        "https://f2e5cc93-2607-4e51-9625-693bca775672-00-1fzmn5eyvj394.pike.replit.dev/api";
+        (typeof window !== "undefined" ? `${window.location.origin}/api` : "/api");
       const resp = await fetch(`${API_BASE}/admin/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
