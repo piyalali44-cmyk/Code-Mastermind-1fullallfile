@@ -5,22 +5,26 @@ import '../services/supabase_service.dart';
 import '../services/audio_player_service.dart';
 
 final supabaseServiceProvider = Provider<SupabaseService>((_) => SupabaseService());
+
 final audioServiceProvider = ChangeNotifierProvider<AudioPlayerService>(
   (_) => AudioPlayerService()..init(),
 );
 
-// Auth state
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
 final authStateProvider = StreamProvider<User?>((ref) {
   return Supabase.instance.client.auth.onAuthStateChange.map((e) => e.session?.user);
 });
 
+/// Loads profile + user_xp + user_streaks in one round-trip
 final currentUserProfileProvider = FutureProvider<UserProfile?>((ref) async {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return null;
   return SupabaseService().getProfile(user.id);
 });
 
-// Content providers
+// ── Content ───────────────────────────────────────────────────────────────────
+
 final featuredSeriesProvider = FutureProvider<List<Series>>((ref) async {
   return SupabaseService().getFeaturedSeries();
 });
@@ -41,10 +45,12 @@ final recitersProvider = FutureProvider<List<Reciter>>((ref) async {
   return SupabaseService().getReciters();
 });
 
+// Bookmarks (saved series) — uses bookmarks table
 final savedSeriesProvider = FutureProvider<List<Series>>((ref) async {
   return SupabaseService().getSavedSeries();
 });
 
+// Recently played — uses listening_history table
 final recentlyPlayedProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   return SupabaseService().getRecentlyPlayed();
 });
@@ -58,6 +64,23 @@ final seriesDetailProvider = FutureProvider.family<Series?, String>((ref, id) as
 });
 
 final searchResultsProvider = FutureProvider.family<List<Series>, String>((ref, query) async {
-  if (query.isEmpty) return [];
-  return SupabaseService().searchSeries(query);
+  if (query.trim().isEmpty) return [];
+  return SupabaseService().searchSeries(query.trim());
+});
+
+final seriesByCategoryProvider = FutureProvider.family<List<Series>, String>((ref, categoryId) async {
+  return SupabaseService().getSeriesByCategory(categoryId);
+});
+
+// User stats (XP, streak) — separate from profile provider
+final userStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  if (user == null) return {'total_xp': 0, 'level': 1, 'current_streak': 0};
+  return SupabaseService().getUserStats(user.id);
+});
+
+// Episode progress
+final episodeProgressProvider =
+    FutureProvider.family<ListeningProgress?, String>((ref, episodeId) async {
+  return SupabaseService().getEpisodeProgress(episodeId);
 });
