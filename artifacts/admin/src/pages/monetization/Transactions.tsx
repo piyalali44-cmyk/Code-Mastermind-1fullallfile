@@ -132,16 +132,27 @@ export default function Transactions() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      // Attempt to fetch with the new columns added in 20260407_subscription_production.sql.
+      // If those columns don't exist yet (migration not yet run), fall back to the base columns.
+      const FULL_COLS = "id,user_id,plan,status,started_at,expires_at,provider,provider_subscription_id,store,product_id,original_transaction_id,created_at";
+      const BASE_COLS = "id,user_id,plan,status,started_at,expires_at,provider,provider_subscription_id,created_at";
+
+      const buildSubQuery = (cols: string) =>
+        supabase.from("subscriptions").select(cols)
+          .gte("started_at", `${dateFrom}T00:00:00`)
+          .lte("started_at", `${dateTo}T23:59:59`)
+          .order("started_at", { ascending: false });
+
       const [priceRes, subsRes] = await Promise.all([
         supabase.from("app_settings").select("key,value")
           .in("key", ["weekly_price_usd", "monthly_price_usd", "lifetime_price_usd"]),
-        supabase.from("subscriptions").select(
-          "id,user_id,plan,status,started_at,expires_at,provider,provider_subscription_id,store,product_id,original_transaction_id,created_at"
-        )
-          .gte("started_at", `${dateFrom}T00:00:00`)
-          .lte("started_at", `${dateTo}T23:59:59`)
-          .order("started_at", { ascending: false }),
+        buildSubQuery(FULL_COLS),
       ]);
+
+      // If full-column query failed (migration not yet applied), retry with base columns only
+      const finalSubsRes = subsRes.error
+        ? await buildSubQuery(BASE_COLS)
+        : subsRes;
 
       /* prices */
       const p: Prices = { weekly: 0.99, monthly: 4.99, lifetime: 49.99 };
@@ -152,7 +163,13 @@ export default function Transactions() {
       });
       setPrices(p);
 
-      const subs: SubscriptionRow[] = (subsRes.data ?? []) as SubscriptionRow[];
+      if (finalSubsRes.error) {
+        toast.error(finalSubsRes.error.message ?? "Failed to load transactions");
+        setLoading(false);
+        return;
+      }
+
+      const subs: SubscriptionRow[] = (finalSubsRes.data ?? []) as SubscriptionRow[];
 
       /* fetch profiles separately to avoid FK-join issues */
       let enriched: Subscription[] = subs.map(s => ({ ...s, profile: null }));
