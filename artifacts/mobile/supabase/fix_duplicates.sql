@@ -57,17 +57,7 @@ WHERE ctid NOT IN (
 );
 
 -- ──────────────────────────────────────────────────────────────
--- 6. CHAPTERS — remove duplicate rows (same id, keep oldest)
--- ──────────────────────────────────────────────────────────────
-DELETE FROM chapters
-WHERE ctid NOT IN (
-  SELECT MIN(ctid)
-  FROM chapters
-  GROUP BY id
-);
-
--- ──────────────────────────────────────────────────────────────
--- 7. Verification — check remaining counts after cleanup
+-- 6. Verification — check remaining counts after cleanup
 -- ──────────────────────────────────────────────────────────────
 SELECT
   'series'            AS table_name, COUNT(*) AS total_rows,
