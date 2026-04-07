@@ -1,16 +1,20 @@
 /**
  * Supabase schema migration runner.
  *
- * Strategy:
- *  1. Load master_patches.sql (consolidated, idempotent patch set).
- *  2. Split into individual statements; categorise as DDL vs. DML.
- *  3. For DDL — attempt via the Supabase Management API.
- *     Requires SUPABASE_ACCESS_TOKEN to be a personal-access-token from
- *     supabase.com/dashboard/account/tokens (NOT the service-role key).
- *  4. For DML (INSERT … ON CONFLICT, UPDATE) — execute via the service-role
- *     Supabase JS client, which always works.
- *  5. Log a clear summary so operators know what was applied vs. what needs
- *     to be run manually in the Supabase SQL Editor.
+ * Strategy (order matters, all steps are safe to re-run):
+ *  1. Quick schema check — if all required columns are present, skip heavy work.
+ *  2. Try RPC stayguided_apply_patches() — fast, needs no external token.
+ *  3. If RPC missing or schema still incomplete → run DDL via Management API
+ *     (requires SUPABASE_ACCESS_TOKEN personal access token).
+ *  4. Seed DML (badges, settings, referral codes) via service-role JS client.
+ *  5. Final schema check and log.
+ *
+ * This means:
+ *  - On a fresh deploy with a valid PAT: Management API applies DDL automatically.
+ *  - After the first successful run: the RPC exists and handles future restarts
+ *    without any external token.
+ *  - No manual SQL Editor step is ever required as long as SUPABASE_ACCESS_TOKEN
+ *    is present (it is set as a Replit secret).
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -25,12 +29,6 @@ const PROJECT_REF =
   process.env["EXPO_PUBLIC_SUPABASE_PROJECT_REF"] ??
   "tkruzfskhtcazjxdracm";
 
-/**
- * Path to the consolidated idempotent patch file.
- * process.cwd() at runtime = /home/runner/workspace/artifacts/api-server/
- * (the directory where `node dist/index.mjs` is executed from)
- * So ../mobile/supabase/master_patches.sql → artifacts/mobile/supabase/master_patches.sql
- */
 const MASTER_PATCHES_PATH = resolve(
   process.cwd(),
   "../mobile/supabase/master_patches.sql"
@@ -51,43 +49,29 @@ function isDDL(stmt: string): boolean {
   return DDL_KEYWORDS.test(stmt);
 }
 
-/**
- * Split a SQL script into individual statements, correctly handling:
- *  - Dollar-quoted blocks: $$ ... $$ and $tag$ ... $tag$
- *  - Single-line comments (-- …)
- *  - Regular semicolon-terminated statements
- *
- * A semicolon only ends a statement when we are NOT inside a dollar-quoted block.
- */
 function splitStatements(sql: string): string[] {
   const statements: string[] = [];
   let current = "";
-  let dollarTag: string | null = null; // non-null when inside $tag$...$tag$ block
+  let dollarTag: string | null = null;
   let i = 0;
 
   while (i < sql.length) {
-    // Skip single-line comments when not in a dollar-quoted block
     if (dollarTag === null && sql[i] === "-" && sql[i + 1] === "-") {
       while (i < sql.length && sql[i] !== "\n") i++;
       current += "\n";
       continue;
     }
-
-    // Detect start/end of a dollar-quoted block
     if (sql[i] === "$") {
-      // Look ahead for matching $...$ tag
       const rest = sql.slice(i);
       const m = rest.match(/^\$([A-Za-z_]*)\$/);
       if (m) {
-        const tag = m[0]; // e.g. "$$" or "$func$"
+        const tag = m[0];
         if (dollarTag === null) {
-          // Enter dollar-quoted block
           dollarTag = tag;
           current += tag;
           i += tag.length;
           continue;
         } else if (tag === dollarTag) {
-          // Exit dollar-quoted block
           dollarTag = null;
           current += tag;
           i += tag.length;
@@ -95,38 +79,29 @@ function splitStatements(sql: string): string[] {
         }
       }
     }
-
-    // Semicolon outside dollar-quoted block = statement boundary
     if (sql[i] === ";" && dollarTag === null) {
       const stmt = current.trim();
-      if (stmt.length > 0 && !/^-/.test(stmt)) {
-        statements.push(stmt);
-      }
+      if (stmt.length > 0 && !/^-/.test(stmt)) statements.push(stmt);
       current = "";
       i++;
       continue;
     }
-
     current += sql[i];
     i++;
   }
 
-  // Capture any trailing statement without a trailing semicolon
   const trailing = current.trim();
-  if (trailing.length > 0 && !/^-/.test(trailing)) {
-    statements.push(trailing);
-  }
-
+  if (trailing.length > 0 && !/^-/.test(trailing)) statements.push(trailing);
   return statements;
 }
 
 // ── Management API executor ───────────────────────────────────────────────────
 
-let _managementApiFailed = false;
+let _managementApiTokenBad = false;
 
 async function runDDLViaManagementAPI(sql: string): Promise<"ok" | "skipped" | "error"> {
   if (!SUPABASE_ACCESS_TOKEN) return "skipped";
-  if (_managementApiFailed) return "skipped";
+  if (_managementApiTokenBad) return "skipped";
 
   try {
     const resp = await fetch(
@@ -143,13 +118,20 @@ async function runDDLViaManagementAPI(sql: string): Promise<"ok" | "skipped" | "
 
     if (resp.ok) return "ok";
 
-    if (resp.status === 401) {
-      _managementApiFailed = true;
+    if (resp.status === 401 || resp.status === 403) {
+      _managementApiTokenBad = true;
+      console.warn(
+        "[migrations/ddl] SUPABASE_ACCESS_TOKEN is invalid or not a personal access token.\n" +
+        "  To fix: Generate a PAT at https://supabase.com/dashboard/account/tokens\n" +
+        "  and set it as the SUPABASE_ACCESS_TOKEN secret."
+      );
       return "skipped";
     }
 
     const text = await resp.text().catch(() => "");
-    console.warn(`[migrations/ddl] (${resp.status}): ${text.slice(0, 150)}`);
+    // 400 with "already exists" is fine (idempotent)
+    if (resp.status === 400 && /already exists/i.test(text)) return "ok";
+    console.warn(`[migrations/ddl] HTTP ${resp.status}: ${text.slice(0, 200)}`);
     return "error";
   } catch (e: any) {
     console.warn("[migrations/ddl] Network error:", e.message);
@@ -157,22 +139,69 @@ async function runDDLViaManagementAPI(sql: string): Promise<"ok" | "skipped" | "
   }
 }
 
-// ── Seed known-good data via structured client calls ─────────────────────────
+async function applyDDLViaManagementAPI(): Promise<{ ok: number; failed: number; skipped: boolean }> {
+  if (!SUPABASE_ACCESS_TOKEN) {
+    return { ok: 0, failed: 0, skipped: true };
+  }
+
+  let patchSQL = "";
+  try {
+    patchSQL = readFileSync(MASTER_PATCHES_PATH, "utf-8");
+  } catch {
+    console.warn("[migrations] Could not read master_patches.sql");
+    return { ok: 0, failed: 0, skipped: true };
+  }
+
+  const statements = splitStatements(patchSQL).filter(isDDL);
+  let ok = 0, failed = 0;
+
+  for (const stmt of statements) {
+    const result = await runDDLViaManagementAPI(stmt + ";");
+    if (result === "ok") ok++;
+    else if (result === "error") failed++;
+    else break; // token bad — no point continuing
+  }
+
+  return { ok, failed, skipped: _managementApiTokenBad };
+}
+
+// ── RPC-based patch runner ────────────────────────────────────────────────────
+
+async function runPatches_ViaRPC(): Promise<"ok" | "missing" | "error"> {
+  const admin = getAdmin();
+  if (!admin) return "missing";
+
+  try {
+    const { data, error } = await admin.rpc("stayguided_apply_patches");
+    if (error) {
+      if (/Could not find|function.*does not exist/i.test(error.message)) return "missing";
+      console.warn("[migrations/rpc] stayguided_apply_patches error:", error.message);
+      return "error";
+    }
+    const result = data as { ok: boolean; error?: string } | null;
+    if (result?.ok === false) {
+      console.warn("[migrations/rpc] patch function reported failure:", result.error);
+      return "error";
+    }
+    return "ok";
+  } catch (e: any) {
+    console.warn("[migrations/rpc] Unexpected error:", e.message);
+    return "error";
+  }
+}
+
+// ── Data seeds ────────────────────────────────────────────────────────────────
 
 async function seedBadges(): Promise<void> {
   const admin = getAdmin();
   if (!admin) return;
-
   const badges = [
     { slug: "hadith_start", name: "Hadith Seeker",  description: "First hadith episode completed",  icon: "📜", xp_reward: 15 },
     { slug: "hadith_10",    name: "Hadith Student", description: "Completed 10 hadith episodes",    icon: "📚", xp_reward: 75 },
     { slug: "hadith_40",    name: "Hadith Scholar", description: "Completed 40 hadith episodes",    icon: "🏛️", xp_reward: 300 },
   ];
-
   for (const badge of badges) {
-    const { error } = await admin
-      .from("badges")
-      .upsert(badge, { onConflict: "slug", ignoreDuplicates: true });
+    const { error } = await admin.from("badges").upsert(badge, { onConflict: "slug", ignoreDuplicates: true });
     if (error) console.warn(`[migrations/seed] Badge (${badge.slug}):`, error.message);
   }
 }
@@ -180,48 +209,24 @@ async function seedBadges(): Promise<void> {
 async function seedSettings(): Promise<void> {
   const admin = getAdmin();
   if (!admin) return;
-
-  const settings = [
+  await admin.from("app_settings").upsert(
     { key: "lifetime_price_usd", value: "49.99", description: "Lifetime subscription price (USD)", type: "number" },
-  ];
-
-  for (const s of settings) {
-    await admin.from("app_settings").upsert(s, { onConflict: "key", ignoreDuplicates: true });
-  }
+    { onConflict: "key", ignoreDuplicates: true }
+  );
 }
 
 async function normaliseReferralCodes(): Promise<void> {
   const admin = getAdmin();
   if (!admin) return;
-
-  // Fetch profiles with mixed-case referral codes and uppercase them individually.
-  // This avoids raw SQL and works within RLS+service-role.
   try {
-    const { data } = await admin
-      .from("profiles")
-      .select("id, referral_code")
-      .not("referral_code", "is", null);
-
+    const { data } = await admin.from("profiles").select("id, referral_code").not("referral_code", "is", null);
     if (!data) return;
-
-    const toFix = data.filter(
-      (p: { referral_code: string }) =>
-        p.referral_code && p.referral_code !== p.referral_code.toUpperCase()
-    );
-
+    const toFix = data.filter((p: { referral_code: string }) => p.referral_code && p.referral_code !== p.referral_code.toUpperCase());
     for (const p of toFix) {
-      await admin
-        .from("profiles")
-        .update({ referral_code: p.referral_code.toUpperCase() })
-        .eq("id", p.id);
+      await admin.from("profiles").update({ referral_code: p.referral_code.toUpperCase() }).eq("id", p.id);
     }
-
-    if (toFix.length > 0) {
-      console.log(`[migrations/seed] Normalised ${toFix.length} referral codes to uppercase`);
-    }
-  } catch {
-    // Non-critical; skip silently
-  }
+    if (toFix.length > 0) console.log(`[migrations/seed] Normalised ${toFix.length} referral codes to uppercase`);
+  } catch { /* non-critical */ }
 }
 
 // ── Schema status check ───────────────────────────────────────────────────────
@@ -239,7 +244,6 @@ const REQUIRED_COLUMNS: ColumnCheck[] = [
 async function getMissingColumns(): Promise<string[]> {
   const admin = getAdmin();
   if (!admin) return [];
-
   const missing: string[] = [];
   for (const { table, column } of REQUIRED_COLUMNS) {
     try {
@@ -254,47 +258,7 @@ async function getMissingColumns(): Promise<string[]> {
   return missing;
 }
 
-// ── Main entry points ─────────────────────────────────────────────────────────
-
-/**
- * Try to call the `stayguided_apply_patches()` PostgreSQL function via the
- * service-role client. This function is defined in master_patches.sql (PART 7)
- * and runs all column/index additions idempotently inside the database, where
- * DDL permissions are not restricted.
- *
- * Returns:
- *  "ok"       – function ran successfully
- *  "missing"  – function does not exist (master_patches.sql not yet run)
- *  "error"    – function exists but returned an error
- */
-async function runPatches_ViaRPC(): Promise<"ok" | "missing" | "error"> {
-  const admin = getAdmin();
-  if (!admin) return "missing";
-
-  try {
-    const { data, error } = await admin.rpc("stayguided_apply_patches");
-
-    if (error) {
-      // "Could not find the function" → not yet defined
-      if (/Could not find|function.*does not exist/i.test(error.message)) {
-        return "missing";
-      }
-      console.warn("[migrations/rpc] stayguided_apply_patches error:", error.message);
-      return "error";
-    }
-
-    const result = data as { ok: boolean; error?: string; applied_at?: string } | null;
-    if (result?.ok === false) {
-      console.warn("[migrations/rpc] patch function reported failure:", result.error);
-      return "error";
-    }
-
-    return "ok";
-  } catch (e: any) {
-    console.warn("[migrations/rpc] Unexpected error:", e.message);
-    return "error";
-  }
-}
+// ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function applySchemaPatches(): Promise<void> {
   if (!SUPABASE_SERVICE_KEY && !SUPABASE_ACCESS_TOKEN) {
@@ -302,71 +266,61 @@ export async function applySchemaPatches(): Promise<void> {
     return;
   }
 
-  // ── 1. Try the RPC-based patch runner (self-healing after initial setup) ────
-  //       stayguided_apply_patches() lives inside Supabase so it runs DDL with
-  //       full database-level permissions, no personal access token needed.
+  // ── 1. Fast path: try the in-database RPC (zero external dependencies) ──────
   const rpcResult = await runPatches_ViaRPC();
 
   if (rpcResult === "ok") {
-    console.log("[migrations] stayguided_apply_patches() RPC executed successfully");
-    // RPC handles DML too (badges, settings, referral codes) so skip separate seeds
+    console.log("[migrations] stayguided_apply_patches() RPC succeeded");
+    // RPC handles seeds internally — still run DML seeds for extra safety
+    await Promise.allSettled([seedBadges(), seedSettings(), normaliseReferralCodes()]);
   } else {
-    if (rpcResult === "missing") {
-      // ── 2a. RPC not yet deployed → try Management API as fallback ─────────
-      let patchSQL = "";
-      try {
-        patchSQL = readFileSync(MASTER_PATCHES_PATH, "utf-8");
-      } catch {
-        console.warn("[migrations] Could not read master_patches.sql");
-      }
+    // ── 2. RPC missing or errored → check what's needed ──────────────────────
+    const missingBefore = await getMissingColumns().catch(() => [] as string[]);
 
-      if (patchSQL && SUPABASE_ACCESS_TOKEN) {
-        const statements = splitStatements(patchSQL);
-        const ddlStatements = statements.filter(isDDL);
-        let ddlOk = 0, ddlFailed = 0;
+    if (missingBefore.length > 0 || rpcResult === "missing") {
+      // ── 3. Apply DDL via Management API (works on fresh deploys) ─────────
+      if (SUPABASE_ACCESS_TOKEN) {
+        console.log(`[migrations] Schema incomplete (${missingBefore.join(", ") || "RPC missing"}) — applying DDL via Management API…`);
+        const { ok, failed, skipped } = await applyDDLViaManagementAPI();
 
-        for (const stmt of ddlStatements) {
-          const result = await runDDLViaManagementAPI(stmt + ";");
-          if (result === "ok") ddlOk++;
-          else if (result === "error") ddlFailed++;
-        }
+        if (!skipped) {
+          console.log(`[migrations] Management API DDL: ${ok} applied, ${failed} failed`);
 
-        if (_managementApiFailed) {
-          console.warn(
-            "[migrations] DDL skipped — SUPABASE_ACCESS_TOKEN is not a personal access token.\n" +
-            "To enable self-healing migrations:\n" +
-            "  1. Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor\n" +
-            "  2. This creates stayguided_apply_patches() so future restarts apply patches automatically."
-          );
-        } else {
-          console.log(`[migrations] Management API DDL: ${ddlOk} applied, ${ddlFailed} failed`);
+          // ── 4. After DDL, retry RPC (it should now be defined) ───────────
+          const rpcRetry = await runPatches_ViaRPC();
+          if (rpcRetry === "ok") {
+            console.log("[migrations] RPC now available and executed successfully");
+          }
         }
       } else {
-        // No PAT either — log one-time setup instructions
+        // No PAT available — log clear actionable instructions once
         console.warn(
-          "[migrations] Schema patches require one-time manual setup:\n" +
-          "  Run artifacts/mobile/supabase/master_patches.sql in Supabase Dashboard → SQL Editor\n" +
-          "  This installs stayguided_apply_patches() so all future restarts are automatic."
+          "[migrations] Automatic DDL requires SUPABASE_ACCESS_TOKEN (personal access token).\n" +
+          "  The secret is expected to be set in the Replit project. If it is missing:\n" +
+          "  1. Generate a PAT at https://supabase.com/dashboard/account/tokens\n" +
+          "  2. Add it as SUPABASE_ACCESS_TOKEN in Replit Secrets\n" +
+          "  Alternatively, run master_patches.sql once in Supabase Dashboard → SQL Editor."
         );
       }
+    } else {
+      // RPC errored but schema is fine — log and continue
+      console.log("[migrations] Schema check passed (RPC returned error but all columns present)");
     }
 
-    // ── 2b. Always run data-only seeds regardless of DDL outcome ─────────────
-    await seedBadges().catch((e) => console.warn("[migrations/seed] Badges:", e.message));
-    await seedSettings().catch((e) => console.warn("[migrations/seed] Settings:", e.message));
-    await normaliseReferralCodes().catch(() => {});
+    // ── 5. Always seed DML data ───────────────────────────────────────────────
+    await Promise.allSettled([seedBadges(), seedSettings(), normaliseReferralCodes()]);
   }
 
-  // ── 3. Report schema status ─────────────────────────────────────────────────
-  const missing = await getMissingColumns().catch(() => [] as string[]);
-  if (missing.length === 0) {
-    console.log("[migrations] Schema check passed — all required columns present");
+  // ── 6. Final schema status report ───────────────────────────────────────────
+  const missingAfter = await getMissingColumns().catch(() => [] as string[]);
+  if (missingAfter.length === 0) {
+    console.log("[migrations] Schema check passed — all required columns present ✓");
   } else {
     console.warn(
-      `[migrations] Missing columns: ${missing.join(", ")}.` +
-      (rpcResult === "missing"
-        ? " Run master_patches.sql in Supabase Dashboard to fix."
-        : " Schema patch reported an error — check logs above.")
+      `[migrations] Still missing after patches: ${missingAfter.join(", ")}.\n` +
+      (SUPABASE_ACCESS_TOKEN && !_managementApiTokenBad
+        ? "  DDL was attempted — check the errors above for details."
+        : "  Run master_patches.sql in Supabase Dashboard → SQL Editor to resolve.")
     );
   }
 }
@@ -383,6 +337,6 @@ export async function getSchemaStatus(): Promise<{
     message:
       missing.length === 0
         ? "All required schema columns are present"
-        : `Missing columns: ${missing.join(", ")}. Run master_patches.sql in Supabase Dashboard.`,
+        : `Missing columns: ${missing.join(", ")}.`,
   };
 }
