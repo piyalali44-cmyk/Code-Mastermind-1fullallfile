@@ -47,19 +47,27 @@ export default defineConfig({
       : []),
   ],
   define: {
+    // Public Supabase configuration — safe to embed in the browser bundle.
     "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
-      process.env.VITE_SUPABASE_URL || "https://tkruzfskhtcazjxdracm.supabase.co"
+      process.env.VITE_SUPABASE_URL ||
+      process.env.EXPO_PUBLIC_SUPABASE_URL ||
+      "https://tkruzfskhtcazjxdracm.supabase.co"
     ),
     "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
-      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      ""
     ),
-    "import.meta.env.VITE_SUPABASE_SERVICE_KEY": JSON.stringify(
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_KEY || ""
-    ),
+    // NOTE: The service-role key is NOT injected here — it must never be
+    // embedded in the browser bundle. Admin operations that require the
+    // service role (invite/delete user) are proxied through /api/admin/*
+    // endpoints in the API server, which holds the key server-side only.
     "import.meta.env.VITE_API_BASE_URL": JSON.stringify(
       process.env.EXPO_PUBLIC_API_BASE_URL ||
       process.env.EXPO_PUBLIC_API_URL ||
-      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}/api` : "/api")
+      (process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}/api`
+        : "/api")
     ),
   },
   resolve: {

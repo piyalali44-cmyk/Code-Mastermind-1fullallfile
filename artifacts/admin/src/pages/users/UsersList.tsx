@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ interface UserRow {
   total_xp: number;
 }
 
-const db = supabaseAdmin || supabase;
+const db = supabase;
 
 export default function UsersList() {
   const [users, setUsers] = useState<UserRow[]>([]);
