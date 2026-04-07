@@ -504,6 +504,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       applyTokens(json.access_token, json.refresh_token);
     }
 
+    // Send welcome notification in background (if admin has set one)
+    if (userId) {
+      import("@/lib/db").then(({ addWelcomeNotificationForUser }) => {
+        addWelcomeNotificationForUser(userId).catch(() => {});
+      }).catch(() => {});
+    }
+
     return { userId };
   }, [API_BASE, applyTokens]);
 

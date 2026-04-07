@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { DbNotification, getNotifications, markAllNotificationsRead, markNotificationRead, seedNotificationsIfEmpty } from "@/lib/db";
+import { DbNotification, getNotifications, markAllNotificationsRead, markNotificationRead } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -96,11 +96,7 @@ export default function NotificationsScreen() {
     if (!user) { setLoading(false); return; }
     let active = true;
     const load = async () => {
-      let notifs = await getNotifications(user.id);
-      if (notifs.length === 0) {
-        await seedNotificationsIfEmpty(user.id);
-        notifs = await getNotifications(user.id);
-      }
+      const notifs = await getNotifications(user.id, user.joinDate);
       if (active) {
         setNotifications(notifs);
         setLoading(false);
@@ -117,7 +113,7 @@ export default function NotificationsScreen() {
         table: "notifications",
         filter: `user_id=eq.${user.id}`,
       }, () => {
-        getNotifications(user.id).then((notifs) => {
+        getNotifications(user.id, user.joinDate).then((notifs) => {
           if (active) setNotifications(notifs);
         });
       })

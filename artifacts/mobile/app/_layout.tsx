@@ -26,6 +26,17 @@ import { UserActionsProvider } from "@/context/UserActionsContext";
 import { useColors } from "@/hooks/useColors";
 import { navigateDeepLink } from "@/lib/deeplink";
 
+// Register TrackPlayer background service (production/EAS builds only)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const TrackPlayer = require("react-native-track-player").default;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const PlaybackService = require("@/services/PlaybackService").default;
+  TrackPlayer.registerPlaybackService(() => PlaybackService);
+} catch {
+  // Expo Go — TrackPlayer not available, no-op
+}
+
 // Prevent native splash from auto-hiding — we control timing
 SplashScreen.preventAutoHideAsync();
 

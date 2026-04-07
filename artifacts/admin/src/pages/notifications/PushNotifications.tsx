@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Send, Plus, Bell, Loader2 } from "lucide-react";
+import { Send, Plus, Bell, Loader2, Trash2, Star } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { PaginationBar } from "@/components/ui/PaginationBar";
 import ImageUpload from "@/components/ImageUpload";
@@ -41,6 +41,7 @@ export default function PushNotifications() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
@@ -96,6 +97,19 @@ export default function PushNotifications() {
   async function sendCampaign(campaign: Campaign) {
     setSendingId(campaign.id);
     try {
+      // ── Welcome template: just activate it — new users will receive it at registration ──
+      if (campaign.target_type === "welcome") {
+        await supabase.from("push_campaigns").update({
+          status: "sent",
+          sent_count: 0,
+          sent_at: new Date().toISOString(),
+        }).eq("id", campaign.id);
+        toast.success("Welcome template activated — new users will receive it when they register");
+        load();
+        setSendingId(null);
+        return;
+      }
+
       await supabase.from("push_campaigns").update({ status: "sending" }).eq("id", campaign.id);
 
       // ── Step 1: fetch ALL users in target audience (for in-app notifications) ──
@@ -200,6 +214,20 @@ export default function PushNotifications() {
     load();
   }
 
+  async function deleteCampaign(id: string) {
+    if (!window.confirm("Delete this campaign permanently?")) return;
+    setDeletingId(id);
+    try {
+      await supabase.from("push_campaigns").delete().eq("id", id);
+      toast.success("Campaign deleted");
+      load();
+    } catch (err: unknown) {
+      toast.error("Failed to delete: " + (err as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -238,12 +266,20 @@ export default function PushNotifications() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell><Badge variant="outline" className="text-xs capitalize">{c.target_type}</Badge></TableCell>
+                <TableCell>
+                  {c.target_type === "welcome" ? (
+                    <Badge variant="outline" className="text-xs gap-1 border-yellow-500/40 text-yellow-400 bg-yellow-500/10">
+                      <Star className="h-2.5 w-2.5" />Welcome
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs capitalize">{c.target_type}</Badge>
+                  )}
+                </TableCell>
                 <TableCell><Badge variant="outline" className={STATUS_COLORS[c.status] || ""}>{c.status}</Badge></TableCell>
                 <TableCell className="text-sm">{c.sent_count != null ? c.sent_count.toLocaleString() : "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{c.sent_at ? formatDateTime(c.sent_at) : c.scheduled_at ? formatDateTime(c.scheduled_at) : formatDateTime(c.created_at)}</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     {c.status === "draft" && (
                       <Button
                         size="sm"
@@ -252,12 +288,21 @@ export default function PushNotifications() {
                         onClick={() => sendCampaign(c)}
                       >
                         {sendingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                        Send Now
+                        {c.target_type === "welcome" ? "Activate" : "Send Now"}
                       </Button>
                     )}
                     {(c.status === "draft" || c.status === "scheduled") && (
                       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelCampaign(c.id)}>Cancel</Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={deletingId === c.id}
+                      onClick={() => deleteCampaign(c.id)}
+                    >
+                      {deletingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -314,8 +359,14 @@ export default function PushNotifications() {
                   <SelectItem value="all">All Users</SelectItem>
                   <SelectItem value="free">Free Users</SelectItem>
                   <SelectItem value="premium">Premium Users</SelectItem>
+                  <SelectItem value="welcome">⭐ Welcome (New Installs Only)</SelectItem>
                 </SelectContent>
               </Select>
+              {form.target_type === "welcome" && (
+                <p className="text-xs text-yellow-400 mt-1">
+                  This notification will automatically be sent to new users when they register. It will NOT be sent to existing users.
+                </p>
+              )}
             </div>
             {(form.title || form.body) && (
               <div className="bg-muted/40 rounded-xl p-3 border border-border">
