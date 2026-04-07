@@ -31,11 +31,11 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - **episodes.image_url** column applied and exposed in admin episode editor ✅
 - **Admin RPC functions** (admin_award_xp, admin_award_badge, apply_referral_code, redeem_code, etc.) all in master_patches.sql ✅
 
-### Migration Files
-- `artifacts/mobile/supabase/complete_setup.sql` — Full schema (run once on fresh DB)
-- `artifacts/mobile/supabase/master_patches.sql` — Consolidated idempotent patches (safe to re-run anytime)
-- `artifacts/mobile/supabase/migrations/20260407_subscription_production.sql` — Adds store/product_id/original_transaction_id to subscriptions
-- `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` — Adds image_url to episodes/push_campaigns/notifications + hadith badges
+### Migration Files (cleaned up — only 2 root SQL files remain)
+- `artifacts/mobile/supabase/admin_panel_setup.sql` — Comprehensive schema + RLS + functions (run in Supabase SQL Editor)
+- `artifacts/mobile/supabase/fix_duplicates.sql` — Removes duplicate rows (run after admin_panel_setup.sql)
+- `artifacts/mobile/supabase/migrations/` — Ordered migration history
+- `artifacts/mobile/supabase/steps/` — Foundational setup steps
 
 ### API Server Schema Automation
 At startup, `applySchemaPatches()` in `artifacts/api-server/src/lib/supabaseMigrations.ts` runs:
