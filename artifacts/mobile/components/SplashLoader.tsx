@@ -20,42 +20,19 @@ const MUTED = "rgba(255,255,255,0.38)";
 
 const ND = Platform.OS !== "web";
 
-// ─── Islamic emblem SVG (120 × 120 viewBox, centre = 60, 60) ─────────────────
-//
-//  Layers (back → front):
-//    1. Outer decorative ring (r=57, thin gold stroke)
-//    2. 4 diamond accent marks at N/S/E/W
-//    3. Inner decorative ring (r=47, very faint)
-//    4. 8-pointed khatim star background (r_out=22, r_in=10, opacity 10%)
-//    5. Dark-green core (r=40 filled)
-//    6. Crescent moon (proper SVG arc path — mathematically exact)
-//    7. 5-pointed star
-//
-//  Crescent geometry:
-//    Gold arc circle: cx=48, cy=60, r=26
-//    Mask arc circle: cx=63, cy=60, r=22
-//    Intersection: x = (676-484-48²+63²) / (2*(63-48)) = 61.9
-//                  y = 60 ± 43.97/2  →  ≈ (61.9, 38.0) and (61.9, 82.0)
-//    Path: start at (61.9,38) → large CCW arc on r=26 circle → (61.9,82)
-//          → small CW arc on r=22 circle back → (61.9,38)
-//
-//  5-pointed star: centre (79,45), R=11, r=5
-//    Outer angles (deg): -90, -18, 54, 126, 198
-//    Inner angles (deg): -54,  18, 90, 162, 234
+const BAR_W = 130;
 
+// ─── Islamic emblem SVG (120 × 120 viewBox, centre = 60, 60) ─────────────────
 function IslamicEmblem() {
-  // ── Khatim (8-pointed star) background ── centre (60,60), R=22, r=10
   const khatim =
     "60,38 63.83,50.76 75.56,44.44 69.24,56.17 82,60 69.24,63.83 " +
     "75.56,75.56 63.83,69.24 60,82 56.17,69.24 44.44,75.56 50.76,63.83 " +
     "38,60 50.76,56.17 44.44,44.44 56.17,50.76";
 
-  // ── 5-pointed star ── centre (79,45), R=11, r=5
   const star =
     "79,34 81.94,40.96 89.46,41.6 83.76,46.55 85.47,53.9 " +
     "79,50 72.53,53.9 74.25,46.55 68.54,41.6 76.06,40.96";
 
-  // ── Crescent arc path (mathematically precise) ──
   const crescent =
     "M 61.9 38 A 26 26 0 1 0 61.9 82 A 22 22 0 0 1 61.9 38 Z";
 
@@ -106,83 +83,113 @@ function IslamicEmblem() {
 
 // ─── Main SplashLoader ───────────────────────────────────────────────────────
 export function SplashLoader() {
-  const topY    = useRef(new Animated.Value(-20)).current;
-  const topOp   = useRef(new Animated.Value(0)).current;
-  const botY    = useRef(new Animated.Value(20)).current;
-  const botOp   = useRef(new Animated.Value(0)).current;
-  const bisOp   = useRef(new Animated.Value(0)).current;
-  const bisSc   = useRef(new Animated.Value(0.82)).current;
-  const glowOp  = useRef(new Animated.Value(0)).current;
-  const glowSc  = useRef(new Animated.Value(0.5)).current;
-  const logoOp  = useRef(new Animated.Value(0)).current;
-  const logoSc  = useRef(new Animated.Value(0.3)).current;
-  const nameOp  = useRef(new Animated.Value(0)).current;
-  const nameY   = useRef(new Animated.Value(22)).current;
-  const tagOp   = useRef(new Animated.Value(0)).current;
-  const tagY    = useRef(new Animated.Value(14)).current;
-  const barOp   = useRef(new Animated.Value(0)).current;
-  const barProg = useRef(new Animated.Value(0)).current;
-  const pulse   = useRef(new Animated.Value(1)).current;
+  // Ornaments
+  const topY  = useRef(new Animated.Value(-18)).current;
+  const topOp = useRef(new Animated.Value(0)).current;
+  const botY  = useRef(new Animated.Value(18)).current;
+  const botOp = useRef(new Animated.Value(0)).current;
+
+  // Bismillah
+  const bisOp = useRef(new Animated.Value(0)).current;
+  const bisSc = useRef(new Animated.Value(0.88)).current;
+
+  // Logo glow
+  const glowOp = useRef(new Animated.Value(0)).current;
+  const glowSc = useRef(new Animated.Value(0.6)).current;
+
+  // Logo emblem — single smooth fade+scale, NO spring
+  const logoOp = useRef(new Animated.Value(0)).current;
+  const logoSc = useRef(new Animated.Value(0.72)).current;
+
+  // App name
+  const nameOp = useRef(new Animated.Value(0)).current;
+  const nameY  = useRef(new Animated.Value(16)).current;
+
+  // Tagline
+  const tagOp = useRef(new Animated.Value(0)).current;
+  const tagY  = useRef(new Animated.Value(10)).current;
+
+  // Progress bar — translateX approach so useNativeDriver: true is possible
+  const barOp        = useRef(new Animated.Value(0)).current;
+  const barTranslate = useRef(new Animated.Value(-BAR_W)).current;
+
+  // Breath pulse for logo (very subtle)
+  const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    const ease = Easing.out(Easing.cubic);
-    const t = (val: Animated.Value, to: number, dur: number, e = ease) =>
+    const smooth  = Easing.out(Easing.cubic);
+    const silkIn  = Easing.bezier(0.25, 0.46, 0.45, 0.94); // smooth ease-out
+    const elastic = Easing.bezier(0.34, 1.40, 0.64, 1);     // slight overshoot, clean
+
+    const t = (val: Animated.Value, to: number, dur: number, e = smooth) =>
       Animated.timing(val, { toValue: to, duration: dur, easing: e, useNativeDriver: ND });
 
     Animated.sequence([
-      // Phase 1 — ornaments (0–240ms)
+      // Phase 1 — ornaments slide in (0–260ms)
       Animated.parallel([
-        t(topOp, 1, 240), t(topY, 0, 240),
-        t(botOp, 1, 240), t(botY, 0, 240),
+        t(topOp, 1, 260, silkIn), t(topY, 0, 260, silkIn),
+        t(botOp, 1, 260, silkIn), t(botY, 0, 260, silkIn),
       ]),
-      // Phase 2 — Bismillah (240–530ms)
+      // Phase 2 — Bismillah fades in with gentle scale (260–580ms)
       Animated.parallel([
-        t(bisOp, 1, 320),
-        t(bisSc, 1, 380, Easing.out(Easing.back(1.3))),
+        t(bisOp, 1, 340, silkIn),
+        t(bisSc, 1, 400, elastic),
       ]),
-      // Phase 3 — Glow burst + logo spring (530–1010ms)
+      // Phase 3 — Glow bloom + logo smooth reveal (580–1060ms)
       Animated.parallel([
+        // Glow: expand and settle
         Animated.sequence([
-          t(glowOp, 0.55, 200), t(glowSc, 1.15, 200, ease),
-          t(glowOp, 0.22, 280), t(glowSc, 1.04, 280, ease),
+          Animated.parallel([t(glowOp, 0.45, 180, silkIn), t(glowSc, 1.1,  180, silkIn)]),
+          Animated.parallel([t(glowOp, 0.18, 300, silkIn), t(glowSc, 1.02, 300, silkIn)]),
         ]),
+        // Logo: smooth entrance — NO spring, just a clean cubic
         Animated.sequence([
-          Animated.delay(60),
+          Animated.delay(50),
           Animated.parallel([
-            t(logoOp, 1, 380),
-            Animated.spring(logoSc, { toValue: 1, tension: 120, friction: 6, useNativeDriver: ND }),
+            t(logoOp, 1, 400, silkIn),
+            t(logoSc, 1, 460, elastic),
           ]),
         ]),
       ]),
-      // Phase 4 — App name (1010–1320ms)
-      Animated.parallel([t(nameOp, 1, 320), t(nameY, 0, 320)]),
-      // Phase 5 — Tagline (1320–1560ms)
-      Animated.parallel([t(tagOp, 1, 260), t(tagY, 0, 260)]),
-      // Phase 6 — Loading bar (1560–3400ms)
+      // Phase 4 — App name (1060–1360ms)
+      Animated.parallel([t(nameOp, 1, 320, silkIn), t(nameY, 0, 320, silkIn)]),
+      // Phase 5 — Tagline (1360–1590ms)
+      Animated.parallel([t(tagOp, 1, 250, silkIn), t(tagY, 0, 250, silkIn)]),
+      // Phase 6 — Progress bar slides in from left (1590–3400ms)
+      // translateX: useNativeDriver: true → buttery smooth even under load
       Animated.parallel([
-        t(barOp, 1, 200),
-        Animated.timing(barProg, {
-          toValue: 1, duration: 1700,
-          easing: Easing.inOut(Easing.cubic),
-          useNativeDriver: false,
+        t(barOp, 1, 180, silkIn),
+        Animated.timing(barTranslate, {
+          toValue: 0,
+          duration: 1680,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: ND,
         }),
       ]),
     ]).start();
 
-    // Logo pulse loop (starts after logo appears)
-    const timer = setTimeout(() => {
+    // Very subtle breath pulse on the logo — starts after logo is visible
+    const pulseTimer = setTimeout(() => {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.055, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: ND }),
-          Animated.timing(pulse, { toValue: 1,     duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: ND }),
+          Animated.timing(pulse, {
+            toValue: 1.045,
+            duration: 2600,
+            easing: Easing.inOut(Easing.sine),
+            useNativeDriver: ND,
+          }),
+          Animated.timing(pulse, {
+            toValue: 1,
+            duration: 2600,
+            easing: Easing.inOut(Easing.sine),
+            useNativeDriver: ND,
+          }),
         ])
       ).start();
-    }, 1100);
-    return () => clearTimeout(timer);
-  }, []);
+    }, 1200);
 
-  const barW      = barProg.interpolate({ inputRange: [0, 1], outputRange: ["0%", "68%"] });
-  const logoScale = Animated.multiply(logoSc, pulse);
+    return () => clearTimeout(pulseTimer);
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -202,7 +209,7 @@ export function SplashLoader() {
         <Animated.View
           style={[styles.glow, { opacity: glowOp, transform: [{ scale: glowSc }], pointerEvents: "none" }]}
         />
-        <Animated.View style={{ opacity: logoOp, transform: [{ scale: logoScale }] }}>
+        <Animated.View style={{ opacity: logoOp, transform: [{ scale: Animated.multiply(logoSc, pulse) }] }}>
           <IslamicEmblem />
         </Animated.View>
       </View>
@@ -222,15 +229,16 @@ export function SplashLoader() {
         <OrnRow />
       </Animated.View>
 
-      {/* Loading bar */}
+      {/* Progress bar — native-driver translateX slide */}
       <Animated.View style={[styles.barTrack, { opacity: barOp }]}>
-        <Animated.View style={[styles.barFill, { width: barW }]} />
+        <Animated.View style={[styles.barFill, { transform: [{ translateX: barTranslate }] }]} />
       </Animated.View>
+
     </View>
   );
 }
 
-// Ornament row
+// ─── Ornament row ─────────────────────────────────────────────────────────────
 function OrnRow() {
   return (
     <>
@@ -281,9 +289,9 @@ const styles = StyleSheet.create({
   },
   glow: {
     position: "absolute",
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
     backgroundColor: GOLD,
   },
   appName: {
@@ -303,14 +311,15 @@ const styles = StyleSheet.create({
   barTrack: {
     position: "absolute",
     bottom: 58,
-    width: 120,
-    height: 1.5,
+    width: BAR_W,
+    height: 2,
     borderRadius: 1,
     backgroundColor: "rgba(201,168,76,0.15)",
     overflow: "hidden",
   },
   barFill: {
-    height: 1.5,
+    width: BAR_W,
+    height: 2,
     borderRadius: 1,
     backgroundColor: GOLD,
   },
