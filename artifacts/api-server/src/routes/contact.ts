@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const router: IRouter = Router();
 
-const SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
+const SUPABASE_URL = process.env["SUPABASE_URL"] ?? "https://tkruzfskhtcazjxdracm.supabase.co";
 const SUPABASE_SERVICE_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 

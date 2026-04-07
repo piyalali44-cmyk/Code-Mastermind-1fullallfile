@@ -4,7 +4,7 @@ import { getPgPool } from "../lib/pgClient.js";
 
 const router = Router();
 
-const SUPABASE_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
+const SUPABASE_URL = process.env["SUPABASE_URL"] ?? "https://tkruzfskhtcazjxdracm.supabase.co";
 const SUPABASE_ANON_KEY = process.env["EXPO_PUBLIC_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
 let _sb: ReturnType<typeof createClient> | null = null;
 function getSb() {
