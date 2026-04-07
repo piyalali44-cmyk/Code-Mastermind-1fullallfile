@@ -2,12 +2,13 @@ import { Icon } from "@/components/Icon";
 import { Toast } from "@/components/Toast";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
-import { applyReferralCode } from "@/lib/db";
+import { applyReferralCode, fetchSubscriptionStatus, restorePurchases } from "@/lib/db";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase } from "@/lib/supabase";
 
 import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAudio } from "@/context/AudioContext";
@@ -31,8 +32,50 @@ export default function SubscriptionScreen() {
   const [couponCode, setCouponCode] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
   const [subscribeLoading, setSubscribeLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [subDetails, setSubDetails] = useState<{ plan: string | null; expires_at: string | null; store: string | null } | null>(null);
   const isWeb = Platform.OS === "web";
   const hasMiniplayer = !!nowPlaying;
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return;
+      fetchSubscriptionStatus(session.access_token).then((s) => {
+        if (s) setSubDetails({ plan: s.plan, expires_at: s.expires_at, store: s.store });
+      });
+    });
+  }, [user]);
+
+  const formatExpiry = (iso: string | null) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  };
+
+  const handleRestorePurchases = async () => {
+    if (!user) {
+      showToast("Please sign in to restore purchases", "alert-circle", colors.error);
+      return;
+    }
+    setRestoreLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setRestoreLoading(false);
+      showToast("Please sign in again", "alert-circle", colors.error);
+      return;
+    }
+    const result = await restorePurchases(session.access_token);
+    setRestoreLoading(false);
+    if (result.success && result.is_premium) {
+      showToast("Subscription restored successfully!", "check-circle", colors.green);
+      if (result.expires_at) setSubDetails({ plan: result.plan ?? null, expires_at: result.expires_at, store: null });
+    } else if (result.error === "no_active_purchase") {
+      showToast("No previous subscription found to restore", "info", colors.gold);
+    } else {
+      showToast("Could not restore purchases. Please try again.", "alert-circle", colors.error);
+    }
+  };
 
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: string; iconColor?: string }>({
     visible: false, message: "", icon: "check",
@@ -199,11 +242,29 @@ export default function SubscriptionScreen() {
                 </View>
               ))}
             </View>
-            <View style={[{ borderRadius: 12, borderWidth: 1, padding: 14, flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: "#0a2018", borderColor: colors.green + "33" }]}>
-              <Icon name="shield" size={18} color={colors.green} />
-              <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colors.textSecondary }}>
-                Your subscription is <Text style={{ color: colors.green, fontWeight: "700" }}>active</Text>. Manage billing in your account settings.
-              </Text>
+            <View style={[{ borderRadius: 12, borderWidth: 1, padding: 14, gap: 8, backgroundColor: "#0a2018", borderColor: colors.green + "33" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Icon name="shield" size={18} color={colors.green} />
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: colors.textSecondary }}>
+                  Your subscription is <Text style={{ color: colors.green, fontWeight: "700" }}>active</Text>.
+                </Text>
+              </View>
+              {subDetails?.plan && (
+                <Text style={{ fontSize: 12, color: colors.textMuted, paddingLeft: 28 }}>
+                  Plan: <Text style={{ color: colors.textSecondary, fontWeight: "600", textTransform: "capitalize" }}>{subDetails.plan}</Text>
+                  {subDetails.store && subDetails.store !== "manual" && subDetails.store !== "admin" && subDetails.store !== "promo" &&
+                    <Text> · via {subDetails.store === "google_play" ? "Google Play" : "App Store"}</Text>
+                  }
+                </Text>
+              )}
+              {subDetails?.expires_at && (
+                <Text style={{ fontSize: 12, color: colors.textMuted, paddingLeft: 28 }}>
+                  Renews: <Text style={{ color: colors.textSecondary, fontWeight: "600" }}>{formatExpiry(subDetails.expires_at)}</Text>
+                </Text>
+              )}
+              {!subDetails?.expires_at && (
+                <Text style={{ fontSize: 12, color: colors.gold + "bb", paddingLeft: 28 }}>✦ Lifetime access</Text>
+              )}
             </View>
             <View style={[styles.couponCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.couponLabel, { color: colors.textSecondary }]}>Have a coupon or referral code?</Text>
@@ -371,6 +432,20 @@ export default function SubscriptionScreen() {
           <Text style={[styles.disclaimer, { color: colors.textMuted }]}>
             Subscriptions renew automatically. Cancel anytime from your account settings.
           </Text>
+
+          <Pressable
+            onPress={handleRestorePurchases}
+            disabled={restoreLoading}
+            style={{ alignItems: "center", paddingVertical: 12 }}
+          >
+            {restoreLoading ? (
+              <ActivityIndicator size="small" color={colors.textMuted} />
+            ) : (
+              <Text style={{ fontSize: 13, color: colors.textMuted, textDecorationLine: "underline" }}>
+                Restore Purchases
+              </Text>
+            )}
+          </Pressable>
         </View>
       </ScrollView>
 

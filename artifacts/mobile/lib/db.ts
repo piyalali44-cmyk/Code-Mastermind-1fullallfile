@@ -1020,3 +1020,67 @@ export async function isUserCommentBlocked(userId: string, token?: string): Prom
   const res = await contentApiCall("/content/comment-blocked", token ?? null);
   return res?.blocked ?? false;
 }
+
+// ─── SUBSCRIPTION API ──────────────────────────────────────────────────────────
+
+export async function fetchSubscriptionStatus(token: string): Promise<{
+  is_premium: boolean;
+  status: string;
+  plan: string | null;
+  expires_at: string | null;
+  store: string | null;
+  auto_renew: boolean;
+} | null> {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
+    const resp = await fetch(`${API_BASE}/subscription/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+export async function verifyPurchase(token: string, params: {
+  store: "google_play" | "app_store";
+  productId: string;
+  purchaseToken?: string;
+  receiptData?: string;
+  transactionId?: string;
+}): Promise<{ success: boolean; plan?: string; expires_at?: string; is_premium?: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch(`${API_BASE}/subscription/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
+    return await resp.json();
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? "network_error" };
+  }
+}
+
+export async function restorePurchases(token: string, params?: {
+  store?: string;
+  purchaseToken?: string;
+  receiptData?: string;
+}): Promise<{ success: boolean; restored?: boolean; plan?: string; expires_at?: string; is_premium?: boolean; error?: string }> {
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 12000);
+    const resp = await fetch(`${API_BASE}/subscription/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(params ?? {}),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(tid));
+    return await resp.json();
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? "network_error" };
+  }
+}

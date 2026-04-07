@@ -1,0 +1,73 @@
+Build a complete production-ready in-app subscription system for my Flutter app.
+
+App Overview:
+- Cross-platform Flutter app (Android + iOS)
+- Backend: Supabase
+- Monetization: In-App Purchase (Google Play + Apple App Store)
+
+Subscription Plans:
+1. premium_weekly 
+2. premium_monthly 
+
+
+Requirements:
+
+1. Flutter Implementation:
+- Use official in_app_purchase package
+- Load both product IDs: premium_weekly and premium_monthly
+- Show subscription UI with 2 plans (Weekly & Monthly)
+- Highlight monthly as best value
+- Allow user to purchase only one plan at a time
+- Implement purchase flow (buy, cancel, error handling)
+- Implement restore purchases
+- Add loading states and proper UX
+- Handle platform differences (Android/iOS)
+
+2. Backend (Supabase):
+- Create full database schema for subscriptions
+- Table fields:
+  user_id, product_id, plan_type, store, status,
+  expiry_date, purchase_token, original_transaction_id,
+  created_at, updated_at
+- Only one active subscription per user
+- Automatically update expiry and status
+- Add RLS policies (secure access)
+
+3. Receipt Verification:
+- Verify purchases with:
+  - Google Play Developer API
+  - Apple App Store API
+- Create Supabase Edge Functions / API endpoints:
+  - verify_purchase
+  - restore_purchase
+- Send receipt from app → backend → verify → update DB
+
+4. Access Control:
+- If subscription active → unlock premium features
+- If expired → lock content
+- Prevent access without valid subscription
+- Sync user state on app open
+
+5. Upgrade / Downgrade Logic:
+- Handle switching between weekly and monthly
+- Ensure only one active plan
+- Replace old plan properly
+
+6. Admin / Debug:
+- Add ability to check user subscription status
+- Log all purchase events
+- Handle failed purchases and retries
+
+7. Production Ready:
+- Clean architecture
+- Error handling
+- Secure API calls
+- Optimized for performance
+- Ready for Play Store & App Store approval
+
+Output:
+- Full Flutter code (UI + logic)
+- Supabase SQL schema
+- Edge Functions code (verification)
+- Step-by-step setup instructions for Google Play and Apple
+
