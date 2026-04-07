@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Search, BookOpen } from "lucide-react";
 import ImageUpload from "@/components/ImageUpload";
 import { formatDate } from "@/lib/utils";
-import type { Series, Category } from "@/lib/types";
+import type { Series, Category, AccessTier } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -28,9 +28,15 @@ const STATUS_COLORS: Record<string, string> = {
   unpublished: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
+const ACCESS_TIERS: { value: AccessTier; label: string; className: string }[] = [
+  { value: "guest",   label: "Guest",   className: "bg-slate-500/10 text-slate-400 border-slate-500/30" },
+  { value: "free",    label: "Free",    className: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
+  { value: "premium", label: "Premium", className: "bg-primary/10 text-primary border-primary/30" },
+];
+
 const blank = (): Partial<Series> => ({
   title: "", description: "", short_summary: "", cover_url: "", language: "en",
-  is_premium: false, is_featured: false, pub_status: "draft", category_id: "",
+  is_premium: false, access_tier: "free", is_featured: false, pub_status: "draft", category_id: "",
 });
 
 export default function SeriesPage() {
@@ -39,6 +45,7 @@ export default function SeriesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterAccess, setFilterAccess] = useState("all");
   const [form, setForm] = useState<Partial<Series>>(blank());
   const [editing, setEditing] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -83,9 +90,11 @@ export default function SeriesPage() {
     if (!form.title?.trim()) return void toast.error("Title is required");
     setSaving(true);
     try {
+      const accessTier = form.access_tier ?? "free";
       const payload = {
         title: form.title, description: form.description, short_summary: form.short_summary,
-        cover_url: form.cover_url, language: form.language || "en", is_premium: form.is_premium,
+        cover_url: form.cover_url, language: form.language || "en",
+        access_tier: accessTier, is_premium: accessTier === "premium",
         is_featured: form.is_featured, pub_status: form.pub_status, category_id: form.category_id || null,
         updated_at: new Date().toISOString(),
       };
@@ -153,7 +162,8 @@ export default function SeriesPage() {
   const filtered = items.filter(s => {
     const matchSearch = !search || s.title.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === "all" || s.pub_status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchAccess = filterAccess === "all" || (s.access_tier ?? "free") === filterAccess;
+    return matchSearch && matchStatus && matchAccess;
   });
 
   const pageItems = filtered.slice(page * pageSize, (page + 1) * pageSize);
@@ -255,15 +265,23 @@ export default function SeriesPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="flex gap-6 pt-1">
-                  <div className="flex items-center gap-2">
-                    <Switch id="premium" checked={!!form.is_premium} onCheckedChange={v => setForm(f => ({ ...f, is_premium: v }))} />
-                    <Label htmlFor="premium">Premium only</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch id="featured" checked={!!form.is_featured} onCheckedChange={v => setForm(f => ({ ...f, is_featured: v }))} />
-                    <Label htmlFor="featured">Featured</Label>
-                  </div>
+                <div className="space-y-1">
+                  <Label>Access Tier</Label>
+                  <Select
+                    value={form.access_tier ?? "free"}
+                    onValueChange={v => setForm(f => ({ ...f, access_tier: v as AccessTier, is_premium: v === "premium" }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="guest">Guest — No login required</SelectItem>
+                      <SelectItem value="free">Free — All registered users</SelectItem>
+                      <SelectItem value="premium">Premium — Subscribers only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch id="featured" checked={!!form.is_featured} onCheckedChange={v => setForm(f => ({ ...f, is_featured: v }))} />
+                  <Label htmlFor="featured">Featured series</Label>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Button className="flex-1" onClick={save} disabled={saving}>{saving ? "Saving…" : editing ? "Save Changes" : "Create Series"}</Button>
@@ -287,6 +305,15 @@ export default function SeriesPage() {
               <SelectItem value="all">All Statuses</SelectItem>
               {["draft","under_review","approved","scheduled","published","unpublished"].map(s => (
                 <SelectItem key={s} value={s}>{s.replace(/_/g," ")}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterAccess} onValueChange={v => { setFilterAccess(v); handleFilterChange(); }}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Access" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Access</SelectItem>
+              {ACCESS_TIERS.map(t => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -369,7 +396,10 @@ export default function SeriesPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1 flex-wrap">
-                    {s.is_premium && <Badge variant="outline" className="text-xs text-primary border-primary/30">Premium</Badge>}
+                    {(() => {
+                      const tier = ACCESS_TIERS.find(t => t.value === (s.access_tier ?? "free")) ?? ACCESS_TIERS[1];
+                      return <Badge variant="outline" className={`text-xs ${tier.className}`}>{tier.label}</Badge>;
+                    })()}
                     {s.is_featured && <Badge variant="outline" className="text-xs text-yellow-400 border-yellow-400/30">Featured</Badge>}
                   </div>
                 </TableCell>

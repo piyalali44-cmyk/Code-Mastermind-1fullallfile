@@ -73,6 +73,30 @@ ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS store TEXT;
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS product_id TEXT;
 ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS original_transaction_id TEXT;
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 2.1: ACCESS TIER — episodes + series
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE public.episodes
+  ADD COLUMN IF NOT EXISTS access_tier TEXT NOT NULL DEFAULT 'free'
+  CHECK (access_tier IN ('guest', 'free', 'premium'));
+
+UPDATE public.episodes
+  SET access_tier = CASE WHEN is_premium THEN 'premium' ELSE 'free' END
+  WHERE access_tier = 'free' AND is_premium = true;
+
+CREATE INDEX IF NOT EXISTS idx_episodes_access_tier ON public.episodes (access_tier);
+
+ALTER TABLE public.series
+  ADD COLUMN IF NOT EXISTS access_tier TEXT NOT NULL DEFAULT 'free'
+  CHECK (access_tier IN ('guest', 'free', 'premium'));
+
+UPDATE public.series
+  SET access_tier = CASE WHEN is_premium THEN 'premium' ELSE 'free' END
+  WHERE access_tier = 'free' AND is_premium = true;
+
+CREATE INDEX IF NOT EXISTS idx_series_access_tier ON public.series (access_tier);
+
 CREATE INDEX IF NOT EXISTS idx_subscriptions_store
   ON public.subscriptions (store);
 
@@ -639,9 +663,20 @@ BEGIN
   ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS product_id TEXT;
   ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS original_transaction_id TEXT;
 
+  -- access_tier for content access control
+  ALTER TABLE public.episodes ADD COLUMN IF NOT EXISTS access_tier TEXT DEFAULT 'free';
+  ALTER TABLE public.series   ADD COLUMN IF NOT EXISTS access_tier TEXT DEFAULT 'free';
+  -- Backfill from is_premium where not already set
+  UPDATE public.episodes SET access_tier = 'premium' WHERE is_premium = true AND access_tier = 'free';
+  UPDATE public.series   SET access_tier = 'premium' WHERE is_premium = true AND access_tier = 'free';
+
   -- ── 2. Indexes (idempotent) ───────────────────────────────────────────────
   CREATE INDEX IF NOT EXISTS idx_subscriptions_store
     ON public.subscriptions (store);
+  CREATE INDEX IF NOT EXISTS idx_episodes_access_tier
+    ON public.episodes (access_tier);
+  CREATE INDEX IF NOT EXISTS idx_series_access_tier
+    ON public.series (access_tier);
   CREATE INDEX IF NOT EXISTS idx_profiles_referral_code_upper
     ON public.profiles (upper(referral_code));
   CREATE INDEX IF NOT EXISTS idx_profiles_referral_code

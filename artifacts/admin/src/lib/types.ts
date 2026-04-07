@@ -53,6 +53,8 @@ export interface Category {
   created_at: string;
 }
 
+export type AccessTier = "guest" | "free" | "premium";
+
 export interface Series {
   id: string;
   title: string;
@@ -65,6 +67,7 @@ export interface Series {
   short_summary?: string;
   tags?: string[];
   is_premium: boolean;
+  access_tier: AccessTier;
   is_featured: boolean;
   pub_status: "draft" | "under_review" | "approved" | "scheduled" | "published" | "unpublished";
   scheduled_publish_at?: string;
@@ -89,6 +92,7 @@ export interface Episode {
   episode_references?: string;
   key_lessons?: string;
   is_premium: boolean;
+  access_tier: AccessTier;
   pub_status: "draft" | "under_review" | "approved" | "scheduled" | "published" | "unpublished";
   scheduled_publish_at?: string;
   language: string;
