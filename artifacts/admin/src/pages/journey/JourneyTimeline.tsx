@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Edit2, CheckCircle, Clock, BookOpen, Plus, ArrowUp, ArrowDown, Trash2, EyeOff, Eye } from "lucide-react";
+import { Edit2, CheckCircle, Clock, BookOpen, Plus, ArrowUp, ArrowDown, Trash2, EyeOff, Eye, Link2 } from "lucide-react";
 import type { JourneyChapter } from "@/lib/types";
 
 export default function JourneyTimeline() {
@@ -23,12 +24,17 @@ export default function JourneyTimeline() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<JourneyChapter | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [seriesList, setSeriesList] = useState<{ id: string; title: string }[]>([]);
   const { profile } = useAuth();
 
   async function load() {
     setLoading(true);
-    const { data } = await supabase.from("journey_chapters").select("*").order("order_index");
-    setChapters(data ?? []);
+    const [{ data: chaptersData }, { data: seriesData }] = await Promise.all([
+      supabase.from("journey_chapters").select("*").order("order_index"),
+      supabase.from("series").select("id,title").order("title"),
+    ]);
+    setChapters(chaptersData ?? []);
+    setSeriesList(seriesData ?? []);
     setLoading(false);
   }
 
@@ -52,6 +58,7 @@ export default function JourneyTimeline() {
       era_label: "",
       description: "",
       cover_url: "",
+      series_id: "",
       estimated_release: "",
       is_published: false,
       show_coming_soon: true,
@@ -71,6 +78,7 @@ export default function JourneyTimeline() {
         era_label: form.era_label || null,
         description: form.description || null,
         cover_url: form.cover_url || null,
+        series_id: form.series_id || null,
         is_published: form.is_published,
         show_coming_soon: form.show_coming_soon,
         estimated_release: form.estimated_release || null,
@@ -192,8 +200,14 @@ export default function JourneyTimeline() {
                     </div>
                     <p className="font-semibold text-sm text-foreground">{ch.title}</p>
                     {ch.subtitle && <p className="text-xs text-muted-foreground mt-0.5">{ch.subtitle}</p>}
+                    {ch.series_id && (
+                      <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                        <Link2 className="h-3 w-3" />
+                        {seriesList.find(s => s.id === ch.series_id)?.title ?? "Story linked"}
+                      </p>
+                    )}
                     {ch.estimated_release && !ch.is_published && (
-                      <p className="text-xs text-primary mt-1">Est. release: {ch.estimated_release}</p>
+                      <p className="text-xs text-yellow-400 mt-1">Est. release: {ch.estimated_release}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -258,6 +272,31 @@ export default function JourneyTimeline() {
             <div className="space-y-1">
               <Label>Cover Image URL</Label>
               <Input value={form.cover_url || ""} onChange={e => setForm(f => ({ ...f, cover_url: e.target.value }))} placeholder="https://…" />
+            </div>
+            <div className="space-y-1">
+              <Label className="flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5 text-primary" />
+                Linked Story / Series
+              </Label>
+              <Select
+                value={form.series_id || "__none__"}
+                onValueChange={v => setForm(f => ({ ...f, series_id: v === "__none__" ? "" : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a story to link…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">
+                    <span className="text-muted-foreground">No story linked</span>
+                  </SelectItem>
+                  {seriesList.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Tap on this chapter in the app will open the linked story.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Estimated Release (if not published)</Label>
