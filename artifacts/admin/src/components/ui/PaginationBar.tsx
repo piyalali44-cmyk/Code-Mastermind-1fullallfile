@@ -1,6 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface PaginationBarProps {
   page: number;
@@ -28,78 +28,101 @@ export function PaginationBar({
   const windowStart = Math.max(0, Math.min(totalPages - 5, page - 2));
   const windowPages = Array.from({ length: Math.min(5, totalPages) }, (_, i) => windowStart + i);
 
+  const NavBtn = ({
+    onClick,
+    disabled,
+    title,
+    children,
+  }: {
+    onClick: () => void;
+    disabled: boolean;
+    title: string;
+    children: React.ReactNode;
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        "inline-flex items-center justify-center h-8 w-8 rounded-md text-sm transition-colors",
+        "border border-border/60 bg-card/50",
+        "hover:bg-muted hover:border-border",
+        "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-border/60",
+        "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
+  );
+
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border text-xs text-muted-foreground ${className}`}>
-      {/* Count */}
-      <span className="shrink-0">
-        {total === 0 ? "No records" : `Showing ${from}–${to} of ${total.toLocaleString()}`}
+    <div className={cn(
+      "flex flex-wrap items-center justify-between gap-4 px-5 py-3",
+      "border-t border-border/50 bg-card/20",
+      "text-xs text-muted-foreground",
+      className
+    )}>
+      {/* Record count */}
+      <span className="shrink-0 tabular-nums">
+        {total === 0
+          ? "No records found"
+          : <><span className="text-foreground font-medium">{from.toLocaleString()}–{to.toLocaleString()}</span> of <span className="text-foreground font-medium">{total.toLocaleString()}</span> records</>
+        }
       </span>
 
-      {/* Page buttons */}
+      {/* Page navigation */}
       <div className="flex items-center gap-1">
-        <Button
-          variant="outline" size="icon" className="h-7 w-7"
-          onClick={() => onPageChange(0)} disabled={page === 0}
-          title="First page"
-        >
-          <ChevronLeft className="h-3 w-3" />
-          <ChevronLeft className="h-3 w-3 -ml-2.5" />
-        </Button>
-        <Button
-          variant="outline" size="icon" className="h-7 w-7"
-          onClick={() => onPageChange(Math.max(0, page - 1))} disabled={page === 0}
-          title="Previous page"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+        <NavBtn onClick={() => onPageChange(0)} disabled={page === 0} title="First page">
+          <ChevronsLeft className="h-3.5 w-3.5" />
+        </NavBtn>
+        <NavBtn onClick={() => onPageChange(page - 1)} disabled={page === 0} title="Previous page">
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </NavBtn>
 
-        {windowStart > 0 && (
-          <span className="px-1 text-muted-foreground/50">…</span>
-        )}
-        {windowPages.map(pg => (
-          <Button
-            key={pg}
-            variant={pg === page ? "default" : "outline"}
-            size="icon" className="h-7 w-7 text-xs"
-            onClick={() => onPageChange(pg)}
-          >
-            {pg + 1}
-          </Button>
-        ))}
-        {windowStart + 5 < totalPages && (
-          <span className="px-1 text-muted-foreground/50">…</span>
-        )}
+        <div className="flex items-center gap-1 mx-1">
+          {windowStart > 0 && (
+            <span className="inline-flex items-center justify-center h-8 w-6 text-muted-foreground/40 text-xs select-none">…</span>
+          )}
+          {windowPages.map(pg => (
+            <button
+              key={pg}
+              onClick={() => onPageChange(pg)}
+              className={cn(
+                "inline-flex items-center justify-center h-8 min-w-[2rem] px-1 rounded-md text-xs font-medium transition-colors",
+                pg === page
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "border border-border/60 bg-card/50 text-muted-foreground hover:bg-muted hover:text-foreground hover:border-border"
+              )}
+            >
+              {pg + 1}
+            </button>
+          ))}
+          {windowStart + 5 < totalPages && (
+            <span className="inline-flex items-center justify-center h-8 w-6 text-muted-foreground/40 text-xs select-none">…</span>
+          )}
+        </div>
 
-        <Button
-          variant="outline" size="icon" className="h-7 w-7"
-          onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}
-          title="Next page"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline" size="icon" className="h-7 w-7"
-          onClick={() => onPageChange(totalPages - 1)} disabled={page >= totalPages - 1}
-          title="Last page"
-        >
-          <ChevronRight className="h-3 w-3" />
-          <ChevronRight className="h-3 w-3 -ml-2.5" />
-        </Button>
+        <NavBtn onClick={() => onPageChange(page + 1)} disabled={page >= totalPages - 1} title="Next page">
+          <ChevronRight className="h-3.5 w-3.5" />
+        </NavBtn>
+        <NavBtn onClick={() => onPageChange(totalPages - 1)} disabled={page >= totalPages - 1} title="Last page">
+          <ChevronsRight className="h-3.5 w-3.5" />
+        </NavBtn>
       </div>
 
       {/* Rows per page */}
       <div className="flex items-center gap-2 shrink-0">
-        <span>Rows per page</span>
+        <span className="text-muted-foreground">Rows per page</span>
         <Select
           value={String(pageSize)}
           onValueChange={v => { onPageSizeChange(Number(v)); onPageChange(0); }}
         >
-          <SelectTrigger className="h-7 w-[65px] text-xs">
+          <SelectTrigger className="h-8 w-[68px] text-xs border-border/60 bg-card/50 hover:bg-muted">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {pageSizeOptions.map(n => (
-              <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+              <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
             ))}
           </SelectContent>
         </Select>
