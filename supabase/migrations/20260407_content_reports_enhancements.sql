@@ -23,6 +23,8 @@ ALTER TABLE public.content_reports
 DROP POLICY IF EXISTS "Admin manages reports"    ON public.content_reports;
 DROP POLICY IF EXISTS "Admins view all reports"  ON public.content_reports;
 DROP POLICY IF EXISTS "Admins update reports"    ON public.content_reports;
+DROP POLICY IF EXISTS "Admins delete reports"    ON public.content_reports;
+DROP POLICY IF EXISTS "Users see own reports"    ON public.content_reports;
 
 CREATE POLICY "Admins view all reports" ON public.content_reports
   FOR SELECT USING (
