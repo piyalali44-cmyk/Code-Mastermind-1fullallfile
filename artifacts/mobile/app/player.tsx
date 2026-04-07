@@ -1061,7 +1061,7 @@ export default function PlayerScreen() {
 
       {/* Comments Modal */}
       <Modal visible={commentModal} transparent animationType="slide" onRequestClose={() => setCommentModal(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <View style={styles.modalOverlay}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setCommentModal(false)} />
             <View
