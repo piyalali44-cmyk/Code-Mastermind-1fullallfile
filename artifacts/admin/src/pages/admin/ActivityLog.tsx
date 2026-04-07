@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDateTime } from "@/lib/utils";
 import { Search, RefreshCw, Activity } from "lucide-react";
 import { toast } from "sonner";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 interface LogEntry {
   id: string; admin_id: string | null; action: string; entity_type: string | null;
@@ -31,14 +32,13 @@ const ENTITY_COLORS: Record<string, string> = {
   journey_chapter: "bg-amber-500/10 text-amber-400 border-amber-500/30",
 };
 
-const PAGE_SIZE = 30;
-
 export default function ActivityLog() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(30);
   const [total, setTotal] = useState(0);
 
   const entityTypes = [...new Set(Object.keys(ENTITY_COLORS))];
@@ -50,7 +50,7 @@ export default function ActivityLog() {
         .from("admin_activity_log")
         .select("id,admin_id,action,entity_type,entity_id,details,created_at", { count: "exact" })
         .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (filterType !== "all") q = q.eq("entity_type", filterType);
       if (search.trim()) q = q.ilike("action", `%${search}%`);
@@ -65,11 +65,9 @@ export default function ActivityLog() {
     } finally {
       setLoading(false);
     }
-  }, [page, filterType, search]);
+  }, [page, pageSize, filterType, search]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   function adminInitial(adminId: string | null) {
     if (!adminId) return "?";
@@ -167,15 +165,13 @@ export default function ActivityLog() {
           </TableBody>
         </Table>
         </div>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-4 border-t border-border">
-            <span className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</Button>
-            </div>
-          </div>
-        )}
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
     </div>
   );
