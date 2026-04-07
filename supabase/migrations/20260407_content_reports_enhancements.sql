@@ -54,5 +54,13 @@ CREATE POLICY "Admins delete reports" ON public.content_reports
 -- 5. Grant UPDATE to authenticated (admins need it via RLS, service_role already has it)
 GRANT SELECT, INSERT, UPDATE ON public.content_reports TO authenticated;
 
--- 6. Enable Realtime for content_reports
-ALTER PUBLICATION supabase_realtime ADD TABLE public.content_reports;
+-- 6. Enable Realtime for content_reports (safe if already added)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'content_reports'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.content_reports;
+  END IF;
+END $$;
