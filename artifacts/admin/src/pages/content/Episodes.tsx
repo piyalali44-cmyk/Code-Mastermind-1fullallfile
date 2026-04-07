@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,7 +16,7 @@ import { toast } from "sonner";
 import { Plus, Edit2, Trash2, Search, Mic2, Volume2 } from "lucide-react";
 import ImageUpload from "@/components/ImageUpload";
 import { formatDate, formatDuration } from "@/lib/utils";
-import type { Episode, Series } from "@/lib/types";
+import type { Episode, Series, AccessTier } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -27,9 +26,15 @@ const STATUS_COLORS: Record<string, string> = {
   unpublished: "bg-red-500/10 text-red-400 border-red-500/30",
 };
 
+const ACCESS_TIERS: { value: AccessTier; label: string; className: string }[] = [
+  { value: "guest",   label: "Guest",   className: "bg-slate-500/10 text-slate-400 border-slate-500/30" },
+  { value: "free",    label: "Free",    className: "bg-blue-500/10 text-blue-400 border-blue-500/30" },
+  { value: "premium", label: "Premium", className: "bg-primary/10 text-primary border-primary/30" },
+];
+
 const blank = (): Partial<Episode> => ({
   title: "", description: "", short_summary: "", audio_url: "", image_url: "", cover_override_url: "", duration: 0,
-  episode_number: 1, language: "en", is_premium: false, pub_status: "published", series_id: "",
+  episode_number: 1, language: "en", is_premium: false, access_tier: "free", pub_status: "published", series_id: "",
 });
 
 export default function Episodes() {
@@ -40,6 +45,7 @@ export default function Episodes() {
   const [search, setSearch] = useState("");
   const [filterSeries, setFilterSeries] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterAccess, setFilterAccess] = useState("all");
   const [form, setForm] = useState<Partial<Episode>>(blank());
   const [editing, setEditing] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -61,6 +67,7 @@ export default function Episodes() {
 
     if (filterSeries !== "all") query = query.eq("series_id", filterSeries);
     if (filterStatus !== "all") query = query.eq("pub_status", filterStatus);
+    if (filterAccess !== "all") query = query.eq("access_tier", filterAccess);
     if (search) query = query.ilike("title", `%${search}%`);
 
     const from = page * pageSize;
@@ -78,7 +85,7 @@ export default function Episodes() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [page, pageSize, filterSeries, filterStatus, search]);
+  useEffect(() => { load(); }, [page, pageSize, filterSeries, filterStatus, filterAccess, search]);
 
   useEffect(() => {
     const channel = supabase
@@ -86,7 +93,7 @@ export default function Episodes() {
       .on("postgres_changes", { event: "*", schema: "public", table: "episodes" }, () => { load(); })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [page, pageSize, filterSeries, filterStatus, search]);
+  }, [page, pageSize, filterSeries, filterStatus, filterAccess, search]);
 
   function openNew() { setForm(blank()); setEditing(null); setSheetOpen(true); }
   function openEdit(ep: Episode) { setForm({ ...ep }); setEditing(ep.id); setSheetOpen(true); }
@@ -96,12 +103,14 @@ export default function Episodes() {
     if (!form.series_id) return void toast.error("Series is required");
     setSaving(true);
     try {
+      const accessTier = form.access_tier ?? "free";
       const payload = {
         title: form.title, description: form.description, short_summary: form.short_summary,
         audio_url: form.audio_url, image_url: form.image_url || null, cover_override_url: form.cover_override_url || null,
         duration: form.duration || 0,
         episode_number: form.episode_number || 1, language: form.language || "en",
-        is_premium: form.is_premium, pub_status: form.pub_status, series_id: form.series_id,
+        access_tier: accessTier, is_premium: accessTier === "premium",
+        pub_status: form.pub_status, series_id: form.series_id,
         key_lessons: form.key_lessons, transcript: form.transcript,
         updated_at: new Date().toISOString(),
       };
@@ -309,9 +318,19 @@ export default function Episodes() {
                     </Select>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <Switch id="ep-premium" checked={!!form.is_premium} onCheckedChange={v => setForm(f => ({ ...f, is_premium: v }))} />
-                  <Label htmlFor="ep-premium">Premium only</Label>
+                <div className="space-y-1">
+                  <Label>Access Tier</Label>
+                  <Select
+                    value={form.access_tier ?? "free"}
+                    onValueChange={v => setForm(f => ({ ...f, access_tier: v as AccessTier, is_premium: v === "premium" }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="guest">Guest — No login required</SelectItem>
+                      <SelectItem value="free">Free — All registered users</SelectItem>
+                      <SelectItem value="premium">Premium — Subscribers only</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Button className="flex-1" onClick={save} disabled={saving}>{saving ? "Saving…" : editing ? "Save Changes" : "Create Episode"}</Button>
@@ -345,6 +364,15 @@ export default function Episodes() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterAccess} onValueChange={handleFilterChange(setFilterAccess)}>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Access" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Access</SelectItem>
+              {ACCESS_TIERS.map(t => (
+                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -368,7 +396,7 @@ export default function Episodes() {
               <TableHead>Duration</TableHead>
               <TableHead>Plays</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Premium</TableHead>
+              <TableHead>Access</TableHead>
               <TableHead>Created</TableHead>
               <TableHead />
             </TableRow>
@@ -427,9 +455,10 @@ export default function Episodes() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {ep.is_premium
-                      ? <Badge variant="outline" className="text-primary border-primary/30 text-xs">Premium</Badge>
-                      : <span className="text-muted-foreground text-xs">Free</span>}
+                    {(() => {
+                      const tier = ACCESS_TIERS.find(t => t.value === (ep.access_tier ?? "free")) ?? ACCESS_TIERS[1];
+                      return <Badge variant="outline" className={`text-xs ${tier.className}`}>{tier.label}</Badge>;
+                    })()}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatDate(ep.created_at)}</TableCell>
                   <TableCell>
