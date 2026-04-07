@@ -20,7 +20,6 @@ import {
 import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Link } from "wouter";
 import { toast } from "sonner";
-import MigrationBanner from "@/components/MigrationBanner";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface SubscriptionRow {
@@ -314,8 +313,6 @@ export default function Transactions() {
           </Button>
         </div>
       </div>
-
-      <MigrationBanner />
 
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
