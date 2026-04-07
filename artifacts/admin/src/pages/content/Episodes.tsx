@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const blank = (): Partial<Episode> => ({
-  title: "", description: "", short_summary: "", audio_url: "", cover_override_url: "", duration: 0,
+  title: "", description: "", short_summary: "", audio_url: "", image_url: "", cover_override_url: "", duration: 0,
   episode_number: 1, language: "en", is_premium: false, pub_status: "published", series_id: "",
 });
 
@@ -98,7 +98,7 @@ export default function Episodes() {
     try {
       const payload = {
         title: form.title, description: form.description, short_summary: form.short_summary,
-        audio_url: form.audio_url, cover_override_url: form.cover_override_url || null,
+        audio_url: form.audio_url, image_url: form.image_url || null, cover_override_url: form.cover_override_url || null,
         duration: form.duration || 0,
         episode_number: form.episode_number || 1, language: form.language || "en",
         is_premium: form.is_premium, pub_status: form.pub_status, series_id: form.series_id,
@@ -215,12 +215,21 @@ export default function Episodes() {
               <div className="space-y-4 mt-6">
 
                 <ImageUpload
-                  value={form.cover_override_url || ""}
-                  onChange={(url) => setForm(f => ({ ...f, cover_override_url: url }))}
-                  label="Cover Image"
+                  value={form.image_url || ""}
+                  onChange={(url) => setForm(f => ({ ...f, image_url: url }))}
+                  label="Episode Image"
                   folder="episodes"
                   shape="square"
-                  placeholder="Upload cover or paste URL"
+                  placeholder="Upload episode image or paste URL"
+                />
+
+                <ImageUpload
+                  value={form.cover_override_url || ""}
+                  onChange={(url) => setForm(f => ({ ...f, cover_override_url: url }))}
+                  label="Cover Override (optional)"
+                  folder="episodes"
+                  shape="square"
+                  placeholder="Override series cover for this episode"
                 />
 
                 <div className="space-y-1">
