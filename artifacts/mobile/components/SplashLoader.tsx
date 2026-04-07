@@ -175,13 +175,13 @@ export function SplashLoader() {
           Animated.timing(pulse, {
             toValue: 1.045,
             duration: 2600,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: ND,
           }),
           Animated.timing(pulse, {
             toValue: 1,
             duration: 2600,
-            easing: Easing.inOut(Easing.sine),
+            easing: Easing.inOut(Easing.sin),
             useNativeDriver: ND,
           }),
         ])

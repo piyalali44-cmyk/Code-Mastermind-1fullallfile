@@ -6,49 +6,46 @@ React Native / Expo mobile app for the StayGuided Me Islamic audio platform.
 
 ## Prerequisites
 
-Before you start, install these on your computer:
-
-| Tool | Link |
-|------|------|
-| Node.js (v20+) | https://nodejs.org |
+| Tool | Install |
+|------|---------|
+| Node.js v20+ | https://nodejs.org |
 | pnpm | `npm install -g pnpm` |
-| Expo CLI | `npm install -g expo` |
-| EAS CLI (for building APK/IPA) | `npm install -g eas-cli` |
+| Expo Go (phone) | iOS App Store / Google Play |
+| EAS CLI (for builds) | `npm install -g eas-cli` |
 
 ---
 
-## Step 1 — Get Your Supabase Anon Key
+## Step 1 — Get Your Supabase Keys
 
-1. Open https://supabase.com/dashboard
-2. Select the **tkruzfskhtcazjxdracm** project
-3. Go to **Project Settings → API**
-4. Copy the **anon / public** key (NOT the service_role key)
+1. Go to https://supabase.com/dashboard
+2. Open your project → **Project Settings → API**
+3. Copy the **anon / public** key (NOT the service_role key)
 
 ---
 
 ## Step 2 — Set Up Environment
 
-From **inside this folder** (`artifacts/mobile/`):
-
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and paste your anon key:
+Edit `.env`:
 
-```
+```env
 EXPO_PUBLIC_SUPABASE_URL=https://tkruzfskhtcazjxdracm.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=paste-your-anon-key-here
-EXPO_PUBLIC_API_BASE_URL=https://your-replit-domain.replit.app/api-server
+EXPO_PUBLIC_API_BASE_URL=https://your-api-server.com/api
 ```
 
-> For `EXPO_PUBLIC_API_BASE_URL`: use your Replit project's deployed URL + `/api-server`
+> For `EXPO_PUBLIC_API_BASE_URL`: use your deployed API server URL.
+> During local development this can be `http://YOUR_LOCAL_IP:8080/api`
+> (use your computer's local network IP, not `localhost`, so the phone can reach it)
 
 ---
 
 ## Step 3 — Install Dependencies
 
-This app lives inside a pnpm monorepo. From the **project root** (two levels up):
+From the **project root** (two levels up):
 
 ```bash
 pnpm install
@@ -56,79 +53,53 @@ pnpm install
 
 ---
 
-## Step 4 — Run on Your Phone (Development)
+## Step 4 — Run on Your Phone
 
 ```bash
 # From the project root:
-pnpm --filter @workspace/mobile run dev
-```
+pnpm --filter @workspace/mobile run dev:local
 
-Or from this folder:
-```bash
+# Or from this folder directly:
 npx expo start
 ```
 
-Then scan the QR code with **Expo Go** app on your Android or iPhone.
+Scan the QR code with **Expo Go** on your phone.
 
 ---
 
-## Step 5A — Build Android APK (via EAS Cloud Build)
+## Step 5A — Build Android APK (EAS Cloud Build)
 
-This is the easiest way — EAS builds in the cloud, you don't need Android Studio.
-
-**1. Create a free Expo account:**
-   - Go to https://expo.dev and sign up
-
-**2. Log in to EAS:**
 ```bash
 eas login
-```
-
-**3. Create the EAS project (first time only):**
-```bash
-eas init
-```
-
-**4. Build the APK:**
-```bash
+eas init   # First time only
 eas build --platform android --profile preview
 ```
 
-> - Select **APK** format when asked (not AAB, unless uploading to Play Store)
-> - The build takes 10–20 minutes in the cloud
-> - You'll get a download link when it's done
-> - Install the APK directly on any Android phone
+> Builds in the cloud — no Android Studio required.
+> Download the APK from the link EAS provides and install it directly.
 
-**5. For a Play Store release (AAB format):**
+For Play Store (AAB format):
 ```bash
 eas build --platform android --profile production
 ```
 
 ---
 
-## Step 5B — Build iOS IPA (via EAS Cloud Build)
+## Step 5B — Build iOS IPA
 
-> **Requires:** Apple Developer account ($99/year) + Mac (for signing setup)
+> Requires Apple Developer account ($99/year)
 
 ```bash
 eas build --platform ios --profile production
 ```
 
-- EAS will guide you through Apple credentials setup
-- The IPA can be submitted to the App Store with `eas submit --platform ios`
-
 ---
 
-## Step 6 — Submit to App Stores
+## Step 6 — Submit to Stores
 
-**Google Play Store:**
 ```bash
-eas submit --platform android
-```
-
-**Apple App Store:**
-```bash
-eas submit --platform ios
+eas submit --platform android   # Google Play
+eas submit --platform ios       # App Store
 ```
 
 ---
@@ -145,24 +116,13 @@ artifacts/mobile/
 ├── components/           # Reusable UI components
 ├── context/              # Global state (Auth, Content, Audio Player)
 ├── lib/                  # Supabase client, database helpers
-├── data/mockData.ts      # Fallback mock data (used when DB is empty)
 ├── supabase/             # SQL files for database setup
-│   ├── admin_panel_setup.sql  # Run this in Supabase SQL Editor
-│   └── fix_duplicates.sql     # Run to clean duplicate DB rows
+│   ├── admin_panel_setup.sql  # Run in Supabase SQL Editor (full setup)
+│   └── master_patches.sql     # Latest schema patches + RLS policies
 ├── .env.example          # Copy to .env and fill in keys
 ├── app.json              # Expo config (app name, icons, bundle ID)
-└── eas.json              # EAS Build config
+└── eas.json              # EAS Build profiles
 ```
-
----
-
-## Database Setup (One-Time)
-
-If the app shows no content, run these SQL files in Supabase SQL Editor:
-
-1. **Supabase Dashboard** → SQL Editor
-2. Run `supabase/admin_panel_setup.sql` (comprehensive DB setup)
-3. Run `supabase/fix_duplicates.sql` (clean any duplicate rows)
 
 ---
 
@@ -187,11 +147,23 @@ Edit `app.json`:
 
 ---
 
+## Database Setup (One-Time)
+
+If the app shows no content:
+
+1. **Supabase Dashboard** → SQL Editor
+2. Run `supabase/admin_panel_setup.sql`
+3. Run `supabase/master_patches.sql`
+4. Add content through the admin panel
+
+---
+
 ## Common Issues
 
 | Problem | Solution |
 |---------|----------|
-| App shows "Supabase key missing" | Check your `.env` file has `EXPO_PUBLIC_SUPABASE_ANON_KEY` |
-| No content showing | Run `admin_panel_setup.sql` in Supabase SQL Editor |
-| QR code not scanning | Make sure phone and computer are on same WiFi |
-| Build fails on EAS | Run `eas diagnostics` and check logs |
+| "Supabase key missing" | Check `.env` has `EXPO_PUBLIC_SUPABASE_ANON_KEY` |
+| No content showing | Run `admin_panel_setup.sql` then add content in admin panel |
+| Can't connect to API | Use your computer's local network IP (not `localhost`) in `EXPO_PUBLIC_API_BASE_URL` |
+| QR code not scanning | Phone and computer must be on the same WiFi |
+| Build fails on EAS | Run `eas diagnostics` for details |
