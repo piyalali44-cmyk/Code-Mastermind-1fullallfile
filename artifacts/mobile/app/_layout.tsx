@@ -50,8 +50,10 @@ const queryClient = new QueryClient({
   },
 });
 
-// How long our custom splash stays visible (matches SplashLoader animation)
+// How long our custom splash stays fully visible before it begins to fade
 const MIN_SPLASH_MS = 3400;
+// Duration of the fade-out transition
+const FADE_OUT_MS   = 800;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SplashOverlay — always mounts on first render, self-removes after animation
@@ -64,8 +66,8 @@ function SplashOverlay() {
     const timer = setTimeout(() => {
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
+        duration: FADE_OUT_MS,
+        easing: Easing.bezier(0.4, 0, 0.2, 1), // material ease-in-out — feels natural
         useNativeDriver: Platform.OS !== "web",
       }).start(() => setHidden(true));
     }, MIN_SPLASH_MS);
