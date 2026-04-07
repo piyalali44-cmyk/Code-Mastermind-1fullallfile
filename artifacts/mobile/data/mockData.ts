@@ -23,6 +23,7 @@ export interface Series {
   totalHours: string;
   isFeatured: boolean;
   isNew: boolean;
+  playCount: number;
   episodes: Episode[];
 }
 
@@ -58,6 +59,7 @@ export const MOCK_SERIES: Series[] = [
     totalHours: "24 hrs",
     isFeatured: true,
     isNew: false,
+    playCount: 0,
     episodes: [
       { id: "e1", number: 1, title: "Arabia Before Islam", description: "The state of Arabia before the birth of the Prophet ﷺ", duration: "32 min", durationSecs: 1920, isPremium: false, progress: 100, audioUrl: "", hasAudio: false },
       { id: "e2", number: 2, title: "The Year of the Elephant", description: "The miraculous event that marked the birth year of the Prophet ﷺ", duration: "28 min", durationSecs: 1680, isPremium: false, progress: 75, audioUrl: "", hasAudio: false },
@@ -76,6 +78,7 @@ export const MOCK_SERIES: Series[] = [
     totalHours: "16 hrs",
     isFeatured: true,
     isNew: false,
+    playCount: 0,
     episodes: [
       { id: "e6", number: 1, title: "Adam (AS) — The First Human", description: "The creation of Adam, Jannah, and the descent to Earth", duration: "40 min", durationSecs: 2400, isPremium: false, progress: 50, audioUrl: "", hasAudio: false },
       { id: "e7", number: 2, title: "Nuh (AS) — The Great Flood", description: "900 years of prophethood and the great ark", duration: "38 min", durationSecs: 2280, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },
@@ -92,6 +95,7 @@ export const MOCK_SERIES: Series[] = [
     totalHours: "12 hrs",
     isFeatured: true,
     isNew: true,
+    playCount: 0,
     episodes: [
       { id: "e9", number: 1, title: "Abu Bakr As-Siddiq (RA)", description: "The most beloved companion — his faith, sacrifice, and leadership", duration: "42 min", durationSecs: 2520, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },
       { id: "e10", number: 2, title: "Umar ibn Al-Khattab (RA)", description: "From fierce opponent to the second caliph of Islam", duration: "38 min", durationSecs: 2280, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },
@@ -108,6 +112,7 @@ export const MOCK_SERIES: Series[] = [
     totalHours: "10 hrs",
     isFeatured: true,
     isNew: true,
+    playCount: 0,
     episodes: [
       { id: "e12", number: 1, title: "The Abbasid Caliphate", description: "Baghdad: the city of peace and center of world knowledge", duration: "36 min", durationSecs: 2160, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },
       { id: "e13", number: 2, title: "House of Wisdom", description: "Bayt al-Hikmah — where Greek, Persian, and Indian knowledge met Islam", duration: "32 min", durationSecs: 1920, isPremium: true, progress: 0, audioUrl: "", hasAudio: false },
@@ -123,6 +128,7 @@ export const MOCK_SERIES: Series[] = [
     totalHours: "8 hrs",
     isFeatured: true,
     isNew: false,
+    playCount: 0,
     episodes: [
       { id: "e14", number: 1, title: "Ashab Al-Kahf", description: "The People of the Cave — faith in the face of oppression", duration: "33 min", durationSecs: 1980, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },
       { id: "e15", number: 2, title: "The Story of Yusuf (AS)", description: "The most beautiful story in the Qur'an — complete retelling", duration: "55 min", durationSecs: 3300, isPremium: false, progress: 0, audioUrl: "", hasAudio: false },

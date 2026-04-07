@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import MigrationBanner from "@/components/MigrationBanner";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface SubscriptionRow {
@@ -30,6 +31,9 @@ interface SubscriptionRow {
   expires_at: string | null;
   provider: string;
   provider_subscription_id: string | null;
+  store: string | null;
+  product_id: string | null;
+  original_transaction_id: string | null;
   created_at: string;
 }
 
@@ -132,7 +136,7 @@ export default function Transactions() {
         supabase.from("app_settings").select("key,value")
           .in("key", ["weekly_price_usd", "monthly_price_usd", "lifetime_price_usd"]),
         supabase.from("subscriptions").select(
-          "id,user_id,plan,status,started_at,expires_at,provider,provider_subscription_id,created_at"
+          "id,user_id,plan,status,started_at,expires_at,provider,provider_subscription_id,store,product_id,original_transaction_id,created_at"
         )
           .gte("started_at", `${dateFrom}T00:00:00`)
           .lte("started_at", `${dateTo}T23:59:59`)
@@ -227,15 +231,18 @@ export default function Transactions() {
   /* ─── CSV export ───────────────────────────────────── */
   function handleExport() {
     const rows = [
-      ["User", "Email", "Plan", "Status", "Provider", "Amount", "Started", "Expires", "Transaction ID"],
+      ["User", "Email", "Plan", "Status", "Provider", "Store", "Product ID", "Amount", "Started", "Expires", "Transaction ID", "Original Transaction ID"],
       ...filtered.map(s => [
         s.profile?.display_name ?? "Unknown",
         s.profile?.email ?? "—",
         s.plan, s.status, s.provider,
+        s.store ?? "—",
+        s.product_id ?? "—",
         isGranted(s.provider) ? "Granted" : fmt(getPlanAmount(s.plan, s.provider, prices)),
         fmtDate(s.started_at),
         s.expires_at ? fmtDate(s.expires_at) : (s.plan === "lifetime" ? "Lifetime" : "—"),
         s.provider_subscription_id ?? "—",
+        s.original_transaction_id ?? "—",
       ]),
     ];
     const csv  = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
@@ -327,6 +334,8 @@ export default function Transactions() {
           </Button>
         </div>
       </div>
+
+      <MigrationBanner />
 
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -482,10 +491,11 @@ export default function Transactions() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="w-[220px]">User</TableHead>
+                <TableHead className="w-[200px]">User</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Source</TableHead>
+                <TableHead>Store / Product</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Started</TableHead>
                 <TableHead>Expires</TableHead>
@@ -496,7 +506,7 @@ export default function Transactions() {
               {loading ? (
                 Array.from({ length: 8 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 8 }).map((__, j) => (
+                    {Array.from({ length: 9 }).map((__, j) => (
                       <TableCell key={j}>
                         <div className="h-4 bg-muted animate-pulse rounded"
                           style={{ animationDelay: `${i * 40}ms`, width: j === 0 ? "80%" : "60%" }} />
@@ -506,7 +516,7 @@ export default function Transactions() {
                 ))
               ) : pageRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-16">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-16">
                     <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
                     {all.length === 0
                       ? "No subscriptions found in this date range"
@@ -561,6 +571,35 @@ export default function Transactions() {
                         <div className="flex items-center gap-1.5">
                           <pm.Icon className={`h-3.5 w-3.5 shrink-0 ${pm.color}`} />
                           <span className="text-xs capitalize">{pm.label}</span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          {sub.store && sub.store !== "manual" && sub.store !== "admin" ? (
+                            <span className={`text-[11px] font-medium capitalize ${
+                              sub.store === "app_store" ? "text-slate-300" :
+                              sub.store === "google_play" ? "text-green-400" :
+                              sub.store === "promo" ? "text-primary" :
+                              "text-muted-foreground"
+                            }`}>
+                              {sub.store === "app_store" ? "App Store" :
+                               sub.store === "google_play" ? "Google Play" :
+                               sub.store}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
+                          {sub.product_id && (
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[100px]" title={sub.product_id}>
+                              {sub.product_id}
+                            </span>
+                          )}
+                          {sub.original_transaction_id && (
+                            <span className="text-[10px] text-muted-foreground/60 truncate max-w-[100px] font-mono" title={sub.original_transaction_id}>
+                              {sub.original_transaction_id.slice(0, 12)}…
+                            </span>
+                          )}
                         </div>
                       </TableCell>
 

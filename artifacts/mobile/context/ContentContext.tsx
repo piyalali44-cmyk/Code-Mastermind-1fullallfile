@@ -137,6 +137,7 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
           isNew: s.is_new || (s.created_at
             ? (Date.now() - new Date(s.created_at).getTime()) < 30 * 24 * 60 * 60 * 1000
             : false),
+          playCount: s.play_count || 0,
           episodes: eps.map((ep: any) => ({
             id: ep.id,
             number: ep.episode_number || 1,

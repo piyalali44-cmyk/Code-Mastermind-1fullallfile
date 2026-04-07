@@ -16,7 +16,9 @@ export default function PopularScreen() {
   const isWeb = Platform.OS === "web";
 
   const { series: allSeries } = useContent();
-  const popular = allSeries.slice(0, 8);
+  const popular = [...allSeries]
+    .sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0) || (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0))
+    .slice(0, 20);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -24,7 +26,7 @@ export default function PopularScreen() {
         <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.surfaceHigh }]}>
           <Icon name="arrow-left" size={20} color={colors.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Popular</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Most Popular</Text>
         <View style={{ width: 38 }} />
       </View>
 
