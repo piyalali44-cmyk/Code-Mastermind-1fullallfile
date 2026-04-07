@@ -461,8 +461,11 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const sessionSeed = useRef(getDailySeed()).current;
   const feedInitRef = useRef(false);
-  const feedPoolRef = useRef<any[]>([]);   // full ordered pool, built once
-  const feedOffsetRef = useRef(0);         // how many items already shown
+  const feedPoolRef = useRef<any[]>([]);   // full ordered pool for current cycle
+  const feedOffsetRef = useRef(0);         // how many items already shown in current cycle
+  const feedCycleRef = useRef(0);          // cycle counter — increments each time pool exhausts
+  const feedTotalShownRef = useRef(0);     // global count for unique keys across cycles
+  const shownKeysRef = useRef<Set<string>>(new Set()); // tracks shown item keys to prevent duplicates
   const loadingMoreRef = useRef(false);    // sync guard — no double-load
 
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -498,13 +501,29 @@ export default function HomeScreen() {
     }
   }, [pendingNotification, clearPendingNotification]);
 
+  // Build a fresh pool for the given cycle, excluding recently shown keys to prevent duplicates
+  const buildNextPool = useCallback((cycle: number, recentKeys: Set<string>) => {
+    const newSeed = sessionSeed + cycle * 7919; // large prime offset gives very different shuffles
+    const pool = buildFeedPool(allSeries, newSeed);
+    // Filter out items that were shown in the previous cycle (keeps boundary fresh)
+    return pool.filter(item => {
+      const k = `${item.series.id}::${item.episode?.id ?? "null"}`;
+      return !recentKeys.has(k);
+    });
+  }, [allSeries, sessionSeed]);
+
   useEffect(() => {
     if (allSeries.length > 0 && !feedInitRef.current) {
       feedInitRef.current = true;
       const pool = buildFeedPool(allSeries, sessionSeed);
       feedPoolRef.current = pool;
       feedOffsetRef.current = FEED_PAGE_SIZE;
-      const initial = pool.slice(0, FEED_PAGE_SIZE).map((item, i) => ({ ...item, key: `feed-${i}` }));
+      feedTotalShownRef.current = FEED_PAGE_SIZE;
+      const initial = pool.slice(0, FEED_PAGE_SIZE).map((item, i) => {
+        const k = `${item.series.id}::${item.episode?.id ?? "null"}`;
+        shownKeysRef.current.add(k);
+        return { ...item, key: `feed-${i}` };
+      });
       setFeedItems(initial);
     }
   }, [allSeries, sessionSeed]);
@@ -554,18 +573,42 @@ export default function HomeScreen() {
   const hasMiniplayer = !!nowPlaying;
 
   const loadMoreFeed = useCallback(() => {
-    const pool = feedPoolRef.current;
-    const offset = feedOffsetRef.current;
-    // Ref-based guard prevents double-load even when called multiple times in same tick
-    if (loadingMoreRef.current || pool.length === 0 || offset >= pool.length) return;
+    if (loadingMoreRef.current || allSeries.length === 0) return;
     loadingMoreRef.current = true;
     setLoadingMore(true);
-    const nextSlice = pool.slice(offset, offset + FEED_PAGE_SIZE).map((item, i) => ({ ...item, key: `feed-${offset + i}` }));
+
+    let pool = feedPoolRef.current;
+    let offset = feedOffsetRef.current;
+
+    // If current pool is exhausted, build a new cycle with a different seed
+    if (offset >= pool.length) {
+      feedCycleRef.current += 1;
+      // After 2 full cycles, clear shownKeys so content can cycle around naturally
+      // but still avoids immediate back-to-back duplicates within a cycle boundary
+      const recentKeys = feedCycleRef.current <= 2 ? shownKeysRef.current : new Set<string>();
+      const newPool = buildNextPool(feedCycleRef.current, recentKeys);
+      // If filtering removed everything (very small library), just use the full shuffled pool
+      feedPoolRef.current = newPool.length >= FEED_PAGE_SIZE ? newPool : buildFeedPool(allSeries, sessionSeed + feedCycleRef.current * 7919);
+      feedOffsetRef.current = 0;
+      // Reset shownKeys for the new cycle
+      shownKeysRef.current = new Set();
+      pool = feedPoolRef.current;
+      offset = 0;
+    }
+
+    const nextSlice = pool.slice(offset, offset + FEED_PAGE_SIZE).map((item, i) => {
+      const k = `${item.series.id}::${item.episode?.id ?? "null"}`;
+      shownKeysRef.current.add(k);
+      const globalIdx = feedTotalShownRef.current + i;
+      return { ...item, key: `feed-${globalIdx}` };
+    });
+
     feedOffsetRef.current = offset + FEED_PAGE_SIZE;
+    feedTotalShownRef.current += nextSlice.length;
     setFeedItems((prev) => [...prev, ...nextSlice]);
     setLoadingMore(false);
     loadingMoreRef.current = false;
-  }, []);
+  }, [allSeries, buildNextPool, sessionSeed]);
 
   const feedRows = useMemo(() => {
     const rows: (typeof feedItems[0] | undefined)[][] = [];
