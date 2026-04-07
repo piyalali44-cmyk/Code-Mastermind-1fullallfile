@@ -37,14 +37,28 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` — Adds image_url to episodes/push_campaigns/notifications + hadith badges
 
 ### API Server Schema Automation
-- At startup, the API server calls `applySchemaPatches()` which:
-  1. Checks for missing columns via Supabase admin client
-  2. Attempts DDL via Management API (requires personal access token in `SUPABASE_ACCESS_TOKEN`)
-  3. Seeds Hadith badges (hadith_start, hadith_10, hadith_40) via admin client
-  4. Seeds lifetime_price_usd app_settings entry
-  5. Logs any missing columns with instructions to run `master_patches.sql`
-- Schema status endpoint: `GET /api/health/schema`
-- **Note**: `SUPABASE_ACCESS_TOKEN` must be a Supabase personal access token (from supabase.com/dashboard/account/tokens), NOT the service role key, for DDL automation to work
+At startup, `applySchemaPatches()` in `artifacts/api-server/src/lib/supabaseMigrations.ts` runs:
+
+1. **RPC path (self-healing, preferred)** — calls `supabase.rpc('stayguided_apply_patches')`.
+   This Postgres function lives in Supabase and runs DDL with full database-level permissions.
+   After `master_patches.sql` is run once in the Supabase SQL Editor, every subsequent
+   server restart automatically applies all schema patches. No personal access token needed.
+
+2. **Management API fallback** — if the RPC function doesn't exist yet, attempts DDL via
+   `https://api.supabase.com/v1/projects/{ref}/database/query`. Requires `SUPABASE_ACCESS_TOKEN`
+   to be a personal access token from supabase.com/dashboard/account/tokens (NOT the service-role
+   key). The token currently set returns 401, so this path is currently a no-op.
+
+3. **Data seeding (always runs)** — seeds hadith badges, lifetime_price_usd, and normalises
+   referral codes to uppercase via the service-role client (works unconditionally).
+
+4. **Schema status check** — checks required columns and logs any that are still missing.
+
+- Schema health endpoint: `GET /api/health/schema` (requires `Authorization: Bearer <service-role-key>`)
+- SQL statement splitting is dollar-quote-aware to handle `DO $$ ... $$;` and `$func$` blocks
+
+**One-time setup**: Run `artifacts/mobile/supabase/master_patches.sql` in the Supabase Dashboard
+SQL Editor once. This installs `stayguided_apply_patches()` so all future server restarts are automatic.
 
 ---
 
