@@ -2,17 +2,19 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 // These are injected at build time by vite.config.ts via `define`.
-// They are sourced from the shared environment variables set on the project.
+// IMPORTANT: Only the anon key is embedded in the browser bundle. The
+// service-role key is intentionally NOT injected — privileged admin operations
+// (invite user, delete user) are proxied through the /api/admin/* server
+// endpoints which hold the service-role key server-side only.
 const SUPABASE_PROJECT_URL = "https://tkruzfskhtcazjxdracm.supabase.co";
 
 const supabaseUrl =
   (import.meta.env.VITE_SUPABASE_URL as string) || SUPABASE_PROJECT_URL;
 
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || "";
-const supabaseServiceKey = (import.meta.env.VITE_SUPABASE_SERVICE_KEY as string) || "";
 
-// Exported so App.tsx can render a friendly configuration-error screen instead
-// of letting every Supabase call fail silently.
+// Exported so App.tsx can render a friendly configuration-error screen
+// instead of letting every Supabase call fail silently.
 export const SUPABASE_KEY_MISSING = !supabaseAnonKey;
 
 if (import.meta.env.DEV && SUPABASE_KEY_MISSING) {
@@ -23,12 +25,11 @@ if (import.meta.env.DEV && SUPABASE_KEY_MISSING) {
   );
 }
 
-// ── Singleton clients ─────────────────────────────────────────────────────────
-// Using globalThis singletons avoids duplicate client creation during hot-module
-// replacement in development.
+// ── Main client (anon key + RLS) ──────────────────────────────────────────────
+// Use this for all data operations. Access is scoped by the signed-in user's
+// JWT and enforced by Supabase Row Level Security policies.
 declare global {
   var __supabaseMainClient: SupabaseClient | undefined;
-  var __supabaseAdminAuthClient: SupabaseClient | undefined;
 }
 
 if (!globalThis.__supabaseMainClient && supabaseAnonKey) {
@@ -45,22 +46,11 @@ if (!globalThis.__supabaseMainClient && supabaseAnonKey) {
   });
 }
 
-// Admin client uses the service-role key — ONLY for auth.admin operations
-// (invite user, delete user). Never use it for data reads/writes; use `supabase`
-// with the authenticated user's JWT and rely on RLS instead.
-if (!globalThis.__supabaseAdminAuthClient && supabaseServiceKey) {
-  globalThis.__supabaseAdminAuthClient = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-    global: {
-      headers: { "x-app-name": "StayGuided Me Admin (service)" },
-    },
-  });
-}
-
 export const supabase = globalThis.__supabaseMainClient as SupabaseClient;
-export const supabaseAdmin = globalThis.__supabaseAdminAuthClient as SupabaseClient | null;
+
+// supabaseAdmin is no longer created in the browser. Privileged admin
+// operations use the /api/admin/* server endpoints instead.
+// Kept as null export for backward-compatible imports.
+export const supabaseAdmin: SupabaseClient | null = null;
 
 export const SUPABASE_URL = supabaseUrl;
