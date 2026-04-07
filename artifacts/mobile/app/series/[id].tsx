@@ -82,6 +82,21 @@ export default function SeriesDetailScreen() {
 
   const isBookmarked = isItemBookmarked(`series:${series.id}`);
 
+  // Scroll-driven sticky Episodes bar
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const HERO_H = 390;
+  const NAV_BOTTOM = insets.top + 54; // back/more buttons bottom edge
+  const stickyOpacity = scrollY.interpolate({
+    inputRange: [HERO_H - 20, HERO_H + 30],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+  const stickyTranslate = scrollY.interpolate({
+    inputRange: [HERO_H - 20, HERO_H + 30],
+    outputRange: [-10, 0],
+    extrapolate: "clamp",
+  });
+
   const [moreModal, setMoreModal] = useState(false);
   const [reportModal, setReportModal] = useState(false);
   const [toast, setToast] = useState<{ visible: boolean; message: string; icon: any; iconColor?: string }>({ visible: false, message: "", icon: "check" });
@@ -285,13 +300,41 @@ export default function SeriesDetailScreen() {
         )}
       </AnimatedIconBtn>
 
-      {/* Main FlatList — hero scrolls away, Episodes header stays sticky */}
+      {/* Animated sticky Episodes bar — appears when hero scrolls away */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: NAV_BOTTOM,
+          left: 0,
+          right: 0,
+          zIndex: 5,
+          opacity: stickyOpacity,
+          transform: [{ translateY: stickyTranslate }],
+          backgroundColor: colors.background,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.divider,
+          paddingHorizontal: 20,
+          paddingVertical: 11,
+        }}
+      >
+        <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
+          Episodes
+          <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
+        </Text>
+      </Animated.View>
+
+      {/* Main FlatList */}
       <FlatList
-        data={[{ _type: "header" as const, id: "__ep_header__" }, ...series.episodes.map(ep => ({ _type: "episode" as const, ...ep }))]}
-        keyExtractor={(item) => item.id}
+        data={series.episodes}
+        keyExtractor={(ep) => ep.id}
         contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
         ListHeaderComponent={
           <>
             {/* Hero — YT Music / Pocket FM style */}
@@ -445,26 +488,22 @@ export default function SeriesDetailScreen() {
               </View>
             </View>
 
+            {/* Episodes section header — inline (non-sticky natural position) */}
+            <View style={[styles.epHeader, {
+              backgroundColor: colors.background,
+              borderBottomColor: colors.divider,
+              paddingHorizontal: 20,
+              paddingTop: 16,
+              paddingBottom: 10,
+            }]}>
+              <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
+                Episodes
+                <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
+              </Text>
+            </View>
           </>
         }
-        renderItem={({ item }) => {
-          if (item._type === "header") {
-            return (
-              <View style={[styles.epHeader, {
-                backgroundColor: colors.background,
-                borderBottomColor: colors.divider,
-                marginTop: 0,
-                paddingHorizontal: 20,
-                paddingTop: 14,
-              }]}>
-                <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
-                  Episodes
-                  <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
-                </Text>
-              </View>
-            );
-          }
-          const ep = item;
+        renderItem={({ item: ep }) => {
           const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
           const isPlaying = nowPlaying?.id === ep.id;
           const noAudio = !ep.hasAudio;
