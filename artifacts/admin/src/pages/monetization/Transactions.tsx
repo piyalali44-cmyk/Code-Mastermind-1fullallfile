@@ -119,6 +119,7 @@ export default function Transactions() {
   const [planF,    setPlanF]    = useState("all");
   const [statusF,  setStatusF]  = useState("all");
   const [providerF,setProviderF]= useState("all");
+  const [storeF,   setStoreF]   = useState("all");
   const [search,   setSearch]   = useState("");
 
   const [all,    setAll]    = useState<Subscription[]>([]);
@@ -231,6 +232,7 @@ export default function Transactions() {
     if (statusF   !== "all" && s.status   !== statusF)   return false;
     if (providerF === "paid"    && isGranted(s.provider)) return false;
     if (providerF === "granted" && !isGranted(s.provider))return false;
+    if (storeF    !== "all" && (s.store ?? "none")       !== storeF)  return false;
     if (search) {
       const q = search.toLowerCase();
       const nm = s.profile?.display_name?.toLowerCase() ?? "";
@@ -435,6 +437,20 @@ export default function Transactions() {
                   <SelectItem value="all">All sources</SelectItem>
                   <SelectItem value="paid">Paid only</SelectItem>
                   <SelectItem value="granted">Granted only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Store</Label>
+              <Select value={storeF} onValueChange={v => { setStoreF(v); setPage(0); }}>
+                <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All stores</SelectItem>
+                  <SelectItem value="apple">Apple</SelectItem>
+                  <SelectItem value="google">Google</SelectItem>
+                  <SelectItem value="stripe">Stripe</SelectItem>
+                  <SelectItem value="none">No store</SelectItem>
                 </SelectContent>
               </Select>
             </div>
