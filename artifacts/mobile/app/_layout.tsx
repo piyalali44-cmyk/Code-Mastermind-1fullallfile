@@ -153,6 +153,8 @@ function RootLayoutNav() {
         <Stack.Screen name="hadith/index"     options={{ headerShown: false }} />
         <Stack.Screen name="hadith/[book]"    options={{ headerShown: false }} />
         <Stack.Screen name="hadith/bookmarks" options={{ headerShown: false }} />
+        <Stack.Screen name="quiz/index"       options={{ headerShown: false }} />
+        <Stack.Screen name="quiz/[id]"        options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <PersistentChrome />
     </View>
