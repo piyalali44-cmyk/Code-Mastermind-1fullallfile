@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Platform } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { addToHistory, addXp, saveProgress, updateHistoryDuration, updateStreak } from "@/lib/db";
 import { SURAHS } from "@/constants/surahs";
 import { useContent } from "@/context/ContentContext";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Try to load react-native-track-player (production builds only, not Expo Go) ──
 let _TrackPlayer: any = null;
@@ -76,6 +77,12 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const contentSeriesRef = useRef(contentSeries);
   contentSeriesRef.current = contentSeries;
 
+  const { user } = useAuth();
+  const isPremiumRef = useRef(false);
+  useEffect(() => {
+    isPremiumRef.current = user?.isPremium ?? false;
+  }, [user?.isPremium]);
+
   const soundRef = useRef<any>(null);
   const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -105,6 +112,31 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const setRepeatMode = useCallback((mode: RepeatMode) => {
     repeatModeRef.current = mode;
     setRepeatModeState(mode);
+  }, []);
+
+  // ── Background playback gate: non-premium users get paused when app backgrounds ──
+  const isPlayingRef = useRef(false);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (state: AppStateStatus) => {
+      if (state !== "background") return;
+      if (isPremiumRef.current) return;
+      if (!isPlayingRef.current) return;
+      try {
+        if (TRACK_PLAYER_AVAILABLE) {
+          await _TrackPlayer.pause();
+        } else {
+          await soundRef.current?.pauseAsync();
+        }
+        setIsPlaying(false);
+        if (playSegmentStartRef.current) {
+          accListenedMsRef.current += Date.now() - playSegmentStartRef.current;
+          playSegmentStartRef.current = null;
+        }
+      } catch {}
+    });
+    return () => sub.remove();
   }, []);
 
   // ── Initialize audio engine ──────────────────────────────────────────────────
