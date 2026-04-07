@@ -1,0 +1,48 @@
+name: stayguided
+description: StayGuided Me - Islamic Audio Platform
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase — database, auth, storage
+  supabase_flutter: ^2.5.0
+
+  # Audio playback (background support)
+  just_audio: ^0.9.40
+  just_audio_background: ^0.0.1-1.0
+  audio_session: ^0.1.21
+
+  # UI
+  cached_network_image: ^3.3.1
+  google_fonts: ^6.2.1
+  flutter_svg: ^2.0.10+1
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Navigation
+  go_router: ^13.2.0
+
+  # Storage
+  shared_preferences: ^2.2.3
+
+  # Utils
+  intl: ^0.19.0
+  timeago: ^3.6.1
+  url_launcher: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
