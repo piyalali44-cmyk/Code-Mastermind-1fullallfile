@@ -14,10 +14,17 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 ### Supabase Project
 - Project ID: `tkruzfskhtcazjxdracm`
 - URL: `https://tkruzfskhtcazjxdracm.supabase.co`
-- Secrets set: `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `SUPABASE_DB_URL`
-- Admin panel uses Vite `define` in vite.config.ts to expose secrets: `VITE_SUPABASE_ANON_KEY` (from `EXPO_PUBLIC_SUPABASE_ANON_KEY`) and `VITE_SUPABASE_SERVICE_KEY` (from `SUPABASE_SERVICE_ROLE_KEY`)
-- API server uses `DATABASE_URL` for direct PostgreSQL connection and `SUPABASE_SERVICE_ROLE_KEY` for Supabase admin operations
+- Env vars set (shared): `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `SUPABASE_URL`, `VITE_SUPABASE_URL`
+- Admin panel uses Vite `define` in vite.config.ts to expose: `VITE_SUPABASE_ANON_KEY` (from `EXPO_PUBLIC_SUPABASE_ANON_KEY`) and `VITE_SUPABASE_SERVICE_KEY` (from `SUPABASE_SERVICE_ROLE_KEY`)
+- API server uses Replit's built-in `DATABASE_URL` for local PostgreSQL (likes/comments tables) and Supabase JS client with `SUPABASE_SERVICE_ROLE_KEY` for all Supabase operations
 - `VITE_API_BASE_URL` in admin panel dynamically resolves to `https://$REPLIT_DEV_DOMAIN/api`
+- Mobile app `app.config.js` uses `REPLIT_DEV_DOMAIN` to set `EXPO_PUBLIC_API_BASE_URL` at startup
+- **NOTE**: Direct PostgreSQL connections to Supabase (port 5432) are blocked from Replit; use Supabase JS client via REST API instead
+
+### Database Status
+- All migrations applied (complete_setup.sql, master_migration.sql, all patches)
+- 46+ tables created including: profiles, series, episodes, user_xp, user_streaks, subscriptions, referrals, badges, leaderboard, etc.
+- Super admin account: `imranrir46@gmail.com` (role: super_admin)
 
 ---
 
