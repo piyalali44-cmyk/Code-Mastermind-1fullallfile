@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Send, Plus, Bell, Loader2, Trash2, Star } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
@@ -42,6 +43,7 @@ export default function PushNotifications() {
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
@@ -214,8 +216,10 @@ export default function PushNotifications() {
     load();
   }
 
-  async function deleteCampaign(id: string) {
-    if (!window.confirm("Delete this campaign permanently?")) return;
+  async function confirmDelete() {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
     setDeletingId(id);
     try {
       await supabase.from("push_campaigns").delete().eq("id", id);
@@ -299,7 +303,7 @@ export default function PushNotifications() {
                       size="sm"
                       className="text-destructive hover:text-destructive"
                       disabled={deletingId === c.id}
-                      onClick={() => deleteCampaign(c.id)}
+                      onClick={() => setDeleteTargetId(c.id)}
                     >
                       {deletingId === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
                     </Button>
@@ -392,6 +396,27 @@ export default function PushNotifications() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTargetId} onOpenChange={open => { if (!open) setDeleteTargetId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the campaign and cannot be undone. In-app notifications already delivered to users will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
