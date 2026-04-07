@@ -42,7 +42,7 @@ export default function JourneyScreen() {
       const { data, error } = await supabase
         .from("journey_chapters")
         .select("*")
-        .or("is_published.eq.true,show_coming_soon.eq.true")
+        .eq("is_published", true)
         .order("order_index");
       if (error) {
         console.warn("Journey fetch error:", error.message);
@@ -62,17 +62,24 @@ export default function JourneyScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Back button — always fixed, never scrolls away */}
+      <Pressable
+        onPress={() => router.back()}
+        style={[styles.backBtnFixed, { top: insets.top + (isWeb ? 67 : 0) + 10, left: 16 }]}
+      >
+        <View style={styles.backBtnInner}>
+          <Icon name="arrow-left" size={20} color="#fff" />
+        </View>
+      </Pressable>
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
         <LinearGradient
           colors={[colors.gold + "33", colors.background]}
-          style={[styles.header, { paddingTop: insets.top + (isWeb ? 67 : 0) + 16 }]}
+          style={[styles.header, { paddingTop: insets.top + (isWeb ? 67 : 0) + 60 }]}
         >
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Icon name="arrow-left" size={22} color={colors.textPrimary} />
-          </Pressable>
           <Text style={[styles.label, { color: colors.goldLight }]}>THE COMPLETE STORY</Text>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Journey Through Islam</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -163,12 +170,19 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 6,
   },
-  backBtn: {
-    marginBottom: 8,
+  backBtnFixed: {
+    position: "absolute",
+    zIndex: 20,
+  },
+  backBtnInner: {
     width: 38,
     height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(8,15,28,0.65)",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 0.6,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   label: {
     fontSize: 11,
