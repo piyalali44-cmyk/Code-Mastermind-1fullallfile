@@ -1,4 +1,5 @@
 import { Icon } from "@/components/Icon";
+import FadeImage from "@/components/FadeImage";
 import { useAppSettings } from "@/context/AppSettingsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
@@ -199,7 +200,9 @@ export default function LibraryScreen() {
             ) : (
               <>
                 <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Recently played</Text>
-                {continueItems.map((item, idx) => (
+                {continueItems.map((item, idx) => {
+                  const itemSeries = item.seriesId ? SERIES.find(s => s.id === item.seriesId) : null;
+                  return (
                   <Pressable
                     key={`${item.contentId}-${idx}`}
                     onPress={() => {
@@ -208,8 +211,12 @@ export default function LibraryScreen() {
                     }}
                     style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   >
-                    <View style={[styles.histCover, { backgroundColor: colors.surfaceHigh }]}>
-                      <Icon name={item.contentType === "surah" ? "book-open" : "headphones"} size={18} color={colors.goldLight} />
+                    <View style={[styles.histCover, { backgroundColor: itemSeries?.coverColor || colors.surfaceHigh }]}>
+                      {itemSeries?.coverUrl ? (
+                        <FadeImage uri={itemSeries.coverUrl} style={StyleSheet.absoluteFill} />
+                      ) : (
+                        <Icon name={item.contentType === "surah" ? "book-open" : "headphones"} size={18} color={colors.goldLight} />
+                      )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -226,7 +233,8 @@ export default function LibraryScreen() {
                     </View>
                     <Icon name="play-circle" size={28} color={colors.goldLight} />
                   </Pressable>
-                ))}
+                  );
+                })}
               </>
             )}
           </>
@@ -257,7 +265,11 @@ export default function LibraryScreen() {
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: s.coverColor }]}>
-                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                          {s.coverUrl ? (
+                            <FadeImage uri={s.coverUrl} style={StyleSheet.absoluteFill} />
+                          ) : (
+                            <Icon name="headphones" size={18} color={colors.goldLight} />
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.title}</Text>
@@ -278,7 +290,11 @@ export default function LibraryScreen() {
                         style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                       >
                         <View style={[styles.histCover, { backgroundColor: series.coverColor || colors.surfaceHigh }]}>
-                          <Icon name="headphones" size={18} color={colors.goldLight} />
+                          {series.coverUrl ? (
+                            <FadeImage uri={series.coverUrl} style={StyleSheet.absoluteFill} />
+                          ) : (
+                            <Icon name="headphones" size={18} color={colors.goldLight} />
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{episode.title}</Text>
@@ -486,7 +502,11 @@ export default function LibraryScreen() {
                             style={[styles.historyRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
                           >
                             <View style={[styles.histCover, { backgroundColor: s.coverColor }]}>
-                              <Icon name="headphones" size={18} color={colors.goldLight} />
+                              {s.coverUrl ? (
+                                <FadeImage uri={s.coverUrl} style={StyleSheet.absoluteFill} />
+                              ) : (
+                                <Icon name="headphones" size={18} color={colors.goldLight} />
+                              )}
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.histTitle, { color: colors.textPrimary }]} numberOfLines={1}>{s.title}</Text>
@@ -669,6 +689,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   histTitle: {
     fontSize: 14,
