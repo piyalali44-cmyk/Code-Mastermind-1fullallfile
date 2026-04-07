@@ -179,6 +179,8 @@ export default function Dashboard() {
 
     async function fetchDashboard() {
       setLoading(true);
+      // Fire contact stats in parallel — don't wait for main data
+      fetchContactStats();
       try {
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -189,7 +191,6 @@ export default function Dashboard() {
         type AnyResult = any;
 
         if (isSupportOnly) {
-          await fetchContactStats();
           setLoading(false);
           return;
         }
@@ -290,7 +291,6 @@ export default function Dashboard() {
           topCountries,
         });
 
-        if (isAtLeast("editor")) await fetchContactStats();
       } catch (err) {
         console.error("Failed to fetch dashboard data", err);
       } finally {
