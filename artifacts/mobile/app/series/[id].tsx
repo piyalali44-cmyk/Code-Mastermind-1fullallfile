@@ -285,306 +285,314 @@ export default function SeriesDetailScreen() {
         )}
       </AnimatedIconBtn>
 
-      <ScrollView
+      {/* Main FlatList — hero scrolls away, Episodes header stays sticky */}
+      <FlatList
+        data={[{ _type: "header" as const, id: "__ep_header__" }, ...series.episodes.map(ep => ({ _type: "episode" as const, ...ep }))]}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Hero — YT Music / Pocket FM style */}
-        <View style={[styles.hero, { backgroundColor: series.coverColor, paddingTop: insets.top }]}>
-          {/* Full blurred background */}
-          {series.coverUrl ? (
-            <>
-              <FadeImage
-                uri={series.coverUrl}
-                style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.2 }] }]}
+        stickyHeaderIndices={[0]}
+        ListHeaderComponent={
+          <>
+            {/* Hero — YT Music / Pocket FM style */}
+            <View style={[styles.hero, { backgroundColor: series.coverColor, paddingTop: insets.top }]}>
+              {series.coverUrl ? (
+                <>
+                  <FadeImage
+                    uri={series.coverUrl}
+                    style={[StyleSheet.absoluteFill, { transform: [{ scale: 1.2 }] }]}
+                  />
+                  <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+                </>
+              ) : (
+                <>
+                  <View style={styles.heroCircle1} />
+                  <View style={styles.heroCircle2} />
+                  <View style={styles.heroCircle3} />
+                </>
+              )}
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.38)" }]} />
+              <View style={styles.heroArtworkWrap}>
+                {series.coverUrl ? (
+                  <View style={styles.artworkCard}>
+                    <FadeImage uri={series.coverUrl} style={styles.artworkImage} />
+                  </View>
+                ) : (
+                  <View style={[styles.artworkCard, styles.artworkCardFallback, { backgroundColor: series.coverColor }]}>
+                    <Icon name="headphones" size={56} color="rgba(255,255,255,0.9)" />
+                  </View>
+                )}
+              </View>
+              <LinearGradient
+                colors={["transparent", colors.background]}
+                style={styles.heroGrad}
               />
-              <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-            </>
-          ) : (
-            <>
-              <View style={styles.heroCircle1} />
-              <View style={styles.heroCircle2} />
-              <View style={styles.heroCircle3} />
-            </>
-          )}
+            </View>
 
-          {/* Dark overlay */}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.38)" }]} />
-
-          {/* Centered square artwork — album cover style */}
-          <View style={styles.heroArtworkWrap}>
-            {series.coverUrl ? (
-              <View style={styles.artworkCard}>
-                <FadeImage uri={series.coverUrl} style={styles.artworkImage} />
+            <View style={styles.content}>
+              {/* Category + language badges */}
+              <View style={styles.badgeRow}>
+                <View style={[styles.catBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
+                  <Icon name="tag" size={10} color={colors.goldLight} />
+                  <Text style={[styles.catBadgeText, { color: colors.goldLight }]}>{series.category}</Text>
+                </View>
+                <View style={[styles.catBadge, { backgroundColor: colors.surfaceHigh, borderColor: colors.border }]}>
+                  <Icon name="globe" size={10} color={colors.textSecondary} />
+                  <Text style={[styles.catBadgeText, { color: colors.textSecondary }]}>English</Text>
+                </View>
+                {series.isNew && (
+                  <View style={[styles.catBadge, { backgroundColor: colors.green + "22", borderColor: colors.green + "44" }]}>
+                    <Text style={[styles.catBadgeText, { color: colors.green }]}>NEW</Text>
+                  </View>
+                )}
               </View>
-            ) : (
-              <View style={[styles.artworkCard, styles.artworkCardFallback, { backgroundColor: series.coverColor }]}>
-                <Icon name="headphones" size={56} color="rgba(255,255,255,0.9)" />
+
+              {/* Title */}
+              <Text style={[styles.seriesTitle, { color: colors.textPrimary }]}>{series.title}</Text>
+
+              {/* Stats row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <Icon name="headphones" size={14} color={colors.gold} />
+                  <Text style={[styles.statText, { color: colors.textSecondary }]}>{series.episodeCount} episodes</Text>
+                </View>
+                <View style={[styles.statDot, { backgroundColor: colors.divider }]} />
+                <View style={styles.statItem}>
+                  <Icon name="clock" size={14} color={colors.gold} />
+                  <Text style={[styles.statText, { color: colors.textSecondary }]}>{series.totalHours}</Text>
+                </View>
+                <View style={[styles.statDot, { backgroundColor: colors.divider }]} />
+                <View style={styles.statItem}>
+                  <Icon name="unlock" size={14} color={colors.green} />
+                  <Text style={[styles.statText, { color: colors.textSecondary }]}>
+                    {settings.subscription_enabled ? `${freeCount} free` : "All free"}
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
 
-          {/* Gradient fade to page background */}
-          <LinearGradient
-            colors={["transparent", colors.background]}
-            style={styles.heroGrad}
-          />
-        </View>
+              {/* Description */}
+              <Text style={[styles.seriesDesc, { color: colors.textSecondary }]}>{series.description}</Text>
 
-        <View style={styles.content}>
-          {/* Category + language badges */}
-          <View style={styles.badgeRow}>
-            <View style={[styles.catBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
-              <Icon name="tag" size={10} color={colors.goldLight} />
-              <Text style={[styles.catBadgeText, { color: colors.goldLight }]}>{series.category}</Text>
-            </View>
-            <View style={[styles.catBadge, { backgroundColor: colors.surfaceHigh, borderColor: colors.border }]}>
-              <Icon name="globe" size={10} color={colors.textSecondary} />
-              <Text style={[styles.catBadgeText, { color: colors.textSecondary }]}>English</Text>
-            </View>
-            {series.isNew && (
-              <View style={[styles.catBadge, { backgroundColor: colors.green + "22", borderColor: colors.green + "44" }]}>
-                <Text style={[styles.catBadgeText, { color: colors.green }]}>NEW</Text>
+              {/* Progress bar if started */}
+              {completedCount > 0 && (
+                <View style={styles.progressSection}>
+                  <View style={styles.progressLabelRow}>
+                    <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Your progress</Text>
+                    <Text style={[styles.progressPct, { color: colors.goldLight }]}>
+                      {completedCount}/{series.episodes.length} episodes
+                    </Text>
+                  </View>
+                  <View style={[styles.progressBg, { backgroundColor: colors.divider }]}>
+                    <View style={[styles.progressFill, {
+                      width: `${(completedCount / series.episodes.length) * 100}%`,
+                      backgroundColor: colors.gold,
+                    }]} />
+                  </View>
+                </View>
+              )}
+
+              {/* Action buttons */}
+              <View style={styles.btnRow}>
+                <Pressable
+                  onPressIn={() => Animated.spring(playBtnScale, { toValue: 0.95, useNativeDriver: true, tension: 250 }).start()}
+                  onPressOut={() => Animated.spring(playBtnScale, { toValue: 1, useNativeDriver: true, tension: 200 }).start()}
+                  onPress={() => series.episodes.length > 0 && handlePlayEpisode(series.episodes[0].id)}
+                  style={{ flex: 1 }}
+                >
+                  <Animated.View style={[styles.playBtn, { backgroundColor: colors.gold, transform: [{ scale: playBtnScale }] }]}>
+                    <Icon name="play" size={18} color="#fff" />
+                    <Text style={styles.playBtnText}>Play Now</Text>
+                  </Animated.View>
+                </Pressable>
+
+                <AnimatedIconBtn
+                  onPress={handleDbLike}
+                  style={[styles.iconBtnWithCount, {
+                    backgroundColor: isDbLiked ? colors.gold + "22" : colors.surfaceHigh,
+                    borderColor: isDbLiked ? colors.gold : colors.border,
+                  }]}
+                >
+                  <Icon name="heart" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
+                  <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
+                    {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
+                  </Text>
+                </AnimatedIconBtn>
+
+                <AnimatedIconBtn
+                  onPress={handleOpenComments}
+                  style={[styles.iconBtnWithCount, {
+                    backgroundColor: colors.surfaceHigh,
+                    borderColor: colors.border,
+                  }]}
+                >
+                  <Icon name="message-circle" size={19} color={colors.textPrimary} />
+                  <Text style={[styles.iconBtnCount, { color: colors.textMuted }]}>
+                    {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
+                  </Text>
+                </AnimatedIconBtn>
+
+                <AnimatedIconBtn
+                  onPress={handleToggleBookmark}
+                  style={[styles.iconBtn, {
+                    backgroundColor: isBookmarked ? colors.gold + "22" : colors.surfaceHigh,
+                    borderColor: isBookmarked ? colors.gold : colors.border,
+                  }]}
+                >
+                  <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
+                    <Icon name="bookmark" size={19} color={isBookmarked ? colors.gold : colors.textPrimary} />
+                  </Animated.View>
+                </AnimatedIconBtn>
               </View>
-            )}
-          </View>
-
-          {/* Title */}
-          <Text style={[styles.seriesTitle, { color: colors.textPrimary }]}>{series.title}</Text>
-
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Icon name="headphones" size={14} color={colors.gold} />
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{series.episodeCount} episodes</Text>
             </View>
-            <View style={[styles.statDot, { backgroundColor: colors.divider }]} />
-            <View style={styles.statItem}>
-              <Icon name="clock" size={14} color={colors.gold} />
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>{series.totalHours}</Text>
-            </View>
-            <View style={[styles.statDot, { backgroundColor: colors.divider }]} />
-            <View style={styles.statItem}>
-              <Icon name="unlock" size={14} color={colors.green} />
-              <Text style={[styles.statText, { color: colors.textSecondary }]}>
-                {settings.subscription_enabled ? `${freeCount} free` : "All free"}
-              </Text>
-            </View>
-          </View>
 
-          {/* Description */}
-          <Text style={[styles.seriesDesc, { color: colors.textSecondary }]}>{series.description}</Text>
-
-          {/* Progress bar if started */}
-          {completedCount > 0 && (
-            <View style={styles.progressSection}>
-              <View style={styles.progressLabelRow}>
-                <Text style={[styles.progressLabel, { color: colors.textMuted }]}>Your progress</Text>
-                <Text style={[styles.progressPct, { color: colors.goldLight }]}>
-                  {completedCount}/{series.episodes.length} episodes
+          </>
+        }
+        renderItem={({ item }) => {
+          if (item._type === "header") {
+            return (
+              <View style={[styles.epHeader, {
+                backgroundColor: colors.background,
+                borderBottomColor: colors.divider,
+                marginTop: 0,
+                paddingHorizontal: 20,
+                paddingTop: 14,
+              }]}>
+                <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
+                  Episodes
+                  <Text style={{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }}> · {series.episodeCount}</Text>
                 </Text>
               </View>
-              <View style={[styles.progressBg, { backgroundColor: colors.divider }]}>
-                <View style={[styles.progressFill, {
-                  width: `${(completedCount / series.episodes.length) * 100}%`,
-                  backgroundColor: colors.gold,
-                }]} />
-              </View>
-            </View>
-          )}
-
-          {/* Action buttons */}
-          <View style={styles.btnRow}>
-            {/* Play button */}
+            );
+          }
+          const ep = item;
+          const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
+          const isPlaying = nowPlaying?.id === ep.id;
+          const noAudio = !ep.hasAudio;
+          return (
             <Pressable
-              onPressIn={() => Animated.spring(playBtnScale, { toValue: 0.95, useNativeDriver: true, tension: 250 }).start()}
-              onPressOut={() => Animated.spring(playBtnScale, { toValue: 1, useNativeDriver: true, tension: 200 }).start()}
-              onPress={() => series.episodes.length > 0 && handlePlayEpisode(series.episodes[0].id)}
-              style={{ flex: 1 }}
+              onPress={() => isLocked ? router.push("/subscription") : handlePlayEpisode(ep.id)}
+              style={({ pressed }) => [
+                styles.episodeRow,
+                {
+                  borderBottomColor: colors.divider,
+                  backgroundColor: pressed ? colors.surfaceHigh : "transparent",
+                  opacity: isLocked ? 0.7 : 1,
+                },
+              ]}
             >
-              <Animated.View style={[styles.playBtn, { backgroundColor: colors.gold, transform: [{ scale: playBtnScale }] }]}>
-                <Icon name="play" size={18} color="#fff" />
-                <Text style={styles.playBtnText}>Play Now</Text>
-              </Animated.View>
-            </Pressable>
+              <View style={[styles.epNumWrap, { backgroundColor: isPlaying ? colors.gold + "22" : colors.surfaceHigh }]}>
+                {isLocked ? (
+                  <Icon name="lock" size={14} color={colors.gold} />
+                ) : isPlaying ? (
+                  <Icon name="volume-2" size={14} color={colors.gold} />
+                ) : (
+                  <Text style={[styles.epNum, { color: colors.textMuted }]}>{ep.number}</Text>
+                )}
+              </View>
 
-            {/* Like — DB backed */}
-            <AnimatedIconBtn
-              onPress={handleDbLike}
-              style={[styles.iconBtnWithCount, {
-                backgroundColor: isDbLiked ? colors.gold + "22" : colors.surfaceHigh,
-                borderColor: isDbLiked ? colors.gold : colors.border,
-              }]}
-            >
-              <Icon name="heart" size={19} color={isDbLiked ? colors.gold : colors.textPrimary} />
-              <Text style={[styles.iconBtnCount, { color: isDbLiked ? colors.gold : colors.textMuted }]}>
-                {likeCount > 999 ? `${Math.floor(likeCount / 1000)}k` : likeCount}
-              </Text>
-            </AnimatedIconBtn>
-
-            {/* Comments */}
-            <AnimatedIconBtn
-              onPress={handleOpenComments}
-              style={[styles.iconBtnWithCount, {
-                backgroundColor: colors.surfaceHigh,
-                borderColor: colors.border,
-              }]}
-            >
-              <Icon name="message-circle" size={19} color={colors.textPrimary} />
-              <Text style={[styles.iconBtnCount, { color: colors.textMuted }]}>
-                {commentCount > 999 ? `${Math.floor(commentCount / 1000)}k` : commentCount}
-              </Text>
-            </AnimatedIconBtn>
-
-            {/* Bookmark */}
-            <AnimatedIconBtn
-              onPress={handleToggleBookmark}
-              style={[styles.iconBtn, {
-                backgroundColor: isBookmarked ? colors.gold + "22" : colors.surfaceHigh,
-                borderColor: isBookmarked ? colors.gold : colors.border,
-              }]}
-            >
-              <Animated.View style={{ transform: [{ scale: bookmarkScale }] }}>
-                <Icon name="bookmark" size={19} color={isBookmarked ? colors.gold : colors.textPrimary} />
-              </Animated.View>
-            </AnimatedIconBtn>
-          </View>
-
-          {/* Episodes header */}
-          <View style={[styles.epHeader, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.episodesLabel, { color: colors.textPrimary }]}>
-              Episodes
-              <Text style={[{ color: colors.textMuted, fontSize: 14, fontWeight: "400" }]}> · {series.episodeCount}</Text>
-            </Text>
-          </View>
-
-          {/* Episode List */}
-          {series.episodes.map((ep, idx) => {
-            const isLocked = settings.subscription_enabled && ep.isPremium && !user?.isPremium;
-            const isPlaying = nowPlaying?.id === ep.id;
-            const noAudio = !ep.hasAudio;
-            return (
-              <Pressable
-                key={ep.id}
-                onPress={() => isLocked ? router.push("/subscription") : handlePlayEpisode(ep.id)}
-                style={({ pressed }) => [
-                  styles.episodeRow,
-                  {
-                    borderBottomColor: colors.divider,
-                    backgroundColor: pressed ? colors.surfaceHigh : "transparent",
-                    opacity: isLocked ? 0.7 : 1,
-                  },
-                ]}
-              >
-                {/* Number / icon */}
-                <View style={[styles.epNumWrap, { backgroundColor: isPlaying ? colors.gold + "22" : colors.surfaceHigh }]}>
-                  {isLocked ? (
-                    <Icon name="lock" size={14} color={colors.gold} />
-                  ) : isPlaying ? (
-                    <Icon name="volume-2" size={14} color={colors.gold} />
-                  ) : (
-                    <Text style={[styles.epNum, { color: colors.textMuted }]}>{ep.number}</Text>
+              <View style={styles.epInfo}>
+                <View style={styles.epTitleRow}>
+                  <Text
+                    style={[styles.epTitle, { color: isPlaying ? colors.goldLight : colors.textPrimary }]}
+                    numberOfLines={1}
+                  >
+                    {ep.title}
+                  </Text>
+                  {settings.subscription_enabled && ep.isPremium && (
+                    <View style={[styles.premBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
+                      <Icon name="star" size={8} color={colors.goldLight} />
+                      <Text style={[styles.premBadgeText, { color: colors.goldLight }]}>PRO</Text>
+                    </View>
                   )}
-                </View>
-
-                <View style={styles.epInfo}>
-                  <View style={styles.epTitleRow}>
-                    <Text
-                      style={[styles.epTitle, { color: isPlaying ? colors.goldLight : colors.textPrimary }]}
-                      numberOfLines={1}
-                    >
-                      {ep.title}
-                    </Text>
-                    {settings.subscription_enabled && ep.isPremium && (
-                      <View style={[styles.premBadge, { backgroundColor: colors.gold + "22", borderColor: colors.gold + "44" }]}>
-                        <Icon name="star" size={8} color={colors.goldLight} />
-                        <Text style={[styles.premBadgeText, { color: colors.goldLight }]}>PRO</Text>
-                      </View>
-                    )}
-                    {noAudio && !isLocked && (
-                      <View style={[styles.premBadge, { backgroundColor: colors.textMuted + "18", borderColor: colors.textMuted + "33" }]}>
-                        <Icon name="clock" size={8} color={colors.textMuted} />
-                        <Text style={[styles.premBadgeText, { color: colors.textMuted }]}>SOON</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.epDesc, { color: colors.textSecondary }]} numberOfLines={1}>{ep.description}</Text>
-                  <View style={styles.epBottom}>
-                    <Icon name="clock" size={10} color={colors.textMuted} />
-                    <Text style={[styles.epDuration, { color: colors.textMuted }]}>{ep.duration}</Text>
-                    {ep.progress > 0 && ep.progress < 100 && (
-                      <>
-                        <View style={[styles.epProgBg, { backgroundColor: colors.divider }]}>
-                          <View style={[styles.epProgFill, { width: `${ep.progress}%`, backgroundColor: colors.gold }]} />
-                        </View>
-                        <Text style={[styles.epDuration, { color: colors.gold }]}>{ep.progress}%</Text>
-                      </>
-                    )}
-                    {ep.progress === 100 && (
-                      <View style={styles.completedBadge}>
-                        <Icon name="check-circle" size={12} color={colors.green} />
-                        <Text style={[styles.completedText, { color: colors.green }]}>Done</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-
-                {/* Right actions */}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {!isLocked && ep.hasAudio && (() => {
-                    const dlKey = `episode:${ep.id}`;
-                    const dlProgress = downloadProgress.get(dlKey);
-                    const downloaded = isEpisodeDownloaded(dlKey);
-                    if (dlProgress !== undefined && dlProgress < 1) {
-                      return (
-                        <View style={[styles.epDownloadWrap, { borderColor: colors.gold + "44", backgroundColor: colors.gold + "11" }]}>
-                          <Text style={{ color: colors.gold, fontSize: 9, fontWeight: "700" }}>
-                            {Math.round(dlProgress * 100)}%
-                          </Text>
-                        </View>
-                      );
-                    }
-                    return (
-                      <Pressable
-                        onPress={() => {
-                          if (downloaded) {
-                            removeDownloadedFile(dlKey);
-                          } else if (isGuest) {
-                            showToast("Sign in to download episodes", "user", colors.textSecondary);
-                            setTimeout(() => router.push("/login"), 600);
-                          } else {
-                            startDownload(dlKey, ep.audioUrl, { title: ep.title });
-                            router.push("/(tabs)/library?tab=downloads");
-                          }
-                        }}
-                        style={[styles.epDownloadWrap, {
-                          borderColor: downloaded ? colors.green + "55" : colors.border,
-                          backgroundColor: downloaded ? colors.green + "11" : "transparent",
-                        }]}
-                        hitSlop={8}
-                      >
-                        <Icon
-                          name={downloaded ? "check-circle" : "download"}
-                          size={13}
-                          color={downloaded ? colors.green : colors.textMuted}
-                        />
-                      </Pressable>
-                    );
-                  })()}
-                  {!isLocked && (
-                    <View style={[styles.epPlayWrap, {
-                      backgroundColor: isPlaying ? colors.gold : noAudio ? colors.surfaceHigh : colors.surfaceHigh,
-                      opacity: noAudio ? 0.4 : 1,
-                    }]}>
-                      <Icon name={isPlaying ? "pause" : noAudio ? "clock" : "play"} size={14} color={isPlaying ? "#fff" : noAudio ? colors.textMuted : colors.gold} />
+                  {noAudio && !isLocked && (
+                    <View style={[styles.premBadge, { backgroundColor: colors.textMuted + "18", borderColor: colors.textMuted + "33" }]}>
+                      <Icon name="clock" size={8} color={colors.textMuted} />
+                      <Text style={[styles.premBadgeText, { color: colors.textMuted }]}>SOON</Text>
                     </View>
                   )}
                 </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </ScrollView>
+                <Text style={[styles.epDesc, { color: colors.textSecondary }]} numberOfLines={1}>{ep.description}</Text>
+                <View style={styles.epBottom}>
+                  <Icon name="clock" size={10} color={colors.textMuted} />
+                  <Text style={[styles.epDuration, { color: colors.textMuted }]}>{ep.duration}</Text>
+                  {ep.progress > 0 && ep.progress < 100 && (
+                    <>
+                      <View style={[styles.epProgBg, { backgroundColor: colors.divider }]}>
+                        <View style={[styles.epProgFill, { width: `${ep.progress}%`, backgroundColor: colors.gold }]} />
+                      </View>
+                      <Text style={[styles.epDuration, { color: colors.gold }]}>{ep.progress}%</Text>
+                    </>
+                  )}
+                  {ep.progress === 100 && (
+                    <View style={styles.completedBadge}>
+                      <Icon name="check-circle" size={12} color={colors.green} />
+                      <Text style={[styles.completedText, { color: colors.green }]}>Done</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Right actions */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {!isLocked && ep.hasAudio && (() => {
+                  const dlKey = `episode:${ep.id}`;
+                  const dlProgress = downloadProgress.get(dlKey);
+                  const downloaded = isEpisodeDownloaded(dlKey);
+                  if (dlProgress !== undefined && dlProgress < 1) {
+                    return (
+                      <View style={[styles.epDownloadWrap, { borderColor: colors.gold + "44", backgroundColor: colors.gold + "11" }]}>
+                        <Text style={{ color: colors.gold, fontSize: 9, fontWeight: "700" }}>
+                          {Math.round(dlProgress * 100)}%
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <Pressable
+                      onPress={() => {
+                        if (downloaded) {
+                          removeDownloadedFile(dlKey);
+                        } else if (isGuest) {
+                          showToast("Sign in to download episodes", "user", colors.textSecondary);
+                          setTimeout(() => router.push("/login"), 600);
+                        } else {
+                          startDownload(dlKey, ep.audioUrl, { title: ep.title });
+                          router.push("/(tabs)/library?tab=downloads");
+                        }
+                      }}
+                      style={[styles.epDownloadWrap, {
+                        borderColor: downloaded ? colors.green + "55" : colors.border,
+                        backgroundColor: downloaded ? colors.green + "11" : "transparent",
+                      }]}
+                      hitSlop={8}
+                    >
+                      <Icon
+                        name={downloaded ? "check-circle" : "download"}
+                        size={13}
+                        color={downloaded ? colors.green : colors.textMuted}
+                      />
+                    </Pressable>
+                  );
+                })()}
+                {!isLocked && (
+                  <View style={[styles.epPlayWrap, {
+                    backgroundColor: isPlaying ? colors.gold : colors.surfaceHigh,
+                    opacity: noAudio ? 0.4 : 1,
+                  }]}>
+                    <Icon name={isPlaying ? "pause" : noAudio ? "clock" : "play"} size={14} color={isPlaying ? "#fff" : noAudio ? colors.textMuted : colors.gold} />
+                  </View>
+                )}
+              </View>
+            </Pressable>
+          );
+        }}
+        ListFooterComponent={series.episodes.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 40, gap: 8 }}>
+            <Icon name="headphones" size={28} color={colors.textMuted} />
+            <Text style={{ color: colors.textMuted, fontSize: 14 }}>No published episodes yet</Text>
+          </View>
+        ) : null}
+      />
 
       <Toast
         visible={toast.visible}

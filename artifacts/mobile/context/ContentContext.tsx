@@ -95,12 +95,12 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
 
       const seriesIds = seriesData.map((s: any) => s.id);
 
-      // Fetch ALL episodes belonging to published series (no pub_status filter — RLS handles visibility)
-      // This ensures admin-added episodes (draft or published) all appear when the parent series is published
+      // Fetch only PUBLISHED episodes — respects admin pub_status from admin panel
       const { data: episodesData, error: episodesErr } = await supabase
         .from("episodes")
         .select("id, series_id, episode_number, title, description, short_summary, duration, audio_url, is_premium, pub_status, cover_override_url")
         .in("series_id", seriesIds)
+        .eq("pub_status", "published")
         .order("episode_number");
 
       if (episodesErr) {

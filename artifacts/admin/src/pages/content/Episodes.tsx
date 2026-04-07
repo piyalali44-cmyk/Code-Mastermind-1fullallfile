@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,8 +59,22 @@ export default function Episodes() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const { profile } = useAuth();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingRef = useRef(false);
 
-  async function load() {
+  const load = useCallback(async (debounce = false) => {
+    if (debounce) {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => loadNow(), 400);
+      return;
+    }
+    loadNow();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, filterSeries, filterStatus, filterAccess, search]);
+
+  async function loadNow() {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     let query = supabase.from("episodes").select("*, series:series(id,title)", { count: "exact" })
       .order("created_at", { ascending: false });
@@ -79,21 +93,32 @@ export default function Episodes() {
       supabase.from("series").select("id,title").order("title"),
     ]);
 
-    setItems(episodesResult.data ?? []);
+    // Deduplicate by id to guard against any DB-level duplicate rows
+    const raw = episodesResult.data ?? [];
+    const seen = new Set<string>();
+    const unique = raw.filter(ep => { if (seen.has(ep.id)) return false; seen.add(ep.id); return true; });
+
+    setItems(unique);
     setTotalCount(episodesResult.count ?? 0);
     setSeriesList(ser ?? []);
     setLoading(false);
+    loadingRef.current = false;
   }
 
-  useEffect(() => { load(); }, [page, pageSize, filterSeries, filterStatus, filterAccess, search]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     const channel = supabase
       .channel("admin-episodes-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "episodes" }, () => { load(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "episodes" }, () => { load(true); })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [page, pageSize, filterSeries, filterStatus, filterAccess, search]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  // Only re-subscribe when the component mounts/unmounts, load ref handles filter changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openNew() { setForm(blank()); setEditing(null); setSheetOpen(true); }
   function openEdit(ep: Episode) { setForm({ ...ep }); setEditing(ep.id); setSheetOpen(true); }
