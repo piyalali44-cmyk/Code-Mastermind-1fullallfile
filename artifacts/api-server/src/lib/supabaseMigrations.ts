@@ -242,6 +242,7 @@ const REQUIRED_COLUMNS: ColumnCheck[] = [
   { table: "subscriptions", column: "original_transaction_id" },
   { table: "episodes",      column: "image_url" },
   { table: "profiles",      column: "push_token" },
+  { table: "profiles",      column: "first_active_at" },
 ];
 
 async function getMissingColumns(): Promise<string[]> {

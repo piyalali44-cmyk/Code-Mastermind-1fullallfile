@@ -23,6 +23,7 @@ interface User {
   longestStreak: number;
   totalHoursListened: number;
   joinDate: string;
+  firstActiveAt: string;
 }
 
 export interface PendingNotification {
@@ -66,6 +67,7 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
   let streak = 0;
   let longestStreak = 0;
   let joinDate = supabaseUser.created_at ?? new Date().toISOString();
+  let firstActiveAt = joinDate;
   let avatarUrl: string | null =
     supabaseUser.user_metadata?.avatar_url ??
     supabaseUser.user_metadata?.picture ??
@@ -95,6 +97,27 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
       avatarUrl = profileRes.data.avatar_url ?? avatarUrl;
       bio = profileRes.data.bio ?? null;
       country = profileRes.data.country ?? null;
+
+      // first_active_at — when the user FIRST opened the app on this device.
+      // Stored in AsyncStorage (source of truth) and synced to DB opportunistically.
+      // Used as the notification inbox cutoff: campaigns sent before install won't appear.
+      const storageKey = `first_active_at_${supabaseUser.id}`;
+      const storedFirstActive = await AsyncStorage.getItem(storageKey).catch(() => null);
+      if (storedFirstActive) {
+        firstActiveAt = storedFirstActive;
+      } else if (profileRes.data.first_active_at) {
+        firstActiveAt = profileRes.data.first_active_at;
+        AsyncStorage.setItem(storageKey, firstActiveAt).catch(() => {});
+      } else {
+        // First time on this device — stamp NOW as the inbox start.
+        firstActiveAt = new Date().toISOString();
+        AsyncStorage.setItem(storageKey, firstActiveAt).catch(() => {});
+        supabase
+          .from("profiles")
+          .update({ first_active_at: firstActiveAt })
+          .eq("id", supabaseUser.id)
+          .then(() => {}, () => {});
+      }
     }
     if (xpRes.data) {
       xp = xpRes.data.total_xp;
@@ -130,6 +153,7 @@ async function buildUserFromSession(supabaseUser: SupabaseUser): Promise<User> {
     longestStreak,
     totalHoursListened,
     joinDate,
+    firstActiveAt,
   };
 }
 
@@ -168,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         bio:                stats.bio           ?? prev.bio,
         country:            stats.country       ?? prev.country,
         joinDate:           stats.joined_at     ?? prev.joinDate,
+        firstActiveAt:      stats.first_active_at ?? prev.firstActiveAt,
         // Include listening time so it is cached alongside XP/streak and
         // shows instantly on next profile open — no separate DB query needed.
         totalHoursListened: stats.total_hours_listened ?? prev.totalHoursListened,
@@ -224,7 +249,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (cachedUser && cachedState === "authenticated") {
           try {
-            setUser(JSON.parse(cachedUser));
+            const parsed = JSON.parse(cachedUser);
+            // Back-compat: old cached objects don't have firstActiveAt
+            if (!parsed.firstActiveAt) parsed.firstActiveAt = parsed.joinDate ?? new Date().toISOString();
+            setUser(parsed);
             setIsGuest(false);
           } catch {}
         } else if (guestMode === "true") {
@@ -418,6 +446,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       longestStreak:      0,
       totalHoursListened: 0,
       joinDate:           userData?.created_at ?? new Date().toISOString(),
+      firstActiveAt:      userData?.created_at ?? new Date().toISOString(),
     };
   }, []);
 
@@ -492,6 +521,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       longestStreak:    0,
       totalHoursListened: 0,
       joinDate:         new Date().toISOString(),
+      firstActiveAt:    new Date().toISOString(),
     };
     setUser(prelimUser);
     setIsGuest(false);
