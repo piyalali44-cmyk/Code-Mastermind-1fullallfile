@@ -1,8 +1,8 @@
-import { Icon } from "@/components/Icon";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   FlatList,
   Platform,
@@ -14,79 +14,163 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Icon } from "@/components/Icon";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 let SCREEN_W = Dimensions.get("window").width;
+let SCREEN_H = Dimensions.get("window").height;
 
 const SLIDES = [
   {
     id: "1",
     icon: "headphones" as const,
-    title: "Explore Islamic Stories",
-    subtitle: "Prophets · Seerah · Sahaba · History",
+    tag: "AUDIO LIBRARY",
+    title: "Immerse in Islamic Knowledge",
     description:
-      "Binge-listen to premium Islamic audio stories narrated with depth, accuracy, and reverence. Like Spotify — but for your deen.",
+      "Discover the profound depth of Islamic history and wisdom through beautifully narrated audio stories — crafted with scholarly accuracy, reverence, and care.",
+    pillars: ["Prophets & Messengers", "Seerah", "Sahaba", "Islamic History"],
     accent: "#15803D",
-    decorIcon: "star" as const,
+    accentLight: "#22c55e",
+    gradientStart: "#0a1f0f",
+    gradientEnd: "#071a0b",
   },
   {
     id: "2",
     icon: "quran" as const,
-    title: "Listen to the Holy Qur'an",
-    subtitle: "114 Surahs · Arabic Text · Multiple Reciters",
+    tag: "THE HOLY QUR'AN",
+    title: "The Divine Words, Always With You",
     description:
-      "Experience the Qur'an as it was meant to be — beautifully recited, with Arabic text and English translation. Free for everyone. Forever.",
+      "Experience the words of Allah ﷻ through the recitations of world-renowned Qurra' — accompanied by Arabic text and translation, available freely to all.",
+    pillars: ["Arabic Recitation", "English Translation", "Multiple Reciters"],
     accent: "#B8860E",
-    decorIcon: "book-open" as const,
+    accentLight: "#F0B429",
+    gradientStart: "#1a1400",
+    gradientEnd: "#120f00",
   },
   {
     id: "3",
     icon: "flag" as const,
-    title: "Journey Through Islam",
-    subtitle: "From Creation to the Khulafa Rashidun",
+    tag: "GUIDED LEARNING",
+    title: "A Structured Path Through Islam",
     description:
-      "The Complete Story of Islam — a guided chronological journey through 20 chapters of Islamic history. No other app offers this.",
-    accent: "#D4A030",
-    decorIcon: "map" as const,
+      "Embark on a thoughtfully curated journey through Islamic history — from the creation of the heavens and earth to the era of the Rightly Guided Caliphs.",
+    pillars: ["Creation & Prophets", "Life of the Prophet ﷺ", "Khulafa Rashidun"],
+    accent: "#C07D1A",
+    accentLight: "#E8A020",
+    gradientStart: "#1a1100",
+    gradientEnd: "#110d00",
   },
 ];
 
-function SlideItem({ item }: { item: (typeof SLIDES)[0] }) {
-  const colors = useColors();
-  const isWeb = Platform.OS === "web";
+function DecorativeRings({ accent }: { accent: string }) {
+  return (
+    <>
+      <View style={[decorStyles.ring, decorStyles.ring1, { borderColor: accent + "18" }]} />
+      <View style={[decorStyles.ring, decorStyles.ring2, { borderColor: accent + "12" }]} />
+      <View style={[decorStyles.ring, decorStyles.ring3, { borderColor: accent + "08" }]} />
+    </>
+  );
+}
+
+const decorStyles = StyleSheet.create({
+  ring: {
+    position: "absolute",
+    borderRadius: 999,
+    borderWidth: 1,
+    alignSelf: "center",
+  },
+  ring1: {
+    width: 200,
+    height: 200,
+    top: -20,
+    left: "50%" as any,
+    marginLeft: -100,
+  },
+  ring2: {
+    width: 280,
+    height: 280,
+    top: -60,
+    left: "50%" as any,
+    marginLeft: -140,
+  },
+  ring3: {
+    width: 360,
+    height: 360,
+    top: -100,
+    left: "50%" as any,
+    marginLeft: -180,
+  },
+});
+
+function SlideItem({ item, active }: { item: (typeof SLIDES)[0]; active: boolean }) {
   const insets = useSafeAreaInsets();
+  const isWeb = Platform.OS === "web";
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (active) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 60,
+          friction: 8,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 380,
+          useNativeDriver: Platform.OS !== "web",
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.92);
+      opacityAnim.setValue(0);
+    }
+  }, [active]);
 
   return (
-    <View
-      style={[
-        slideStyles.slide,
-        { width: SCREEN_W, paddingTop: insets.top + (isWeb ? 67 : 0) + 32 },
-      ]}
-    >
-      <View style={slideStyles.iconContainer}>
-        <LinearGradient
-          colors={[item.accent + "33", colors.background]}
-          style={slideStyles.iconBg}
-        >
-          <Icon name={item.icon} size={64} color={item.accent} />
-        </LinearGradient>
-        <View style={[slideStyles.decorBadge, { backgroundColor: item.accent + "22", borderColor: item.accent + "44" }]}>
-          <Icon name={item.decorIcon} size={18} color={item.accent} />
-        </View>
+    <View style={[slideStyles.slide, { width: SCREEN_W, paddingTop: insets.top + (isWeb ? 67 : 0) }]}>
+      <View style={slideStyles.topSection}>
+        <DecorativeRings accent={item.accent} />
+
+        <Animated.View style={[slideStyles.iconWrapper, { opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
+          <LinearGradient
+            colors={[item.accent + "30", item.accent + "08", "transparent"]}
+            style={slideStyles.iconGlow}
+          />
+          <View style={[slideStyles.iconCircleOuter, { borderColor: item.accent + "25" }]}>
+            <View style={[slideStyles.iconCircleInner, { borderColor: item.accent + "40" }]}>
+              <LinearGradient
+                colors={[item.accent + "30", item.accent + "15"]}
+                style={slideStyles.iconCircleCore}
+              >
+                <Icon name={item.icon} size={52} color={item.accent} />
+              </LinearGradient>
+            </View>
+          </View>
+        </Animated.View>
       </View>
 
-      <View style={slideStyles.textArea}>
-        <Text style={[slideStyles.title, { color: colors.textPrimary }]}>
-          {item.title}
-        </Text>
-        <Text style={[slideStyles.subtitle, { color: item.accent }]}>
-          {item.subtitle}
-        </Text>
-        <Text style={[slideStyles.desc, { color: colors.textSecondary }]}>
-          {item.description}
-        </Text>
-      </View>
+      <Animated.View style={[slideStyles.textSection, { opacity: opacityAnim }]}>
+        <View style={[slideStyles.tagPill, { backgroundColor: item.accent + "18", borderColor: item.accent + "30" }]}>
+          <View style={[slideStyles.tagDot, { backgroundColor: item.accentLight }]} />
+          <Text style={[slideStyles.tagText, { color: item.accentLight }]}>{item.tag}</Text>
+        </View>
+
+        <Text style={slideStyles.title}>{item.title}</Text>
+
+        <Text style={slideStyles.description}>{item.description}</Text>
+
+        <View style={slideStyles.pillarsRow}>
+          {item.pillars.map((p, i) => (
+            <View key={i} style={[slideStyles.pillar, { backgroundColor: item.accent + "14", borderColor: item.accent + "22" }]}>
+              <Text style={[slideStyles.pillarText, { color: item.accent }]}>{p}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -95,51 +179,109 @@ const slideStyles = StyleSheet.create({
   slide: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-    gap: 32,
+    paddingHorizontal: 28,
+    paddingBottom: 20,
+    justifyContent: "space-between",
   },
-  iconContainer: {
+  topSection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    position: "relative",
+    minHeight: 260,
+  },
+  iconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
     position: "relative",
   },
-  iconBg: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
+  iconGlow: {
+    position: "absolute",
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+  },
+  iconCircleOuter: {
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  decorBadge: {
-    position: "absolute",
-    bottom: 4,
-    right: -4,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  iconCircleInner: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
-  textArea: {
+  iconCircleCore: {
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     alignItems: "center",
-    gap: 10,
+    justifyContent: "center",
+  },
+  textSection: {
+    alignItems: "center",
+    width: "100%",
+    gap: 14,
+    paddingBottom: 8,
+  },
+  tagPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  tagDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.8,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "800",
     textAlign: "center",
+    color: "#FFFFFF",
+    lineHeight: 33,
+    letterSpacing: -0.3,
   },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: "600",
+  description: {
+    fontSize: 14.5,
     textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  desc: {
-    fontSize: 15,
-    textAlign: "center",
+    color: "rgba(255,255,255,0.62)",
     lineHeight: 22,
+    letterSpacing: 0.1,
+  },
+  pillarsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 7,
     marginTop: 4,
+  },
+  pillar: {
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  pillarText: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
 });
 
@@ -156,6 +298,7 @@ export default function OnboardingScreen() {
   useEffect(() => {
     const sub = Dimensions.addEventListener("change", ({ window }) => {
       SCREEN_W = window.width;
+      SCREEN_H = window.height;
     });
     return () => sub?.remove();
   }, []);
@@ -196,8 +339,25 @@ export default function OnboardingScreen() {
     router.replace("/(tabs)");
   };
 
+  const currentSlide = SLIDES[index];
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[currentSlide.gradientStart, currentSlide.gradientEnd, "#050505"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      <View style={styles.headerRow}>
+        <View style={styles.brandRow}>
+          <View style={[styles.brandDot, { backgroundColor: currentSlide.accent }]} />
+          <Text style={[styles.brandName, { color: currentSlide.accentLight }]}>StayGuided</Text>
+        </View>
+        <Pressable onPress={handleGuest} hitSlop={10}>
+          <Text style={styles.skipText}>Skip</Text>
+        </Pressable>
+      </View>
+
       <FlatList
         ref={flatListRef}
         data={SLIDES}
@@ -205,7 +365,9 @@ export default function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <SlideItem item={item} />}
+        renderItem={({ item, index: i }) => (
+          <SlideItem item={item} active={i === index} />
+        )}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={getItemLayout}
@@ -214,41 +376,46 @@ export default function OnboardingScreen() {
         bounces={false}
       />
 
-      <View
-        style={[
-          styles.footer,
-          { paddingBottom: insets.bottom + (isWeb ? 34 : 24) },
-        ]}
-      >
-        <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
-            <View
+      <View style={[styles.footer, { paddingBottom: insets.bottom + (isWeb ? 34 : 20) }]}>
+        <View style={styles.dotsRow}>
+          {SLIDES.map((s, i) => (
+            <Pressable
               key={i}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: i === index ? colors.gold : colors.border,
-                  width: i === index ? 24 : 8,
-                },
-              ]}
-            />
+              onPress={() => {
+                flatListRef.current?.scrollToIndex({ index: i, animated: true });
+                indexRef.current = i;
+                setIndex(i);
+              }}
+            >
+              <View
+                style={[
+                  styles.dot,
+                  {
+                    width: i === index ? 28 : 7,
+                    backgroundColor: i === index ? currentSlide.accentLight : "rgba(255,255,255,0.18)",
+                  },
+                ]}
+              />
+            </Pressable>
           ))}
         </View>
 
-        <Pressable
-          onPress={goNext}
-          style={[styles.ctaBtn, { backgroundColor: colors.gold }]}
-        >
-          <Text style={styles.ctaText}>
-            {index === SLIDES.length - 1 ? "Get Started" : "Next"}
-          </Text>
-          <Icon name="arrow-right" size={18} color="#fff" />
+        <Pressable onPress={goNext} style={({ pressed }) => [styles.ctaBtn, pressed && styles.ctaBtnPressed]}>
+          <LinearGradient
+            colors={[currentSlide.accentLight, currentSlide.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.ctaGradient}
+          >
+            <Text style={styles.ctaText}>
+              {index === SLIDES.length - 1 ? "Begin Your Journey" : "Continue"}
+            </Text>
+            <Icon name="arrow-right" size={18} color="#fff" />
+          </LinearGradient>
         </Pressable>
 
-        <Pressable onPress={handleGuest} style={styles.guestBtn}>
-          <Text style={[styles.guestText, { color: colors.textMuted }]}>
-            Continue without account
-          </Text>
+        <Pressable onPress={handleGuest} style={styles.guestBtn} hitSlop={8}>
+          <Text style={styles.guestText}>Explore without an account</Text>
         </Pressable>
       </View>
     </View>
@@ -258,43 +425,82 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#060606",
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  brandDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  brandName: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+  },
+  skipText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.38)",
+    fontWeight: "500",
   },
   slideList: {
     flex: 1,
   },
   footer: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    gap: 16,
+    paddingTop: 12,
+    gap: 14,
     alignItems: "center",
   },
-  dots: {
+  dotsRow: {
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
   },
   dot: {
-    height: 8,
-    borderRadius: 4,
+    height: 7,
+    borderRadius: 3.5,
   },
   ctaBtn: {
     width: "100%",
-    height: 52,
-    borderRadius: 26,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  ctaBtnPressed: {
+    opacity: 0.85,
+  },
+  ctaGradient: {
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
+    paddingHorizontal: 24,
   },
   ctaText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+    letterSpacing: 0.3,
   },
   guestBtn: {
-    padding: 8,
+    paddingVertical: 4,
   },
   guestText: {
-    fontSize: 14,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.32)",
+    fontWeight: "400",
   },
 });
