@@ -7,6 +7,7 @@ import referralRouter from "./referral";
 import redeemRouter from "./redeem";
 import adminRouter from "./admin";
 import contentRouter from "./content";
+import subscriptionRouter from "./subscription";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(referralRouter);
 router.use(redeemRouter);
 router.use(adminRouter);
 router.use(contentRouter);
+router.use(subscriptionRouter);
 
 export default router;
