@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
@@ -37,14 +37,22 @@ export default function Reciters() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+  const loadingRef = useRef(false);
 
   const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     const { data } = await supabase.from("reciters").select("*").order("order_index");
-    setItems(data ?? []);
+    // Deduplicate by id
+    const raw = data ?? [];
+    const seen = new Set<string>();
+    const unique = raw.filter((r: Reciter) => { if (seen.has(r.id)) return false; seen.add(r.id); return true; });
+    setItems(unique);
     setLoading(false);
+    loadingRef.current = false;
   }
 
   useEffect(() => { load(); }, []);

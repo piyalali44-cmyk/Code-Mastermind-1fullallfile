@@ -1,6 +1,6 @@
 import { Icon } from "@/components/Icon";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -23,6 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useContent } from "@/context/ContentContext";
 import { useAppSettings } from "@/context/AppSettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { getRecentlyPlayed, type RecentlyPlayedItem } from "@/lib/db";
 
 const { width: W } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -65,9 +66,8 @@ function spreadFeedItems(items: any[], minGap = 5): any[] {
   return result;
 }
 
-function generateFeed(allSeries: any[], page: number, seed?: number) {
-  const daySeed = seed ?? getDailySeed();
-
+// Build the full ordered pool once — call this when series loads, then paginate linearly
+function buildFeedPool(allSeries: any[], seed: number): any[] {
   const pool: any[] = [];
   for (const s of allSeries) {
     if (s.episodes && s.episodes.length > 0) {
@@ -78,22 +78,9 @@ function generateFeed(allSeries: any[], page: number, seed?: number) {
       pool.push({ series: s, episode: null });
     }
   }
-
   if (pool.length === 0) return [];
-
-  // Shuffle with daily seed so order is consistent within a day
-  const shuffled = seededShuffle(pool, daySeed + page);
-  // Spread same-series items apart — no repeats within 5 positions
-  const spread = spreadFeedItems(shuffled, 5);
-
-  const offset = 0;
-  const total = Math.min(FEED_PAGE_SIZE, spread.length);
-  const items = [];
-  for (let i = 0; i < total; i++) {
-    const idx = i % spread.length;
-    items.push({ ...spread[idx], key: `${page}-${i}-${daySeed}` });
-  }
-  return items;
+  const shuffled = seededShuffle(pool, seed);
+  return spreadFeedItems(shuffled, 5);
 }
 
 function AnimatedPressable({ onPress, style, children }: any) {
@@ -469,11 +456,14 @@ export default function HomeScreen() {
   const { series: allSeries, loading: contentLoading } = useContent();
   const { featureFlags, settings } = useAppSettings();
   const [referralToast, setReferralToast] = useState<{ visible: boolean; xp: number }>({ visible: false, xp: 0 });
-  const [feedPage, setFeedPage] = useState(0);
+  const [continueItems, setContinueItems] = useState<RecentlyPlayedItem[]>([]);
   const [feedItems, setFeedItems] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const sessionSeed = useRef(getDailySeed()).current;
   const feedInitRef = useRef(false);
+  const feedPoolRef = useRef<any[]>([]);   // full ordered pool, built once
+  const feedOffsetRef = useRef(0);         // how many items already shown
+  const loadingMoreRef = useRef(false);    // sync guard — no double-load
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
@@ -482,8 +472,23 @@ export default function HomeScreen() {
   const totalHeaderH = HEADER_H + insets.top + (isWeb ? 67 : 0);
 
   const featured = allSeries.filter((s) => s.isFeatured);
-  const newReleases = allSeries.filter((s) => s.isNew);
-  const popular = allSeries.slice(0, 4);
+  const featuredIds = new Set(featured.map((s) => s.id));
+  // Popular = highest play count, not already featured, max 6
+  const popular = allSeries
+    .filter((s) => !featuredIds.has(s.id))
+    .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+    .slice(0, 6);
+  const popularIds = new Set(popular.map((s) => s.id));
+  // New Releases = genuinely new, not in featured or popular, max 6
+  const newReleases = allSeries
+    .filter((s) => s.isNew && !featuredIds.has(s.id) && !popularIds.has(s.id))
+    .slice(0, 6);
+
+  // Load real "Continue Listening" data when screen is focused
+  useFocusEffect(useCallback(() => {
+    if (!user?.id) { setContinueItems([]); return; }
+    getRecentlyPlayed(user.id, 6).then(setContinueItems).catch(() => {});
+  }, [user?.id]));
 
   // Show toast when referral code is successfully applied after signup
   useEffect(() => {
@@ -496,7 +501,11 @@ export default function HomeScreen() {
   useEffect(() => {
     if (allSeries.length > 0 && !feedInitRef.current) {
       feedInitRef.current = true;
-      setFeedItems(generateFeed(allSeries, 0, sessionSeed));
+      const pool = buildFeedPool(allSeries, sessionSeed);
+      feedPoolRef.current = pool;
+      feedOffsetRef.current = FEED_PAGE_SIZE;
+      const initial = pool.slice(0, FEED_PAGE_SIZE).map((item, i) => ({ ...item, key: `feed-${i}` }));
+      setFeedItems(initial);
     }
   }, [allSeries, sessionSeed]);
 
@@ -545,13 +554,18 @@ export default function HomeScreen() {
   const hasMiniplayer = !!nowPlaying;
 
   const loadMoreFeed = useCallback(() => {
-    if (loadingMore || allSeries.length === 0) return;
+    const pool = feedPoolRef.current;
+    const offset = feedOffsetRef.current;
+    // Ref-based guard prevents double-load even when called multiple times in same tick
+    if (loadingMoreRef.current || pool.length === 0 || offset >= pool.length) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
-    const nextPage = feedPage + 1;
-    setFeedPage(nextPage);
-    setFeedItems((prev) => [...prev, ...generateFeed(allSeries, nextPage, sessionSeed)]);
+    const nextSlice = pool.slice(offset, offset + FEED_PAGE_SIZE).map((item, i) => ({ ...item, key: `feed-${offset + i}` }));
+    feedOffsetRef.current = offset + FEED_PAGE_SIZE;
+    setFeedItems((prev) => [...prev, ...nextSlice]);
     setLoadingMore(false);
-  }, [loadingMore, feedPage, allSeries, sessionSeed]);
+    loadingMoreRef.current = false;
+  }, []);
 
   const feedRows = useMemo(() => {
     const rows: (typeof feedItems[0] | undefined)[][] = [];
@@ -794,8 +808,8 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* Continue Listening */}
-        {user && allSeries.length > 0 && (
+        {/* Continue Listening — only shows if user has real listening history */}
+        {user && continueItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text
@@ -805,18 +819,22 @@ export default function HomeScreen() {
               </Text>
             </View>
             <FlatList
-              data={allSeries.slice(0, 3)}
+              data={continueItems.slice(0, 5)}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ gap: 12 }}
+              keyExtractor={(item) => item.episodeId}
+              contentContainerStyle={{ paddingLeft: 16, gap: 12 }}
               removeClippedSubviews={true}
               initialNumToRender={3}
               maxToRenderPerBatch={3}
               windowSize={3}
-              renderItem={({ item }) => (
+              renderItem={({ item }) => {
+                const series = item.seriesId
+                  ? allSeries.find(s => s.id === item.seriesId)
+                  : allSeries.find(s => s.episodes?.some((e: any) => e.id === item.contentId));
+                return (
                 <AnimatedPressable
-                  onPress={() => router.push(`/series/${item.id}`)}
+                  onPress={() => series ? router.push(`/series/${series.id}`) : null}
                   style={[
                     styles.continueCard,
                     {
@@ -828,11 +846,11 @@ export default function HomeScreen() {
                   <View
                     style={[
                       styles.continueCover,
-                      { backgroundColor: item.coverColor },
+                      { backgroundColor: series?.coverColor || colors.surfaceHigh },
                     ]}
                   >
-                    {item.coverUrl ? (
-                      <FadeImage uri={item.coverUrl} style={StyleSheet.absoluteFill} />
+                    {series?.coverUrl ? (
+                      <FadeImage uri={series.coverUrl} style={StyleSheet.absoluteFill} />
                     ) : (
                       <Icon name="headphones" size={20} color={colors.goldLight} />
                     )}
@@ -854,9 +872,7 @@ export default function HomeScreen() {
                       ]}
                       numberOfLines={1}
                     >
-                      {item.episodes.length > 0
-                        ? `Ep ${item.episodes[0].number} · ${item.episodes[0].duration}`
-                        : `${item.episodeCount} episodes`}
+                      {item.seriesName || series?.title || ""}
                     </Text>
                     <View
                       style={[
@@ -873,7 +889,8 @@ export default function HomeScreen() {
                     </View>
                   </View>
                 </AnimatedPressable>
-              )}
+                );
+              }}
             />
           </View>
         )}

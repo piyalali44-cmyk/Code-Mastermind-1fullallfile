@@ -93,7 +93,15 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const seriesIds = seriesData.map((s: any) => s.id);
+      // Deduplicate series by id (guard against DB-level duplicates)
+      const seenSeriesIds = new Set<string>();
+      const uniqueSeriesData = seriesData.filter((s: any) => {
+        if (seenSeriesIds.has(s.id)) return false;
+        seenSeriesIds.add(s.id);
+        return true;
+      });
+
+      const seriesIds = uniqueSeriesData.map((s: any) => s.id);
 
       // Fetch only PUBLISHED episodes — respects admin pub_status from admin panel
       const { data: episodesData, error: episodesErr } = await supabase
@@ -107,13 +115,21 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
         console.warn("ContentContext: episodes fetch error →", episodesErr.message);
       }
 
+      // Deduplicate episodes by id before grouping (guard against DB-level duplicates)
+      const seenEpIds = new Set<string>();
+      const uniqueEpisodes = (episodesData || []).filter((ep: any) => {
+        if (seenEpIds.has(ep.id)) return false;
+        seenEpIds.add(ep.id);
+        return true;
+      });
+
       const episodesBySeries: Record<string, any[]> = {};
-      (episodesData || []).forEach((ep: any) => {
+      uniqueEpisodes.forEach((ep: any) => {
         if (!episodesBySeries[ep.series_id]) episodesBySeries[ep.series_id] = [];
         episodesBySeries[ep.series_id].push(ep);
       });
 
-      const mapped: Series[] = seriesData.map((s: any, idx: number) => {
+      const mapped: Series[] = uniqueSeriesData.map((s: any, idx: number) => {
         const eps = episodesBySeries[s.id] || [];
 
         // Calculate from actual fetched episodes
