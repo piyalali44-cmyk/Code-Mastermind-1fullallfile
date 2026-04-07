@@ -617,6 +617,7 @@ export async function fetchMyStats(token: string): Promise<{
   xp: number; level: number; streak: number; longest_streak: number;
   is_premium: boolean; display_name: string | null; avatar_url: string | null;
   bio: string | null; country: string | null; joined_at: string | null;
+  total_hours_listened: number;
 } | null> {
   try {
     const controller = new AbortController();

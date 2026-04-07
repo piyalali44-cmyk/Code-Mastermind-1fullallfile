@@ -158,16 +158,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!prev) return prev;
       const updated: typeof prev = {
         ...prev,
-        xp:               stats.xp,
-        level:            stats.level,
-        streak:           stats.streak,
-        longestStreak:    stats.longest_streak,
-        isPremium:        stats.is_premium,
-        displayName:      stats.display_name  ?? prev.displayName,
-        avatarUrl:        stats.avatar_url    ?? prev.avatarUrl,
-        bio:              stats.bio           ?? prev.bio,
-        country:          stats.country       ?? prev.country,
-        joinDate:         stats.joined_at     ?? prev.joinDate,
+        xp:                 stats.xp,
+        level:              stats.level,
+        streak:             stats.streak,
+        longestStreak:      stats.longest_streak,
+        isPremium:          stats.is_premium,
+        displayName:        stats.display_name  ?? prev.displayName,
+        avatarUrl:          stats.avatar_url    ?? prev.avatarUrl,
+        bio:                stats.bio           ?? prev.bio,
+        country:            stats.country       ?? prev.country,
+        joinDate:           stats.joined_at     ?? prev.joinDate,
+        // Include listening time so it is cached alongside XP/streak and
+        // shows instantly on next profile open — no separate DB query needed.
+        totalHoursListened: stats.total_hours_listened ?? prev.totalHoursListened,
       };
       AsyncStorage.setItem(CACHED_USER_KEY, JSON.stringify(updated)).catch(() => {});
       return updated;
