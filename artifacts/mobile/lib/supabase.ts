@@ -2,22 +2,48 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "https://tkruzfskhtcazjxdracm.supabase.co";
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
+// ── Supabase configuration ──────────────────────────────────────────────────
+// URL falls back to the hardcoded project URL if env var is not set.
+// The anon key must be provided via EXPO_PUBLIC_SUPABASE_ANON_KEY.
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ??
+  "https://tkruzfskhtcazjxdracm.supabase.co";
 
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  process.env.SUPABASE_ANON_KEY ??
+  "";
+
+// Exported so screens can show a friendly "misconfigured" state rather than
+// crashing with cryptic network errors.
 export const SUPABASE_KEY_MISSING = !supabaseAnonKey;
 
-const PLACEHOLDER_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder";
+if (__DEV__ && SUPABASE_KEY_MISSING) {
+  console.warn(
+    "[supabase] EXPO_PUBLIC_SUPABASE_ANON_KEY is not set — all Supabase " +
+      "requests will fail. Set the key in your environment variables.",
+  );
+}
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey || PLACEHOLDER_KEY, {
+// ── Client singleton ────────────────────────────────────────────────────────
+// We intentionally do NOT fall back to a placeholder JWT. Using an invalid
+// key causes silent auth failures that are hard to debug. Instead, callers
+// should guard on SUPABASE_KEY_MISSING before making requests.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: Platform.OS === "web" ? undefined : AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === "web",
   },
+  global: {
+    headers: {
+      "x-app-name": "StayGuided Me",
+    },
+  },
 });
 
+// ── Type helpers ────────────────────────────────────────────────────────────
 export type Database = {
   public: {
     Tables: {
@@ -50,7 +76,12 @@ export type Database = {
         };
       };
       user_xp: {
-        Row: { user_id: string; total_xp: number; level: number; updated_at: string };
+        Row: {
+          user_id: string;
+          total_xp: number;
+          level: number;
+          updated_at: string;
+        };
       };
       user_streaks: {
         Row: {

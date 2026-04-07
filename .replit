@@ -37,6 +37,7 @@ VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 SUPABASE_DB_URL = "postgresql://postgres:H7FOISKpoO5BgOl1@db.tkruzfskhtcazjxdracm.supabase.co:5432/postgres"
 SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRrcnV6ZnNraHRjYXpqeGRyYWNtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTAzNTUwNSwiZXhwIjoyMDkwNjExNTA1fQ.c8eQiMERomUSKTUPo5Ter0BwZFxLwQ9etS1FTlq1NBE"
 SUPABASE_ACCESS_TOKEN = "sbp_b66e80dbb26ed9732972807b6b8fcafa97225e9c"
+SUPABASE_PROJECT_ID = "tkruzfskhtcazjxdracm"
 
 [nix]
 channel = "stable-25_05"
