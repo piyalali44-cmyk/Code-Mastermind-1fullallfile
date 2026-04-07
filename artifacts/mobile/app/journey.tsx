@@ -62,46 +62,47 @@ export default function JourneyScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Back button — always fixed, never scrolls away */}
-      <Pressable
-        onPress={() => router.back()}
-        style={[styles.backBtnFixed, { top: insets.top + (isWeb ? 67 : 0) + 10, left: 16 }]}
-      >
-        <View style={styles.backBtnInner}>
-          <Icon name="arrow-left" size={20} color="#fff" />
-        </View>
-      </Pressable>
 
+      {/* ── Fixed header — never scrolls ── */}
+      <LinearGradient
+        colors={[colors.gold + "44", colors.background]}
+        style={[styles.header, { paddingTop: insets.top + (isWeb ? 67 : 0) + 14 }]}
+      >
+        {/* Back button inside fixed header */}
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <View style={styles.backBtnInner}>
+            <Icon name="arrow-left" size={20} color="#fff" />
+          </View>
+        </Pressable>
+
+        <Text style={[styles.label, { color: colors.goldLight }]}>THE COMPLETE STORY</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Journey Through Islam</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {loading ? "Loading..." : `${totalChapters} chapters · From Creation to the Khulafa Rashidun`}
+        </Text>
+
+        <Pressable
+          onPress={() => {
+            const first = chapters[0];
+            if (first?.series_id) router.push(`/series/${first.series_id}`);
+          }}
+          style={[styles.ctaBtn, { backgroundColor: colors.gold, opacity: chapters.length === 0 ? 0.5 : 1 }]}
+          disabled={chapters.length === 0}
+        >
+          <Icon name="play" size={16} color="#fff" />
+          <Text style={styles.ctaBtnText}>Start from the Beginning</Text>
+        </Pressable>
+      </LinearGradient>
+
+      {/* ── Only chapters list scrolls ── */}
       <ScrollView
-        contentContainerStyle={{ paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: (hasMiniplayer ? 148 : 80) + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        <LinearGradient
-          colors={[colors.gold + "33", colors.background]}
-          style={[styles.header, { paddingTop: insets.top + (isWeb ? 67 : 0) + 60 }]}
-        >
-          <Text style={[styles.label, { color: colors.goldLight }]}>THE COMPLETE STORY</Text>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Journey Through Islam</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {totalChapters} chapters · From Creation to the Khulafa Rashidun
-          </Text>
-
-          <Pressable
-            onPress={() => {
-              const first = chapters[0];
-              if (first?.series_id) router.push(`/series/${first.series_id}`);
-            }}
-            style={[styles.ctaBtn, { backgroundColor: colors.gold }]}
-          >
-            <Icon name="play" size={16} color="#fff" />
-            <Text style={styles.ctaBtnText}>Start from the Beginning</Text>
-          </Pressable>
-        </LinearGradient>
-
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={colors.gold} size="large" />
-            <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading journey...</Text>
           </View>
         ) : chapters.length === 0 ? (
           <View style={styles.loadingWrap}>
@@ -170,19 +171,17 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     gap: 6,
   },
-  backBtnFixed: {
-    position: "absolute",
-    zIndex: 20,
+  backBtn: {
+    marginBottom: 4,
+    alignSelf: "flex-start",
   },
   backBtnInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(8,15,28,0.65)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.25)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 0.6,
-    borderColor: "rgba(255,255,255,0.18)",
   },
   label: {
     fontSize: 11,
