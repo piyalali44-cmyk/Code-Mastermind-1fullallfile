@@ -799,17 +799,57 @@ export interface DbNotification {
   created_at: string;
 }
 
-export async function getNotifications(userId: string): Promise<DbNotification[]> {
+export async function getNotifications(userId: string, joinedAt?: string): Promise<DbNotification[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("notifications")
       .select("*")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (joinedAt) {
+      query = query.gte("created_at", joinedAt);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     return (data ?? []) as DbNotification[];
   } catch { return []; }
+}
+
+export async function addWelcomeNotificationForUser(userId: string): Promise<void> {
+  try {
+    const { count } = await supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("type", "welcome");
+    if ((count ?? 0) > 0) return;
+
+    const { data: campaign } = await supabase
+      .from("push_campaigns")
+      .select("*")
+      .eq("target_type", "welcome")
+      .eq("status", "sent")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!campaign) return;
+
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      title: campaign.title,
+      body: campaign.body,
+      type: "welcome",
+      is_read: false,
+      action_type: campaign.deep_link ? "deeplink" : null,
+      action_payload: {
+        ...(campaign.deep_link ? { url: campaign.deep_link } : {}),
+        ...(campaign.image_url ? { image_url: campaign.image_url } : {}),
+      },
+    });
+  } catch (err) {
+    console.warn("[addWelcomeNotificationForUser]", err);
+  }
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {

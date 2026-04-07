@@ -3,6 +3,15 @@
 ## Overview
 A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supabase (`tkruzfskhtcazjxdracm`), with a full-featured React + Vite admin panel. Features Qur'an listening, Islamic story library, a 20-chapter guided journey through Islamic history, gamification (XP, streaks, badges, leaderboard), freemium subscriptions, and a referral program.
 
+## Notification System (Completed)
+- `getNotifications(userId, joinedAt?)` — filters by `created_at >= joinedAt` so users only see notifications from after they joined
+- `addWelcomeNotificationForUser(userId)` — called on signup; finds the latest "welcome" campaign and inserts a notification (idempotent)
+- `seedNotificationsIfEmpty` removed — was root cause of fake notifications for all users
+- Admin: campaigns with `target_type: "welcome"` are "activated" (not broadcast); new registrants auto-receive them
+- Admin: delete button on every campaign row (with confirm dialog)
+- `react-native-track-player` plugin removed from `app.json` plugins array (it auto-links, has no config plugin)
+- TrackPlayer.registerPlaybackService called in `_layout.tsx` via try/catch (no-op in Expo Go)
+
 ## Architecture
 
 ### Artifacts
