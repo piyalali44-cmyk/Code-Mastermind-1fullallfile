@@ -32,8 +32,7 @@ export function MiniPlayer() {
     >
       {/* Subtle tint overlay using series color */}
       <View
-        style={[StyleSheet.absoluteFill, { backgroundColor: coverTint }]}
-        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: coverTint, pointerEvents: "none" }]}
       />
 
       {/* Progress bar — uses theme gold */}

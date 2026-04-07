@@ -151,9 +151,9 @@ export function ReferralCodeInput({
       )}
       {/* Floating paste suggestion chip — native only when clipboard has something */}
       <Animated.View
-        pointerEvents={showChip ? "auto" : "none"}
         style={[
           styles.chip,
+          { pointerEvents: showChip ? "auto" : "none" },
           {
             backgroundColor: colors.surfaceHigh,
             borderColor: colors.gold + "50",

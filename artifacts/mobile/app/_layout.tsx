@@ -55,7 +55,7 @@ function SplashOverlay() {
         toValue: 0,
         duration: 600,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }).start(() => setHidden(true));
     }, MIN_SPLASH_MS);
     return () => clearTimeout(timer);
@@ -70,8 +70,8 @@ function SplashOverlay() {
         top: 0, left: 0, right: 0, bottom: 0,
         opacity: fadeAnim,
         zIndex: 999,
+        pointerEvents: "none",
       }}
-      pointerEvents="none"
     >
       <SplashLoader />
     </Animated.View>

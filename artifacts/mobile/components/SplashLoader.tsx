@@ -200,8 +200,7 @@ export function SplashLoader() {
       {/* Logo + glow */}
       <View style={styles.logoOuter}>
         <Animated.View
-          style={[styles.glow, { opacity: glowOp, transform: [{ scale: glowSc }] }]}
-          pointerEvents="none"
+          style={[styles.glow, { opacity: glowOp, transform: [{ scale: glowSc }], pointerEvents: "none" }]}
         />
         <Animated.View style={{ opacity: logoOp, transform: [{ scale: logoScale }] }}>
           <IslamicEmblem />

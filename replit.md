@@ -14,8 +14,10 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 ### Supabase Project
 - Project ID: `tkruzfskhtcazjxdracm`
 - URL: `https://tkruzfskhtcazjxdracm.supabase.co`
-- Secrets: `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- Secrets set: `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `SUPABASE_DB_URL`
 - Admin panel uses Vite `define` in vite.config.ts to expose secrets: `VITE_SUPABASE_ANON_KEY` (from `EXPO_PUBLIC_SUPABASE_ANON_KEY`) and `VITE_SUPABASE_SERVICE_KEY` (from `SUPABASE_SERVICE_ROLE_KEY`)
+- API server uses `DATABASE_URL` for direct PostgreSQL connection and `SUPABASE_SERVICE_ROLE_KEY` for Supabase admin operations
+- `VITE_API_BASE_URL` in admin panel dynamically resolves to `https://$REPLIT_DEV_DOMAIN/api`
 
 ---
 
