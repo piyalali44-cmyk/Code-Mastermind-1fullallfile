@@ -116,8 +116,23 @@ WHERE referral_code IS NOT NULL
   AND referral_code != upper(referral_code);
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 5: ADMIN RLS POLICIES
+-- PART 5: is_admin() HELPER + ADMIN RLS POLICIES
 -- ═══════════════════════════════════════════════════════════════════════════
+
+-- Ensure is_admin() exists before any policy that depends on it.
+-- Returns true when the calling user has an admin-level role in profiles.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND role IN ('super_admin', 'admin', 'editor', 'content', 'support')
+  )
+$$;
 
 DROP POLICY IF EXISTS "Admins manage subscriptions"  ON public.subscriptions;
 CREATE POLICY "Admins manage subscriptions"
