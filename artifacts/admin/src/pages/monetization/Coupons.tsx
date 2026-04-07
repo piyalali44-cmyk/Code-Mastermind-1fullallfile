@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2, PauseCircle, Copy } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import type { CouponCode } from "@/lib/types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -37,7 +38,11 @@ export default function Coupons() {
   const [deleteTarget, setDeleteTarget] = useState<CouponCode | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
     setLoading(true);
@@ -181,7 +186,7 @@ export default function Coupons() {
               <TableRow key={i}>{Array.from({ length: 9 }).map((__, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>
             )) : items.length === 0 ? (
               <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-12">No coupons yet</TableCell></TableRow>
-            ) : items.map(c => (
+            ) : pageItems.map(c => (
               <TableRow key={c.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -214,6 +219,13 @@ export default function Coupons() {
           </TableBody>
         </Table>
         </div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={items.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>

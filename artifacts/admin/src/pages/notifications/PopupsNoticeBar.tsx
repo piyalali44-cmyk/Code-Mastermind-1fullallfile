@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 interface PopupNotice {
   id: string; title: string; body: string | null; type: string;
@@ -42,7 +43,11 @@ export default function PopupsNoticeBar() {
   const [editing, setEditing] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
     setLoading(true);
@@ -186,7 +191,7 @@ export default function PopupsNoticeBar() {
               <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>
             )) : items.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-12">No notices yet</TableCell></TableRow>
-            ) : items.map(p => (
+            ) : pageItems.map(p => (
               <TableRow key={p.id}>
                 <TableCell>
                   <div>
@@ -211,6 +216,13 @@ export default function PopupsNoticeBar() {
           </TableBody>
         </Table>
         </div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={items.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
     </div>
   );

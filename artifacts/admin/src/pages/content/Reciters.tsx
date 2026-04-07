@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2, GripVertical, Mic2 } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import ImageUpload from "@/components/ImageUpload";
 import type { Reciter } from "@/lib/types";
 
@@ -33,7 +34,11 @@ export default function Reciters() {
   const [deleteTarget, setDeleteTarget] = useState<Reciter | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [associatedCount, setAssociatedCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
     setLoading(true);
@@ -214,7 +219,7 @@ export default function Reciters() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : items.map(r => (
+            ) : pageItems.map(r => (
               <TableRow key={r.id} className="transition-colors hover:bg-muted/20">
                 <TableCell><GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" /></TableCell>
                 <TableCell>
@@ -257,6 +262,13 @@ export default function Reciters() {
           </TableBody>
         </Table>
         </div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={items.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>

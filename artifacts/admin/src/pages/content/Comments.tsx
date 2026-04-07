@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { MessageCircle, Trash2, Flag, RefreshCw, Search, Eye, EyeOff, UserX } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 const API_BASE: string =
   (import.meta.env as Record<string, string>).VITE_API_BASE_URL || "";
@@ -57,7 +58,7 @@ export default function Comments() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 25;
+  const [pageSize, setPageSize] = useState(25);
 
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -77,7 +78,7 @@ export default function Comments() {
     try {
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: String(PAGE_SIZE),
+        pageSize: String(pageSize),
         filterType,
         filterStatus,
         search,
@@ -99,7 +100,7 @@ export default function Comments() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [page, filterType, filterStatus, search]);
+  }, [page, pageSize, filterType, filterStatus, search]);
 
   useEffect(() => {
     load(false);
@@ -154,8 +155,6 @@ export default function Comments() {
     } catch (err: any) { toast.error(err.message); }
     finally { setBlockingUser(null); }
   }
-
-  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="space-y-4 p-6">
@@ -335,22 +334,13 @@ export default function Comments() {
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>
-            Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
-          </span>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-              Previous
-            </Button>
-            <Button size="sm" variant="outline" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+      />
     </div>
   );
 }

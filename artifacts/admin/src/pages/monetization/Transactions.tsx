@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/table";
 import {
   DollarSign, Users, Gift, TrendingUp, Search, RefreshCw,
-  ChevronLeft, ChevronRight, ExternalLink, CreditCard, Smartphone,
+  ExternalLink, CreditCard, Smartphone,
   Globe, Shield, Calendar, Download, Wifi,
 } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Link } from "wouter";
 import { toast } from "sonner";
 import MigrationBanner from "@/components/MigrationBanner";
@@ -225,8 +226,7 @@ export default function Transactions() {
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const pageRows   = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const pageRows = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
   /* ─── KPIs ─────────────────────────────────────────── */
   const kpi = filtered.reduce(
@@ -270,59 +270,6 @@ export default function Transactions() {
     });
     a.click();
     toast.success("CSV exported");
-  }
-
-  /* ─── Pagination bar ───────────────────────────────── */
-  function PaginationBar() {
-    const windowStart = Math.max(0, Math.min(totalPages - 5, page - 2));
-    const windowPages = Array.from({ length: Math.min(5, totalPages) }, (_, i) => windowStart + i);
-    return (
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-border text-xs text-muted-foreground">
-        <span>
-          {filtered.length === 0 ? "No records" :
-            `Showing ${page * pageSize + 1}–${Math.min((page + 1) * pageSize, filtered.length)} of ${filtered.length.toLocaleString()}`}
-        </span>
-
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-7 w-7"
-            onClick={() => setPage(0)} disabled={page === 0}>
-            <ChevronLeft className="h-3.5 w-3.5" /><ChevronLeft className="h-3.5 w-3.5 -ml-2" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7"
-            onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          {windowPages.map(pg => (
-            <Button key={pg}
-              variant={pg === page ? "default" : "outline"}
-              size="icon" className="h-7 w-7 text-xs"
-              onClick={() => setPage(pg)}>
-              {pg + 1}
-            </Button>
-          ))}
-          <Button variant="outline" size="icon" className="h-7 w-7"
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" className="h-7 w-7"
-            onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1}>
-            <ChevronRight className="h-3.5 w-3.5" /><ChevronRight className="h-3.5 w-3.5 -ml-2" />
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Rows per page</span>
-          <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(0); }}>
-            <SelectTrigger className="h-7 w-[70px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {PAGE_SIZE_OPTIONS.map(n => (
-                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    );
   }
 
   /* ─── Render ───────────────────────────────────────── */
@@ -656,7 +603,13 @@ export default function Transactions() {
         </div>
 
         {/* Pagination always visible at bottom */}
-        <PaginationBar />
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={filtered.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
       {/* Footer note */}

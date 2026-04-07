@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 
 interface Badge {
   id: string; slug: string; name: string; description: string | null;
@@ -29,7 +30,11 @@ export default function BadgeManager() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Badge | null>(null);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
     setLoading(true);
@@ -135,7 +140,7 @@ export default function BadgeManager() {
           <TableBody>
             {loading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>
-            )) : items.map(b => (
+            )) : pageItems.map(b => (
               <TableRow key={b.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -161,6 +166,13 @@ export default function BadgeManager() {
           </TableBody>
         </Table>
         </div>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={items.length}
+          onPageChange={setPage}
+          onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+        />
       </Card>
 
       <Dialog open={!!deleteTarget} onOpenChange={o => !o && setDeleteTarget(null)}>

@@ -14,6 +14,7 @@ import {
   AlertTriangle, CheckCircle, XCircle, Eye, RefreshCw, Clock, Shield,
   FileWarning, Inbox, Flag, Headphones, BookOpen, Layers, Wifi, StickyNote, User, Calendar,
 } from "lucide-react";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { formatDateTime } from "@/lib/utils";
 import type { ContentReport } from "@/lib/types";
 
@@ -57,7 +58,11 @@ export default function ContentReports() {
   const [selected,     setSelected]     = useState<ContentReport | null>(null);
   const [actionNote,   setActionNote]   = useState("");
   const [acting,       setActing]       = useState(false);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = items.slice(page * pageSize, (page + 1) * pageSize);
 
   /* ── Stats ── */
   const stats = {
@@ -108,6 +113,7 @@ export default function ContentReports() {
   /* ── Filter ── */
   useEffect(() => {
     setItems(filterStatus === "all" ? allItems : allItems.filter(r => r.status === filterStatus));
+    setPage(0);
   }, [filterStatus, allItems]);
 
   /* ── Real-time ── */
@@ -301,7 +307,7 @@ export default function ContentReports() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : items.map(r => {
+              ) : pageItems.map(r => {
                 const TypeIcon = TYPE_ICONS[r.content_type] ?? Flag;
                 const StatusIcon = STATUS_ICONS[r.status] ?? Clock;
                 return (
@@ -347,6 +353,14 @@ export default function ContentReports() {
           </Table>
         </div>
       </Card>
+
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        total={items.length}
+        onPageChange={setPage}
+        onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+      />
 
       {/* ─── Detail Dialog ─── */}
       <Dialog open={!!selected} onOpenChange={o => !o && setSelected(null)}>

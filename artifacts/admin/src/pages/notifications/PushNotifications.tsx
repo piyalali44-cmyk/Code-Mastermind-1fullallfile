@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { Send, Plus, Bell, Loader2 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import ImageUpload from "@/components/ImageUpload";
 
 interface Campaign {
@@ -40,7 +41,11 @@ export default function PushNotifications() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
   const { profile } = useAuth();
+
+  const pageItems = campaigns.slice(page * pageSize, (page + 1) * pageSize);
 
   async function load() {
     setLoading(true);
@@ -220,7 +225,7 @@ export default function PushNotifications() {
               <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><div className="h-4 bg-muted animate-pulse rounded" /></TableCell>)}</TableRow>
             )) : campaigns.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-12">No campaigns yet</TableCell></TableRow>
-            ) : campaigns.map(c => (
+            ) : pageItems.map(c => (
               <TableRow key={c.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -260,6 +265,13 @@ export default function PushNotifications() {
           </TableBody>
         </Table>
       </div>
+      <PaginationBar
+        page={page}
+        pageSize={pageSize}
+        total={campaigns.length}
+        onPageChange={setPage}
+        onPageSizeChange={s => { setPageSize(s); setPage(0); }}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
