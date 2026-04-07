@@ -26,7 +26,7 @@ const SLIDES = [
     id: "1",
     icon: "headphones" as const,
     tag: "AUDIO LIBRARY",
-    title: "Immerse in Islamic Knowledge",
+    title: "Explore Islamic Stories",
     description:
       "Discover the profound depth of Islamic history and wisdom through beautifully narrated audio stories — crafted with scholarly accuracy, reverence, and care.",
     pillars: ["Prophets & Messengers", "Seerah", "Sahaba", "Islamic History"],
@@ -39,7 +39,7 @@ const SLIDES = [
     id: "2",
     icon: "quran" as const,
     tag: "THE HOLY QUR'AN",
-    title: "The Divine Words, Always With You",
+    title: "Listen to the Holy Qur'an",
     description:
       "Experience the words of Allah ﷻ through the recitations of world-renowned Qurra' — accompanied by Arabic text and translation, available freely to all.",
     pillars: ["Arabic Recitation", "English Translation", "Multiple Reciters"],
@@ -52,7 +52,7 @@ const SLIDES = [
     id: "3",
     icon: "flag" as const,
     tag: "GUIDED LEARNING",
-    title: "A Structured Path Through Islam",
+    title: "Journey Through Islam",
     description:
       "Embark on a thoughtfully curated journey through Islamic history — from the creation of the heavens and earth to the era of the Rightly Guided Caliphs.",
     pillars: ["Creation & Prophets", "Life of the Prophet ﷺ", "Khulafa Rashidun"],
