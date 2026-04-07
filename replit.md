@@ -25,6 +25,26 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - All migrations applied (complete_setup.sql, master_migration.sql, all patches)
 - 46+ tables created including: profiles, series, episodes, user_xp, user_streaks, subscriptions, referrals, badges, leaderboard, etc.
 - Super admin account: `imranrir46@gmail.com` (role: super_admin)
+- **Subscription columns** (store, product_id, original_transaction_id) confirmed present ✅
+- **profiles.push_token** column confirmed present ✅
+- **Hadith badges** (hadith_start, hadith_10, hadith_40) seeded at every API server start ✅
+- **Missing column**: `episodes.image_url` — run `artifacts/mobile/supabase/master_patches.sql` in Supabase Dashboard to apply
+
+### Migration Files
+- `artifacts/mobile/supabase/complete_setup.sql` — Full schema (run once on fresh DB)
+- `artifacts/mobile/supabase/master_patches.sql` — Consolidated idempotent patches (safe to re-run anytime)
+- `artifacts/mobile/supabase/migrations/20260407_subscription_production.sql` — Adds store/product_id/original_transaction_id to subscriptions
+- `artifacts/mobile/supabase/migrations/add_image_url_and_hadith_badges.sql` — Adds image_url to episodes/push_campaigns/notifications + hadith badges
+
+### API Server Schema Automation
+- At startup, the API server calls `applySchemaPatches()` which:
+  1. Checks for missing columns via Supabase admin client
+  2. Attempts DDL via Management API (requires personal access token in `SUPABASE_ACCESS_TOKEN`)
+  3. Seeds Hadith badges (hadith_start, hadith_10, hadith_40) via admin client
+  4. Seeds lifetime_price_usd app_settings entry
+  5. Logs any missing columns with instructions to run `master_patches.sql`
+- Schema status endpoint: `GET /api/health/schema`
+- **Note**: `SUPABASE_ACCESS_TOKEN` must be a Supabase personal access token (from supabase.com/dashboard/account/tokens), NOT the service role key, for DDL automation to work
 
 ---
 
@@ -38,9 +58,9 @@ A comprehensive Islamic audio mobile app (Expo/React Native) connected to Supaba
 - CSS variables set in `src/index.css` — use `bg-background`, `text-primary`, `bg-card`, etc.
 
 ### Key Files
-- `src/lib/supabase.ts` — TWO Supabase clients:
-  - `supabase` (anon key + session) — used for ALL data operations and user authentication
-  - `supabaseAdmin` (service_role key, no session) — ONLY for auth.admin operations (invite users, delete users)
+- `src/lib/supabase.ts` — ONE browser Supabase client:
+  - `supabase` (anon key + RLS) — used for ALL data operations and user authentication
+  - `supabaseAdmin` — exported as `null` (kept for backward-compatible imports); all privileged ops go via `/api/admin/*` server endpoints
 - `src/lib/types.ts` — All TypeScript types (Profile, Category, Series, Episode, etc.)
 - `src/lib/utils.ts` — `cn`, `maskEmail`, `formatDate`, `formatDateTime`, `formatRelative`, `formatDuration`
 - `src/contexts/AuthContext.tsx` — Auth state (`useAuth()` returns user, profile, role, signIn, signOut, isAtLeast)

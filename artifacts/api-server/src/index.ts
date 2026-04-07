@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedRateLimitDefaults, ensureLikesCommentsTables } from "./lib/initDb";
+import { applySchemaPatches } from "./lib/supabaseMigrations";
 
 // ── Environment validation ────────────────────────────────────────────────────
 const rawPort = process.env["PORT"];
@@ -57,5 +58,9 @@ app.listen(port, (err) => {
 
   ensureLikesCommentsTables().catch((e) =>
     logger.warn({ err: e }, "Could not ensure likes/comments tables"),
+  );
+
+  applySchemaPatches().catch((e) =>
+    logger.warn({ err: e }, "Could not apply schema patches"),
   );
 });
