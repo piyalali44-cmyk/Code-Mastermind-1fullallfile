@@ -348,16 +348,6 @@ export default function OnboardingScreen() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <View style={styles.headerRow}>
-        <View style={styles.brandRow}>
-          <View style={[styles.brandDot, { backgroundColor: currentSlide.accent }]} />
-          <Text style={[styles.brandName, { color: currentSlide.accentLight }]}>StayGuided</Text>
-        </View>
-        <Pressable onPress={handleGuest} hitSlop={10}>
-          <Text style={styles.skipText}>Skip</Text>
-        </Pressable>
-      </View>
-
       <FlatList
         ref={flatListRef}
         data={SLIDES}
@@ -426,34 +416,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#060606",
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  brandRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  brandDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  brandName: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-  },
-  skipText: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.38)",
-    fontWeight: "500",
   },
   slideList: {
     flex: 1,
