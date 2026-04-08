@@ -1,0 +1,16 @@
+{
+  "name": "stayguided-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:api": "pnpm --filter stayguided-api-server run build",
+    "start:api": "pnpm --filter stayguided-api-server run start",
+    "dev:api": "pnpm --filter stayguided-api-server run dev",
+    "dev:mobile": "pnpm --filter stayguided-mobile run dev",
+    "build:mobile:android": "pnpm --filter stayguided-mobile run build:android",
+    "build:mobile:ios": "pnpm --filter stayguided-mobile run build:ios",
+    "typecheck": "pnpm -r run typecheck",
+    "typecheck:api": "pnpm --filter stayguided-api-server run typecheck",
+    "typecheck:mobile": "pnpm --filter stayguided-mobile run typecheck"
+  }
+}
