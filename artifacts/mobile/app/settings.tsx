@@ -334,10 +334,21 @@ export default function SettingsScreen() {
     }
   };
 
-  const rateApp = () => {
-    if (Platform.OS === "ios") Linking.openURL("https://apps.apple.com/app/stayguided-me/id0000000000");
-    else if (Platform.OS === "android") Linking.openURL("https://play.google.com/store/apps/details?id=com.stayguidedme");
-    else showToast("Thank you for your support!", "heart", colors.gold);
+  const rateApp = async () => {
+    if (Platform.OS === "ios") {
+      // Replace id0000000000 with the real numeric App Store ID after publishing
+      const nativeUrl = "itms-apps://itunes.apple.com/app/id0000000000?action=write-review";
+      const webUrl = "https://apps.apple.com/app/id0000000000?action=write-review";
+      const canOpen = await Linking.canOpenURL(nativeUrl);
+      Linking.openURL(canOpen ? nativeUrl : webUrl);
+    } else if (Platform.OS === "android") {
+      const nativeUrl = "market://details?id=com.stayguided.me";
+      const webUrl = "https://play.google.com/store/apps/details?id=com.stayguided.me";
+      const canOpen = await Linking.canOpenURL(nativeUrl);
+      Linking.openURL(canOpen ? nativeUrl : webUrl);
+    } else {
+      showToast("Thank you for your support!", "heart", colors.gold);
+    }
   };
 
   const selectedStoryLang = STORY_LANGUAGES.find((l) => l.code === storyLanguage)?.name || "English";
@@ -595,16 +606,19 @@ export default function SettingsScreen() {
               label="Contact Support"
               subtitle="Get help from our team"
               onPress={() => router.push("/contact")}
+              last={!featureFlags.rate_app}
             />
-            <NavRow
-              icon="star"
-              iconBg="#F59E0B22"
-              iconColor="#F59E0B"
-              label="Rate the App"
-              subtitle="Enjoyed the app? Leave a review"
-              onPress={rateApp}
-              last
-            />
+            {featureFlags.rate_app && (
+              <NavRow
+                icon="star"
+                iconBg="#F59E0B22"
+                iconColor="#FBBF24"
+                label="Rate the App"
+                subtitle="Enjoying StayGuided Me? Leave us a review"
+                onPress={rateApp}
+                last
+              />
+            )}
           </View>
         </View>
 

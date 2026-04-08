@@ -32,15 +32,18 @@ VALUES
   ('analytics_events',      'Analytics Events',       'Log anonymous usage events for analytics',         'app',          true,  100),
 
   -- Future / Planned
-  ('prayer_times',          'Prayer Times',           'Show daily Salah times based on user location',    'app',          true,  100)
+  ('prayer_times',          'Prayer Times',           'Show daily Salah times based on user location',    'app',          true,  100),
+
+  -- Growth
+  ('rate_app',              'Rate the App',           'Show "Rate the App" button in Settings — links to App Store / Play Store review page', 'growth', true, 100)
 
 ON CONFLICT (key) DO NOTHING;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- Summary of flags added (16 new flags):
+-- Summary of flags added (17 new flags):
 --   leaderboard, streak_tracking, streak_notifications,
 --   referral_program, referral_system, bookmarks, offline_downloads,
 --   playback_speed, guest_mode, quran_player, in_app_purchases,
 --   donation_banner, push_notifications, dark_mode_toggle,
---   analytics_events, prayer_times
+--   analytics_events, prayer_times, rate_app
 -- ═══════════════════════════════════════════════════════════════════════════
