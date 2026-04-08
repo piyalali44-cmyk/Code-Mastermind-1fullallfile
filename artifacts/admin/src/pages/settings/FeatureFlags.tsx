@@ -15,7 +15,23 @@ interface FeatureFlag {
 }
 
 const SYSTEM_FLAGS: Omit<FeatureFlag, "id">[] = [
-  { key: "rate_app", name: "Rate the App", description: "Show \"Rate the App\" button in Settings — links to App Store / Play Store review page", section: "growth", is_enabled: true, rollout_pct: 100 },
+  { key: "leaderboard",          name: "Leaderboard",          description: "Global, weekly & monthly XP leaderboard",                                                           section: "gamification",  is_enabled: true,  rollout_pct: 100 },
+  { key: "streak_tracking",      name: "Streak Tracking",      description: "Daily listening streak XP rewards",                                                                  section: "gamification",  is_enabled: true,  rollout_pct: 100 },
+  { key: "streak_notifications", name: "Streak Notifications", description: "Local reminder when streak is at risk",                                                              section: "notifications", is_enabled: true,  rollout_pct: 100 },
+  { key: "referral_program",     name: "Referral Program",     description: "Show referral code in profile + reward both users",                                                   section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "referral_system",      name: "Referral System",      description: "Backend referral code processing",                                                                    section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "bookmarks",            name: "Bookmarks",            description: "Let users bookmark series and surahs",                                                               section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "offline_downloads",    name: "Offline Downloads",    description: "Download episodes for offline listening",                                                            section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "playback_speed",       name: "Playback Speed",       description: "Speed control (0.5×–2×) in the audio player",                                                       section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "guest_mode",           name: "Guest Mode",           description: "Allow unauthenticated browsing of free content",                                                     section: "access",        is_enabled: true,  rollout_pct: 100 },
+  { key: "quran_player",         name: "Quran Player",         description: "Full surah audio player with word highlighting",                                                     section: "quran",         is_enabled: true,  rollout_pct: 100 },
+  { key: "in_app_purchases",     name: "In-App Purchases",     description: "Apple / Google Play subscription purchases",                                                         section: "monetization",  is_enabled: false, rollout_pct: 0   },
+  { key: "donation_banner",      name: "Donation Banner",      description: "Show a donation CTA banner on the home screen",                                                      section: "monetization",  is_enabled: false, rollout_pct: 0   },
+  { key: "push_notifications",   name: "Push Notifications",   description: "Expo push notification delivery to users",                                                           section: "notifications", is_enabled: true,  rollout_pct: 100 },
+  { key: "dark_mode_toggle",     name: "Dark Mode Toggle",     description: "Let users switch between light and dark theme",                                                      section: "appearance",    is_enabled: false, rollout_pct: 0   },
+  { key: "analytics_events",     name: "Analytics Events",     description: "Log anonymous usage events for analytics",                                                           section: "analytics",     is_enabled: true,  rollout_pct: 100 },
+  { key: "prayer_times",         name: "Prayer Times",         description: "Show daily Salah times based on user location",                                                      section: "content",       is_enabled: true,  rollout_pct: 100 },
+  { key: "rate_app",             name: "Rate the App",         description: "Show \"Rate the App\" button in Settings — links to App Store / Play Store review page",            section: "growth",        is_enabled: true,  rollout_pct: 100 },
 ];
 
 const SECTION_COLORS: Record<string, string> = {

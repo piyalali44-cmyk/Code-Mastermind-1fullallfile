@@ -1,343 +1,337 @@
-# StayGuided Me
+# StayGuided Me — সম্পূর্ণ সেটাপ গাইড (বাংলা)
 
-Islamic audio content platform — Expo/React Native mobile app, React admin panel, and Node.js/Express API server, all backed by Supabase.
-
----
-
-## What This Project Contains
-
-| Folder | What It Is |
-|--------|------------|
-| `artifacts/mobile/` | Expo (React Native) mobile app for iOS & Android |
-| `artifacts/admin/` | React web admin panel for content & user management |
-| `artifacts/api-server/` | Node.js/Express API server (auth, subscriptions, social) |
+> **ধর্মীয় ইসলামিক অডিও কন্টেন্ট অ্যাপ** — Expo (React Native) মোবাইল অ্যাপ, React অ্যাডমিন প্যানেল এবং Node.js/Express API সার্ভার — Supabase দিয়ে চালিত।
 
 ---
 
-## Quick Start (Local Development)
+## বিষয়সূচি
 
-### Prerequisites
+1. [প্রজেক্ট কী কী আছে](#১-প্রজেক্ট-কী-কী-আছে)
+2. [শুরুর আগে যা লাগবে](#২-শুরুর-আগে-যা-লাগবে)
+3. [ধাপ ১ — Supabase প্রজেক্ট তৈরি ও ডেটাবেস সেটাপ](#ধাপ-১--supabase-প্রজেক্ট-তৈরি-ও-ডেটাবেস-সেটাপ)
+4. [ধাপ ২ — API সার্ভার সেটাপ](#ধাপ-২--api-সার্ভার-সেটাপ)
+5. [ধাপ ৩ — Admin প্যানেল সেটাপ](#ধাপ-৩--admin-প্যানেল-সেটাপ)
+6. [ধাপ ৪ — মোবাইল অ্যাপ বিল্ড ও পাবলিশ](#ধাপ-৪--মোবাইল-অ্যাপ-বিল্ড-ও-পাবলিশ)
+7. [Environment Variables সম্পূর্ণ তালিকা](#environment-variables-সম্পূর্ণ-তালিকা)
+8. [প্রথমবার Admin একাউন্ট তৈরি](#প্রথমবার-admin-একাউন্ট-তৈরি)
+9. [সাধারণ সমস্যা ও সমাধান](#সাধারণ-সমস্যা-ও-সমাধান)
+10. [গুরুত্বপূর্ণ ফাইলের তালিকা](#গুরুত্বপূর্ণ-ফাইলের-তালিকা)
 
-- **Node.js** v20+ — https://nodejs.org
-- **pnpm** — `npm install -g pnpm`
-- **Supabase project** — https://supabase.com (free tier works)
+---
 
-### Step 1 — Clone & Install
+## ১. প্রজেক্ট কী কী আছে
 
-```bash
-git clone <your-repo-url>
-cd stayguided-me
-pnpm install
+```
+stayguided/
+├── artifacts/
+│   ├── mobile/          ← Expo React Native মোবাইল অ্যাপ (iOS + Android)
+│   ├── api-server/      ← Node.js/Express API সার্ভার
+│   └── admin/           ← React অ্যাডমিন প্যানেল (web)
+├── supabase/
+│   └── migrations/      ← Supabase SQL migration ফাইলগুলো
+└── README.md            ← এই ফাইল
 ```
 
-### Step 2 — Set Up Environment Variables
+**তিনটি আলাদা অংশ:**
 
-Each service has its own `.env.example`. Copy and fill them in:
+| অংশ | কাজ | ব্যবহারকারী |
+|-----|-----|------------|
+| **মোবাইল অ্যাপ** | ব্যবহারকারীরা কন্টেন্ট শোনে, Quran Player, Gamification | সবাই |
+| **Admin প্যানেল** | কন্টেন্ট আপলোড, ব্যবহারকারী পরিচালনা, Feature Flags | শুধু Admin |
+| **API সার্ভার** | মোবাইল ও Admin-এর মাঝে ডেটা আদান-প্রদান, Push Notification | স্বয়ংক্রিয় |
+
+---
+
+## ২. শুরুর আগে যা লাগবে
+
+- **Supabase একাউন্ট** — বিনামূল্যে: [supabase.com](https://supabase.com)
+- **Node.js v20+** — [nodejs.org](https://nodejs.org) থেকে ডাউনলোড করুন
+- **pnpm** — `npm install -g pnpm` দিয়ে ইন্সটল করুন
+- **Expo EAS Account** (মোবাইল বিল্ডের জন্য) — [expo.dev](https://expo.dev)
+- **Apple Developer Account** (iOS পাবলিশের জন্য) — [developer.apple.com](https://developer.apple.com)
+- **Google Play Console** (Android পাবলিশের জন্য) — [play.google.com/console](https://play.google.com/console)
+
+---
+
+## ধাপ ১ — Supabase প্রজেক্ট তৈরি ও ডেটাবেস সেটাপ
+
+### ১.১ নতুন Supabase প্রজেক্ট তৈরি করুন
+
+1. [supabase.com](https://supabase.com) → **Start your project** → Sign In
+2. **New project** বাটনে ক্লিক করুন
+3. নাম দিন: `stayguided-me`, পাসওয়ার্ড দিন (মনে রাখুন), Region: Singapore বা কাছের যেটা ভালো
+
+### ১.২ API Keys নিন
+
+`Project Settings` → `API` → এখান থেকে নিন:
+
+| Key | কোথায় পাবেন |
+|-----|------------|
+| **Project URL** | `https://xxxx.supabase.co` |
+| **anon/public key** | API Keys সেকশনে |
+| **service_role key** | API Keys সেকশনে (গোপন রাখুন) |
+| **Database Connection String** | `Project Settings` → `Database` → `Connection string (URI)` |
+
+### ১.৩ SQL Migration চালান
+
+**SQL Editor** খুলুন (বাম দিকের মেনু থেকে `SQL Editor`)
+
+**প্রথমে** `supabase/migrations/20260401_complete_setup.sql` ফাইলের পুরো কন্টেন্ট কপি করুন → SQL Editor-এ পেস্ট করুন → **Run** চাপুন।
+
+**তারপর একে একে** এই ফাইলগুলো একইভাবে চালান (উপর থেকে নিচে ক্রমে):
+
+```
+supabase/migrations/20260405_fix_admin_permissions.sql
+supabase/migrations/20260406_likes_comments_blocking.sql
+supabase/migrations/20260407_quiz_system.sql
+supabase/migrations/20260407_quiz_sample_data.sql
+supabase/migrations/20260407_missing_feature_flags.sql
+supabase/migrations/20260407_content_reports_enhancements.sql
+supabase/migrations/20260407_subscription_production.sql
+supabase/migrations/20260408_rate_app_flag.sql
+supabase/migrations/20260409_schema_fixes.sql
+```
+
+প্রতিটি ফাইল Run করার পর `Success` বা সবুজ টিক দেখলে পরেরটা করুন।
+
+### ১.৪ Admin SQL Setup চালান (অত্যন্ত গুরুত্বপূর্ণ)
+
+```
+artifacts/mobile/supabase/admin_panel_setup.sql
+```
+
+এই ফাইলটিও SQL Editor-এ চালান। এটা `stayguided_apply_patches()` নামের একটি স্বয়ংক্রিয় function তৈরি করে — API সার্ভার প্রতিবার চালু হলে এটি ডেটাবেস নিজেই ঠিক করে নেয়।
+
+---
+
+## ধাপ ২ — API সার্ভার সেটাপ
+
+### ২.১ .env ফাইল তৈরি করুন
+
+`artifacts/api-server/` ফোল্ডারে যান:
 
 ```bash
 cp artifacts/api-server/.env.example artifacts/api-server/.env
-cp artifacts/admin/.env.example       artifacts/admin/.env.local
-cp artifacts/mobile/.env.example      artifacts/mobile/.env
 ```
 
-Fill in your Supabase values (see "Getting Your Supabase Keys" below).
+`.env` ফাইল খুলুন এবং পূরণ করুন:
 
-### Step 3 — Run All Services
+```env
+PORT=8080
+NODE_ENV=production
 
-Open three terminals (or use a process manager):
+SUPABASE_URL=https://আপনার-প্রজেক্ট-id.supabase.co
+SUPABASE_ANON_KEY=আপনার-anon-key
+SUPABASE_SERVICE_ROLE_KEY=আপনার-service-role-key
+DATABASE_URL=postgresql://postgres:পাসওয়ার্ড@db.আপনার-প্রজেক্ট-id.supabase.co:5432/postgres
+
+# ঐচ্ছিক — প্রথমবার deploy-এ ডেটাবেস auto-setup করতে
+SUPABASE_ACCESS_TOKEN=আপনার-supabase-personal-access-token
+SUPABASE_PROJECT_ID=আপনার-প্রজেক্ট-id
+```
+
+`SUPABASE_ACCESS_TOKEN` কোথায় পাবেন:
+[supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens) → **Generate new token**
+
+### ২.২ চালু করুন
 
 ```bash
-# Terminal 1 — API Server
+pnpm install
 pnpm --filter @workspace/api-server run dev
-
-# Terminal 2 — Admin Panel
-BASE_PATH=/admin PORT=3001 pnpm --filter @workspace/admin run dev
-
-# Terminal 3 — Mobile App
-cd artifacts/mobile
-pnpm run dev:local
 ```
 
-Then scan the QR code with **Expo Go** on your phone.
+চালু হলে দেখবেন:
+```
+[INFO] Server listening  port: 8080
+```
+
+### ২.৩ Production Deploy
+
+Railway, Render, Fly.io, বা নিজের VPS-এ:
+
+```bash
+pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/api-server run start
+```
+
+Deploy করার পর আপনার API URL হবে: `https://আপনার-সার্ভার.com`
 
 ---
 
-## Getting Your Supabase Keys
+## ধাপ ৩ — Admin প্যানেল সেটাপ
 
-1. Go to https://supabase.com/dashboard
-2. Open your project → **Project Settings → API**
-3. Copy:
-   - **Project URL** — looks like `https://xxxxxxxxxxxx.supabase.co`
-   - **anon / public** key — safe for client-side use
-   - **service_role** key — secret, server-side only (never expose to browser)
-4. For the **Management API token** (needed for auto-migration on first deploy):
-   - Go to https://supabase.com/dashboard/account/tokens
-   - Generate a new token and copy it as `SUPABASE_ACCESS_TOKEN`
+### ৩.১ .env.local ফাইল তৈরি করুন
+
+```bash
+cp artifacts/admin/.env.example artifacts/admin/.env.local
+```
+
+`.env.local` পূরণ করুন:
+
+```env
+VITE_SUPABASE_URL=https://আপনার-প্রজেক্ট-id.supabase.co
+VITE_SUPABASE_ANON_KEY=আপনার-anon-key
+```
+
+### ৩.২ Development-এ চালু করুন
+
+```bash
+pnpm --filter @workspace/admin run dev
+```
+
+Browser-এ খুলুন: `http://localhost:5173/admin/`
+
+### ৩.৩ Production Build ও Deploy
+
+```bash
+pnpm --filter @workspace/admin run build
+```
+
+`artifacts/admin/dist/` ফোল্ডারটি Netlify, Vercel, বা Cloudflare Pages-এ আপলোড করুন।
+
+> Static hosting-এ `/admin/*` সব route `index.html`-এ redirect করতে হবে।
 
 ---
 
-## Database Setup (One-Time)
+## ধাপ ৪ — মোবাইল অ্যাপ বিল্ড ও পাবলিশ
 
-The API server auto-applies all schema patches on startup if `SUPABASE_ACCESS_TOKEN` + `SUPABASE_SERVICE_ROLE_KEY` are set. No manual SQL needed.
+### ৪.১ .env ফাইল তৈরি করুন
 
-If you prefer to set up manually, run these files in the Supabase SQL Editor:
-
-1. `artifacts/mobile/supabase/admin_panel_setup.sql` — full schema setup
-2. `artifacts/mobile/supabase/master_patches.sql` — latest patches & RLS policies
-
-To make yourself a super admin after signing up in the app:
-
-```sql
-UPDATE profiles
-SET role = 'super_admin'
-WHERE id = auth.uid();
+```bash
+cp artifacts/mobile/.env.example artifacts/mobile/.env
 ```
 
-Or by email via Supabase SQL Editor:
+পূরণ করুন:
 
-```sql
-UPDATE profiles
-SET role = 'super_admin'
-WHERE email = 'your-email@example.com';
+```env
+EXPO_PUBLIC_SUPABASE_URL=https://আপনার-প্রজেক্ট-id.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=আপনার-anon-key
+EXPO_PUBLIC_API_BASE_URL=https://আপনার-api-সার্ভার.com/api
 ```
 
----
+### ৪.২ Local Development (কম্পিউটারে চালু করুন)
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Mobile App (Expo)                     │
-│  iOS / Android — React Native + Expo Router             │
-│  Direct Supabase client (auth, content, storage)        │
-│  + API server calls (social features, subscriptions)    │
-└────────────────────┬────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│                   API Server (Express)                   │
-│  /api/auth        — signup, signin, password reset      │
-│  /api/content     — likes, comments                     │
-│  /api/subscription — receipt verification (IAP)         │
-│  /api/admin       — user management, moderation         │
-│  /api/hadith      — Hadith data                         │
-└────────────────────┬────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Admin Panel (React/Vite)                │
-│  Content management (Series, Episodes, Reciters)        │
-│  User & subscription management                         │
-│  Analytics & engagement metrics                         │
-│  Push notification campaigns                            │
-└─────────────────────────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│                      Supabase                           │
-│  PostgreSQL database + Row Level Security               │
-│  Auth (email/password, Apple Sign In)                   │
-│  Storage (cover images, audio files)                    │
-│  Realtime (live content updates)                        │
-└─────────────────────────────────────────────────────────┘
+```bash
+pnpm --filter @workspace/mobile run dev:local
 ```
 
----
+- **iOS**: iPhone-এ Expo Go অ্যাপ → QR Code স্ক্যান
+- **Android**: Expo Go অ্যাপ → Scan QR Code
 
-## Environment Variables Reference
-
-### API Server (`artifacts/api-server/.env`)
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `PORT` | Yes | Port for the Express server (e.g. `8080`) |
-| `NODE_ENV` | Yes | `production` or `development` |
-| `SUPABASE_URL` | Yes | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key (secret) |
-| `DATABASE_URL` | Yes | Direct Postgres connection string (from Supabase) |
-| `SUPABASE_ACCESS_TOKEN` | First deploy | Supabase Management API token (for auto-migration) |
-| `SUPABASE_PROJECT_ID` | First deploy | Your Supabase project ref ID |
-| `ALLOWED_ORIGINS` | Production | Comma-separated allowed CORS origins |
-| `APPLE_BUNDLE_ID` | App Store | iOS bundle identifier |
-| `APPLE_SHARED_SECRET` | App Store | Apple in-app purchase shared secret |
-| `GOOGLE_PLAY_PACKAGE_NAME` | Play Store | Android package name |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Play Store | Google service account JSON string |
-
-### Admin Panel (`artifacts/admin/.env.local`)
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `VITE_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `VITE_API_BASE_URL` | Optional | API server URL (defaults to `/api`) |
-
-### Mobile App (`artifacts/mobile/.env`)
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `EXPO_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key |
-| `EXPO_PUBLIC_API_BASE_URL` | Yes | Full URL to your API server + `/api` |
-
----
-
-## Building the Mobile App for Production
-
-### Install EAS CLI
+### ৪.৩ App Store / Play Store-এ পাবলিশ
 
 ```bash
 npm install -g eas-cli
 eas login
-```
-
-### Build Android APK (for direct install / testing)
-
-```bash
 cd artifacts/mobile
-eas build --platform android --profile preview
+eas build --platform ios      # iOS বিল্ড
+eas build --platform android  # Android বিল্ড
 ```
 
-### Build Android AAB (for Google Play Store)
+### ৪.৪ iOS App Store ID পাওয়ার পর
 
-```bash
-eas build --platform android --profile production
-```
+App Store-এ সাবমিট করার পর numeric App ID পাবেন (যেমন: `1234567890`।
 
-### Build iOS IPA (requires Apple Developer account)
+`artifacts/mobile/app/settings.tsx` ফাইলে এই লাইন আপডেট করুন:
 
-```bash
-eas build --platform ios --profile production
-```
-
-### Submit to Stores
-
-```bash
-eas submit --platform android   # Google Play
-eas submit --platform ios       # App Store
+```typescript
+const IOS_STORE_URL = "itms-apps://itunes.apple.com/app/id1234567890?action=write-review";
 ```
 
 ---
 
-## Deploying to Production (Self-Hosted)
+## Environment Variables সম্পূর্ণ তালিকা
 
-### API Server
+### API সার্ভার (`artifacts/api-server/.env`)
 
-The API server is a standard Node.js/Express app. Deploy it to any Node.js host:
+| Variable | বাধ্যতামূলক | কোথায় পাবেন |
+|----------|------------|------------|
+| `PORT` | না (default 8080) | যেকোনো সংখ্যা |
+| `NODE_ENV` | না | `production` বা `development` |
+| `SUPABASE_URL` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `SUPABASE_ANON_KEY` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `SUPABASE_SERVICE_ROLE_KEY` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `DATABASE_URL` | **হ্যাঁ** | Supabase → Project Settings → Database |
+| `SUPABASE_ACCESS_TOKEN` | ঐচ্ছিক | supabase.com/dashboard/account/tokens |
+| `SUPABASE_PROJECT_ID` | ঐচ্ছিক | Supabase URL-এর মাঝের অংশ |
+| `ALLOWED_ORIGINS` | ঐচ্ছিক | Admin ও App-এর URL (comma separated) |
+| `APPLE_BUNDLE_ID` | ঐচ্ছিক | iOS subscription-এর জন্য |
+| `APPLE_SHARED_SECRET` | ঐচ্ছিক | iOS subscription-এর জন্য |
 
-**Option A — Docker**
+### Admin প্যানেল (`artifacts/admin/.env.local`)
 
-```bash
-cd artifacts/api-server
-docker build -t stayguided-api .
-docker run -p 8080:8080 --env-file .env stayguided-api
-```
+| Variable | বাধ্যতামূলক | কোথায় পাবেন |
+|----------|------------|------------|
+| `VITE_SUPABASE_URL` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `VITE_SUPABASE_ANON_KEY` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `VITE_API_BASE_URL` | ঐচ্ছিক | আলাদা domain হলে API সার্ভারের URL |
 
-**Option B — Any VPS / PaaS (Railway, Render, Fly.io, etc.)**
+### মোবাইল অ্যাপ (`artifacts/mobile/.env`)
 
-1. Set all environment variables from `.env.example`
-2. Build command: `pnpm --filter @workspace/api-server run build`
-3. Start command: `node artifacts/api-server/dist/index.js`
-
-### Admin Panel
-
-The admin panel is a static React SPA. Build and serve it:
-
-```bash
-BASE_PATH=/admin pnpm --filter @workspace/admin run build
-# Output: artifacts/admin/dist/public/
-```
-
-Serve the `dist/public/` folder from any static host (Nginx, Vercel, Netlify, etc.) at the `/admin` path.
-
----
-
-## Features
-
-### Mobile App
-- Discover feed with content recommendations
-- Islamic audio series player with background playback
-- Media notification bar controls (lock screen, notification shade)
-- Quran player with reciter selection and translation
-- Journey Timeline — structured Islamic learning path
-- Gamification — XP, levels, badges, streaks
-- Push notifications
-- Bookmarks, downloads, listening history
-- Referral system and coupon redemption
-- Apple Sign In + email/password authentication
-
-### Admin Panel
-- Content management — Series, Episodes, Reciters, Categories
-- User management — roles, subscription grants, banning
-- Analytics — engagement, revenue, geographic distribution
-- Push notification campaigns
-- Feature flags with percentage-based rollouts
-- Feed manager — inject banners and content rows remotely
-- Subscription & coupon management
-- Comment moderation
-- Contact messages & content reports
-
-### API Server
-- User authentication and profile management
-- Social features — likes, comments, moderation
-- In-app purchase receipt verification (Apple + Google)
-- Subscription status and tier management
-- Hadith data serving
-- Admin operations — user management, badge awards, XP
-- Referral code and coupon redemption
+| Variable | বাধ্যতামূলক | কোথায় পাবেন |
+|----------|------------|------------|
+| `EXPO_PUBLIC_SUPABASE_URL` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | **হ্যাঁ** | Supabase → Project Settings → API |
+| `EXPO_PUBLIC_API_BASE_URL` | **হ্যাঁ** | Deploy করা API সার্ভারের URL + `/api` |
 
 ---
 
-## Project Structure
+## প্রথমবার Admin একাউন্ট তৈরি
 
-```
-stayguided-me/
-├── artifacts/
-│   ├── mobile/               # Expo React Native app
-│   │   ├── app/              # Screens (Expo Router)
-│   │   ├── components/       # Reusable UI components
-│   │   ├── context/          # Auth, Audio, Content context
-│   │   ├── lib/              # Supabase client, DB helpers
-│   │   └── supabase/         # SQL schema files
-│   ├── admin/                # React admin panel
-│   │   ├── src/
-│   │   │   ├── pages/        # Admin pages by feature
-│   │   │   ├── components/   # Shared UI
-│   │   │   └── lib/          # Supabase client
-│   │   └── vite.config.ts
-│   └── api-server/           # Express API server
-│       ├── src/
-│       │   ├── routes/       # Route handlers
-│       │   └── lib/          # DB clients, migrations, logger
-│       └── data/             # Static Hadith JSON files
-├── lib/                      # Shared TypeScript libraries
-├── pnpm-workspace.yaml       # Monorepo workspace config
-└── README.md                 # This file
-```
+1. মোবাইল অ্যাপে বা Admin প্যানেলে **Sign Up** করুন
+2. Supabase → **Table Editor** → `profiles` টেবিলে যান
+3. আপনার user খুঁজুন → `role` কলামে `super_admin` দিন → Save করুন
+4. Admin প্যানেলে আবার লগইন করুন — এখন সব কিছু দেখা যাবে
 
 ---
 
-## Common Issues
+## সাধারণ সমস্যা ও সমাধান
 
-| Problem | Solution |
-|---------|----------|
-| "Supabase key missing" | Set `EXPO_PUBLIC_SUPABASE_ANON_KEY` (mobile) or `VITE_SUPABASE_ANON_KEY` (admin) |
-| No content in app | Run `admin_panel_setup.sql` in Supabase SQL Editor, then add content via admin panel |
-| Can't log into admin | Set your user role to `super_admin` in Supabase SQL Editor |
-| API CORS errors | Set `ALLOWED_ORIGINS` env var on the API server with your client origins |
-| Subscriptions not working | Set `APPLE_SHARED_SECRET` / `GOOGLE_SERVICE_ACCOUNT_JSON` and `NODE_ENV=production` |
-| Auto-migration not running | Set `SUPABASE_ACCESS_TOKEN` and `SUPABASE_PROJECT_ID` on first deploy |
-| Mobile QR not scanning | Ensure phone and computer are on the same WiFi network |
+**SQL run করতে গেলে error আসছে:**
+Migration ফাইলগুলো ক্রম মেনে চালান। `20260401_complete_setup.sql` সবার আগে চালাতে হবে।
+
+**API সার্ভার চালু হচ্ছে না:**
+`.env` ফাইলে সব key ঠিকঠাক আছে কিনা দেখুন। `DATABASE_URL`-এ পাসওয়ার্ডে বিশেষ চিহ্ন থাকলে URL-encode করুন (`@` → `%40`)।
+
+**Admin প্যানেলে login হচ্ছে না:**
+`.env.local`-এ Supabase URL ও anon key ঠিক আছে কিনা দেখুন। Supabase Authentication-এ email confirmation বন্ধ করুন।
+
+**মোবাইল অ্যাপে content দেখাচ্ছে না:**
+`EXPO_PUBLIC_API_BASE_URL` ঠিক আছে কিনা দেখুন (শেষে `/api` থাকতে হবে)। API সার্ভার চালু আছে কিনা দেখুন।
+
+**Push Notification কাজ করছে না:**
+Expo Go-তে push notification কাজ করে না। EAS Build দিয়ে production build তৈরি করে test করুন।
+
+**Feature Flags দেখা যাচ্ছে না:**
+Admin প্যানেলে **Settings → Feature Flags** page খুলুন — এটি খুললেই সব flags স্বয়ংক্রিয়ভাবে তৈরি হয়। বা `supabase/migrations/20260407_missing_feature_flags.sql` চালান।
 
 ---
 
-## Tech Stack
+## গুরুত্বপূর্ণ ফাইলের তালিকা
 
-| Layer | Technology |
-|-------|-----------|
-| Mobile | Expo 54, React Native, Expo Router, react-native-track-player |
-| Admin Panel | React 19, Vite, Tailwind CSS, Radix UI, Recharts |
-| API Server | Node.js, Express, TypeScript, Pino logger |
-| Database | Supabase (PostgreSQL + RLS + Auth + Storage + Realtime) |
-| State | TanStack Query, React Context |
-| Build | pnpm workspaces (monorepo), EAS Build (mobile) |
+| ফাইল | কাজ |
+|------|-----|
+| `artifacts/mobile/app.json` | অ্যাপের নাম, Bundle ID, version, Deep Link origin |
+| `artifacts/mobile/app/settings.tsx` | iOS App Store ID — publish করার পর এখানে বদলাবেন |
+| `artifacts/api-server/.env` | API সার্ভারের সব secret key |
+| `artifacts/admin/.env.local` | Admin প্যানেলের Supabase keys |
+| `artifacts/mobile/.env` | মোবাইল অ্যাপের Supabase ও API URL |
+| `artifacts/mobile/supabase/admin_panel_setup.sql` | সম্পূর্ণ ডেটাবেস schema — একবারই চালাতে হয় |
+| `supabase/migrations/` | সব SQL migration ফাইল — ক্রমে চালাতে হবে |
+
+---
+
+## সংক্ষিপ্ত চেকলিস্ট
+
+```
+ Supabase প্রজেক্ট তৈরি করেছি
+ সব SQL migration চালিয়েছি (20260401 থেকে 20260409 পর্যন্ত)
+ admin_panel_setup.sql চালিয়েছি
+ API সার্ভারে .env ফাইল পূরণ করেছি
+ Admin প্যানেলে .env.local ফাইল পূরণ করেছি
+ Mobile অ্যাপে .env ফাইল পূরণ করেছি
+ profiles টেবিলে নিজের role = super_admin দিয়েছি
+ Admin Feature Flags page খুলে flags আসছে দেখেছি
+ Mobile অ্যাপে content দেখাচ্ছে
+ Push notification test করেছি
+```

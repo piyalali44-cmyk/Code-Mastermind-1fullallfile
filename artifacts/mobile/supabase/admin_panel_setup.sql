@@ -611,7 +611,8 @@ BEGIN
   ALTER TABLE public.series          ADD COLUMN IF NOT EXISTS access_tier  TEXT DEFAULT 'free';
   ALTER TABLE public.push_campaigns  ADD COLUMN IF NOT EXISTS image_url    TEXT;
   ALTER TABLE public.notifications   ADD COLUMN IF NOT EXISTS image_url    TEXT;
-  ALTER TABLE public.profiles        ADD COLUMN IF NOT EXISTS push_token   TEXT;
+  ALTER TABLE public.profiles        ADD COLUMN IF NOT EXISTS push_token        TEXT;
+  ALTER TABLE public.profiles        ADD COLUMN IF NOT EXISTS first_active_at   TIMESTAMPTZ;
   ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS store        TEXT;
   ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS product_id   TEXT;
   ALTER TABLE public.subscriptions   ADD COLUMN IF NOT EXISTS original_transaction_id TEXT;
