@@ -1,7 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAudio } from "@/context/AudioContext";
@@ -320,15 +320,6 @@ export default function PrivacyPolicyScreen() {
           <Text style={{ color: colors.textMuted, fontSize: 11 }}>Effective Date: 1 April 2026 · Last Updated: April 2026</Text>
         </View>
 
-        <View style={[styles.tocCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.tocTitle, { color: colors.textPrimary }]}>Table of Contents</Text>
-          {SECTIONS.map((s, i) => (
-            <Text key={i} style={[styles.tocItem, { color: colors.textSecondary }]}>
-              {s.title}
-            </Text>
-          ))}
-        </View>
-
         {SECTIONS.map((section) => (
           <View key={section.title} style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.goldLight }]}>{section.title}</Text>
@@ -338,11 +329,23 @@ export default function PrivacyPolicyScreen() {
         ))}
 
         <View style={[styles.footerCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Icon name="mail" size={18} color={colors.goldLight} />
-          <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: "center", lineHeight: 20 }}>
-            Questions about your privacy?{"\n"}
-            <Text style={{ color: colors.goldLight, fontWeight: "600" }}>support@stayguided.me</Text>
+          <View style={[styles.footerIconWrap, { backgroundColor: "#10B98118" }]}>
+            <Icon name="shield" size={24} color="#10B981" />
+          </View>
+          <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "700", textAlign: "center" }}>
+            Privacy Questions?
           </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 13, textAlign: "center", lineHeight: 20 }}>
+            If you have concerns about how we handle your data or wish to exercise your privacy rights, please contact our support team.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/contact")}
+            activeOpacity={0.8}
+            style={[styles.contactBtn, { backgroundColor: "#10B981" }]}
+          >
+            <Icon name="mail" size={16} color="#fff" />
+            <Text style={styles.contactBtnText}>Contact Support</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </View>
@@ -356,12 +359,12 @@ const styles = StyleSheet.create({
   headerCard: { alignItems: "center", gap: 10, padding: 20, borderRadius: 14, borderWidth: 1 },
   shieldIcon: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
   badgePill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  tocCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 6 },
-  tocTitle: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
-  tocItem: { fontSize: 12, lineHeight: 20 },
   sectionCard: { borderRadius: 14, borderWidth: 1, padding: 18, gap: 10 },
   sectionTitle: { fontSize: 15, fontWeight: "700" },
   divider: { height: 1 },
   sectionContent: { fontSize: 14, lineHeight: 23 },
-  footerCard: { alignItems: "center", gap: 10, padding: 20, borderRadius: 14, borderWidth: 1 },
+  footerCard: { alignItems: "center", gap: 12, padding: 24, borderRadius: 14, borderWidth: 1 },
+  footerIconWrap: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  contactBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12, marginTop: 4 },
+  contactBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 });

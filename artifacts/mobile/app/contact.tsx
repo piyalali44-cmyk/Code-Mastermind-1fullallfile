@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
@@ -24,7 +24,6 @@ export default function ContactScreen() {
   const hasMiniplayer = !!nowPlaying;
 
   const [name, setName] = useState(user?.displayName ?? "");
-  const [email, setEmail] = useState(user?.email ?? "");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -36,7 +35,7 @@ export default function ContactScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
+    if (!name.trim() || !subject.trim() || !message.trim()) {
       showToast("Please fill in all fields", "alert-circle", colors.error);
       return;
     }
@@ -47,7 +46,7 @@ export default function ContactScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          email: email.trim(),
+          email: user?.email ?? "",
           subject: subject.trim(),
           message: message.trim(),
           userId: user?.id ?? null,
@@ -74,7 +73,7 @@ export default function ContactScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Icon name="arrow-left" size={22} color={colors.textPrimary} />
         </Pressable>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Contact Us</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Contact Support</Text>
         <View style={{ width: 38 }} />
       </View>
 
@@ -85,19 +84,45 @@ export default function ContactScreen() {
       >
         {sent ? (
           <View style={styles.sentContainer}>
-            <View style={[styles.sentIconWrap, { backgroundColor: colors.green + "18" }]}>
-              <Icon name="check-circle" size={48} color={colors.green} />
+            <View style={[styles.sentRing, { borderColor: colors.green + "33" }]}>
+              <View style={[styles.sentIconWrap, { backgroundColor: colors.green + "18" }]}>
+                <Icon name="check-circle" size={44} color={colors.green} />
+              </View>
             </View>
-            <Text style={[styles.sentTitle, { color: colors.textPrimary }]}>Message Sent!</Text>
-            <Text style={[styles.sentSubtitle, { color: colors.textSecondary }]}>
-              Thank you for reaching out. We'll get back to you as soon as possible, InshaAllah.
-            </Text>
-            <Pressable onPress={handleNewMessage} style={[styles.submitBtn, { backgroundColor: colors.gold }]}>
-              <Text style={styles.submitBtnText}>Send Another Message</Text>
-            </Pressable>
-            <Pressable onPress={() => router.back()} style={{ marginTop: 8 }}>
-              <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Go Back</Text>
-            </Pressable>
+
+            <View style={{ alignItems: "center", gap: 8 }}>
+              <Text style={[styles.sentTitle, { color: colors.textPrimary }]}>Message Sent!</Text>
+              <Text style={[styles.sentSubtitle, { color: colors.textSecondary }]}>
+                JazakAllah Khayran for reaching out. We've received your message and will respond as soon as possible, InshaAllah.
+              </Text>
+            </View>
+
+            <View style={[styles.sentInfoRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[styles.sentInfoIcon, { backgroundColor: colors.gold + "18" }]}>
+                <Icon name="clock" size={16} color={colors.goldLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: "600" }}>Typical Response Time</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>Within 2–5 business days</Text>
+              </View>
+            </View>
+
+            <View style={{ gap: 10, width: "100%" }}>
+              <Pressable
+                onPress={handleNewMessage}
+                style={({ pressed }) => [styles.primaryBtn, { backgroundColor: colors.gold, opacity: pressed ? 0.85 : 1 }]}
+              >
+                <Icon name="edit-3" size={16} color="#fff" />
+                <Text style={styles.primaryBtnText}>Send Another Message</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.back()}
+                style={({ pressed }) => [styles.secondaryBtn, { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Icon name="arrow-left" size={16} color={colors.textSecondary} />
+                <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>Go Back</Text>
+              </Pressable>
+            </View>
           </View>
         ) : (
           <>
@@ -106,57 +131,21 @@ export default function ContactScreen() {
                 <Icon name="message-circle" size={20} color={colors.goldLight} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "600" }}>Get in Touch</Text>
+                <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "600" }}>How can we help?</Text>
                 <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-                  Have a question, suggestion, or need help? We'd love to hear from you.
+                  Fill out the form below and our team will get back to you as soon as possible.
                 </Text>
               </View>
             </View>
 
-            <Pressable
-              onPress={() => Linking.openURL("mailto:support@stayguided.me")}
-              style={({ pressed }) => [
-                styles.emailDirectRow,
-                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
-              ]}
-            >
-              <View style={[styles.infoIconWrap, { backgroundColor: "#0EA5E922" }]}>
-                <Icon name="at-sign" size={20} color="#38BDF8" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" }}>Direct Email</Text>
-                <Text style={{ color: "#38BDF8", fontSize: 14, fontWeight: "700", marginTop: 2 }}>support@stayguided.me</Text>
-              </View>
-              <Icon name="external-link" size={16} color={colors.textMuted} />
-            </Pressable>
-
-            <View style={[styles.dividerRow, { borderColor: colors.divider }]}>
-              <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
-              <Text style={{ color: colors.textMuted, fontSize: 12, paddingHorizontal: 10 }}>or send us a message</Text>
-              <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
-            </View>
-
             <View style={{ gap: 16 }}>
               <View style={{ gap: 6 }}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Name</Text>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Your Name</Text>
                 <TextInput
                   value={name}
                   onChangeText={setName}
-                  placeholder="Your name"
+                  placeholder="Enter your name"
                   placeholderTextColor={colors.textMuted}
-                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
-                />
-              </View>
-
-              <View style={{ gap: 6 }}>
-                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Email</Text>
-                <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="your@email.com"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
                   style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                 />
               </View>
@@ -180,7 +169,7 @@ export default function ContactScreen() {
                   placeholder="Write your message here..."
                   placeholderTextColor={colors.textMuted}
                   multiline
-                  numberOfLines={5}
+                  numberOfLines={6}
                   textAlignVertical="top"
                   style={[styles.input, styles.messageInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                 />
@@ -190,22 +179,22 @@ export default function ContactScreen() {
             <Pressable
               onPress={handleSubmit}
               disabled={sending}
-              style={[styles.submitBtn, { backgroundColor: colors.gold, opacity: sending ? 0.7 : 1 }]}
+              style={({ pressed }) => [styles.submitBtn, { backgroundColor: colors.gold, opacity: sending || pressed ? 0.8 : 1 }]}
             >
               {sending ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
                   <Icon name="send" size={16} color="#fff" />
-                  <Text style={styles.submitBtnText}>Submit</Text>
+                  <Text style={styles.submitBtnText}>Send Message</Text>
                 </>
               )}
             </Pressable>
 
-            <View style={[styles.faqCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Icon name="help-circle" size={16} color={colors.textMuted} />
-              <Text style={{ color: colors.textSecondary, fontSize: 13, flex: 1, lineHeight: 18 }}>
-                Before contacting us, you may want to check our FAQ page for quick answers.
+            <View style={[styles.noteRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Icon name="info" size={15} color={colors.textMuted} />
+              <Text style={{ color: colors.textMuted, fontSize: 12, flex: 1, lineHeight: 18 }}>
+                We typically respond within 2–5 business days. For urgent matters, you can also reach out through our social channels.
               </Text>
             </View>
           </>
@@ -231,15 +220,19 @@ const styles = StyleSheet.create({
   infoIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   fieldLabel: { fontSize: 13, fontWeight: "600" },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, fontSize: 15 },
-  messageInput: { minHeight: 120 },
+  messageInput: { minHeight: 140 },
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 12 },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  faqCard: { flexDirection: "row", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: "flex-start" },
-  emailDirectRow: { flexDirection: "row", gap: 14, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
-  dividerRow: { flexDirection: "row", alignItems: "center" },
-  dividerLine: { flex: 1, height: 1 },
-  sentContainer: { alignItems: "center", gap: 16, paddingTop: 40 },
+  noteRow: { flexDirection: "row", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: "flex-start" },
+  sentContainer: { alignItems: "center", gap: 24, paddingTop: 32 },
+  sentRing: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   sentIconWrap: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" },
-  sentTitle: { fontSize: 24, fontWeight: "700" },
-  sentSubtitle: { fontSize: 14, lineHeight: 21, textAlign: "center", paddingHorizontal: 16 },
+  sentTitle: { fontSize: 26, fontWeight: "800", textAlign: "center" },
+  sentSubtitle: { fontSize: 14, lineHeight: 22, textAlign: "center", paddingHorizontal: 8 },
+  sentInfoRow: { flexDirection: "row", gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: "center", width: "100%" },
+  sentInfoIcon: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  primaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 12 },
+  primaryBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  secondaryBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
+  secondaryBtnText: { fontSize: 15, fontWeight: "600" },
 });
