@@ -14,6 +14,12 @@ const MIGRATIONS = [
     file: "20260407_missing_feature_flags.sql",
     description: "Seeds 16 missing feature flags (leaderboard, referral, quran_player, push_notifications, etc.) so the Admin Feature Flags page can control them.",
   },
+  {
+    id: "rate_app_flag",
+    label: "Rate the App Feature Flag",
+    file: "20260408_rate_app_flag.sql",
+    description: "Adds the 'rate_app' feature flag so you can show or hide the 'Rate the App' button in Settings from the Admin Feature Flags page.",
+  },
 ];
 
 const STORAGE_KEY = "admin_migration_banner_dismissed";

@@ -36,6 +36,7 @@ export interface FeatureFlags {
   guest_mode: boolean;
   playback_speed: boolean;
   analytics_events: boolean;
+  rate_app: boolean;
   [key: string]: boolean;
 }
 
@@ -72,6 +73,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   guest_mode: true,
   playback_speed: true,
   analytics_events: true,
+  rate_app: true,
 };
 
 export interface PopupNotice {
