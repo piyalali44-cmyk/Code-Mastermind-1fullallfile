@@ -14,11 +14,15 @@ interface FeatureFlag {
   section: string; is_enabled: boolean; rollout_pct: number;
 }
 
+const SYSTEM_FLAGS: Omit<FeatureFlag, "id">[] = [
+  { key: "rate_app", name: "Rate the App", description: "Show \"Rate the App\" button in Settings — links to App Store / Play Store review page", section: "growth", is_enabled: true, rollout_pct: 100 },
+];
+
 const SECTION_COLORS: Record<string, string> = {
   content: "bg-blue-500/10 text-blue-400 border-blue-500/30",
   quran: "bg-green-500/10 text-green-400 border-green-500/30",
   gamification: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  growth: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  growth: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
   notifications: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
   premium: "bg-primary/10 text-primary border-primary/30",
   appearance: "bg-orange-500/10 text-orange-400 border-orange-500/30",
@@ -38,7 +42,18 @@ export default function FeatureFlags() {
   async function load() {
     setLoading(true);
     const { data } = await supabase.from("feature_flags").select("*").order("section").order("name");
-    setFlags(data ?? []);
+    const existing = data ?? [];
+
+    const existingKeys = new Set(existing.map((f: FeatureFlag) => f.key));
+    const missing = SYSTEM_FLAGS.filter(f => !existingKeys.has(f.key));
+    if (missing.length > 0) {
+      await supabase.from("feature_flags").upsert(missing, { onConflict: "key" });
+      const { data: refreshed } = await supabase.from("feature_flags").select("*").order("section").order("name");
+      setFlags(refreshed ?? []);
+    } else {
+      setFlags(existing);
+    }
+
     setLoading(false);
   }
 
