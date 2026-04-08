@@ -24,6 +24,7 @@ export default function ContactScreen() {
   const hasMiniplayer = !!nowPlaying;
 
   const [name, setName] = useState(user?.displayName ?? "");
+  const [email, setEmail] = useState(user?.email ?? "");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -35,7 +36,7 @@ export default function ContactScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !subject.trim() || !message.trim()) {
+    if (!name.trim() || !email.trim() || !subject.trim() || !message.trim()) {
       showToast("Please fill in all fields", "alert-circle", colors.error);
       return;
     }
@@ -46,7 +47,7 @@ export default function ContactScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          email: user?.email ?? "",
+          email: email.trim(),
           subject: subject.trim(),
           message: message.trim(),
           userId: user?.id ?? null,
@@ -146,6 +147,19 @@ export default function ContactScreen() {
                   onChangeText={setName}
                   placeholder="Enter your name"
                   placeholderTextColor={colors.textMuted}
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
+                />
+              </View>
+
+              <View style={{ gap: 6 }}>
+                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Email</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="your@email.com"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                   style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                 />
               </View>
