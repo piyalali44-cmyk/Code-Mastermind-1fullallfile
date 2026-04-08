@@ -423,6 +423,7 @@ export default function ProfileScreen() {
             )}
             <MenuItem icon="gift" label="Redeem a Code" onPress={() => setCouponModal(true)} />
             <MenuItem icon="settings" label="Settings" onPress={() => router.push("/settings")} />
+            <MenuItem icon="mail" label="Contact Support" onPress={() => router.push("/contact")} />
           </View>
 
           <Pressable

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useAudio } from "@/context/AudioContext";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
@@ -103,14 +103,37 @@ export default function ContactScreen() {
           <>
             <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[styles.infoIconWrap, { backgroundColor: colors.gold + "18" }]}>
-                <Icon name="mail" size={20} color={colors.goldLight} />
+                <Icon name="message-circle" size={20} color={colors.goldLight} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "600" }}>Get in Touch</Text>
                 <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 18, marginTop: 4 }}>
-                  Have a question, suggestion, or need help? Fill out the form below and we'll respond as soon as possible.
+                  Have a question, suggestion, or need help? We'd love to hear from you.
                 </Text>
               </View>
+            </View>
+
+            <Pressable
+              onPress={() => Linking.openURL("mailto:support@stayguided.me")}
+              style={({ pressed }) => [
+                styles.emailDirectRow,
+                { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.75 : 1 },
+              ]}
+            >
+              <View style={[styles.infoIconWrap, { backgroundColor: "#0EA5E922" }]}>
+                <Icon name="at-sign" size={20} color="#38BDF8" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase" }}>Direct Email</Text>
+                <Text style={{ color: "#38BDF8", fontSize: 14, fontWeight: "700", marginTop: 2 }}>support@stayguided.me</Text>
+              </View>
+              <Icon name="external-link" size={16} color={colors.textMuted} />
+            </Pressable>
+
+            <View style={[styles.dividerRow, { borderColor: colors.divider }]}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
+              <Text style={{ color: colors.textMuted, fontSize: 12, paddingHorizontal: 10 }}>or send us a message</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.divider }]} />
             </View>
 
             <View style={{ gap: 16 }}>
@@ -212,6 +235,9 @@ const styles = StyleSheet.create({
   submitBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 16, borderRadius: 12 },
   submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
   faqCard: { flexDirection: "row", gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: "flex-start" },
+  emailDirectRow: { flexDirection: "row", gap: 14, padding: 16, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  dividerRow: { flexDirection: "row", alignItems: "center" },
+  dividerLine: { flex: 1, height: 1 },
   sentContainer: { alignItems: "center", gap: 16, paddingTop: 40 },
   sentIconWrap: { width: 88, height: 88, borderRadius: 44, alignItems: "center", justifyContent: "center" },
   sentTitle: { fontSize: 24, fontWeight: "700" },

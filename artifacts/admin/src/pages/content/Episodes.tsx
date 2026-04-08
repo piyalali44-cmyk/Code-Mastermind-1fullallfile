@@ -13,10 +13,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaginationBar } from "@/components/ui/PaginationBar";
 import { toast } from "sonner";
-import { Plus, Edit2, Trash2, Search, Mic2, Volume2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Mic2, Volume2, Bell } from "lucide-react";
 import ImageUpload from "@/components/ImageUpload";
 import { formatDate, formatDuration } from "@/lib/utils";
 import type { Episode, Series, AccessTier } from "@/lib/types";
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -57,6 +59,7 @@ export default function Episodes() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [notifyOnCreate, setNotifyOnCreate] = useState(true);
 
   const { profile } = useAuth();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,6 +150,13 @@ export default function Episodes() {
         const { data, error } = await supabase.from("episodes").insert(payload).select().single();
         if (error) throw error;
         id = data.id;
+        if (notifyOnCreate) {
+          const seriesTitle = seriesList.find(s => s.id === form.series_id)?.title ?? "";
+          sendEpisodeNotification(
+            form.title!, form.series_id!, seriesTitle,
+            form.cover_override_url || form.image_url || null,
+          );
+        }
       }
       supabase.from("admin_activity_log").insert({
         admin_id: profile?.id, action: editing ? "Updated episode" : "Created episode",
@@ -157,6 +167,64 @@ export default function Episodes() {
       load();
     } catch (err: unknown) { toast.error((err as Error).message); }
     finally { setSaving(false); }
+  }
+
+  async function sendEpisodeNotification(
+    episodeTitle: string,
+    seriesId: string,
+    seriesTitle: string,
+    imageUrl: string | null,
+  ) {
+    try {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, push_token")
+        .eq("is_active", true);
+      if (!profiles || profiles.length === 0) return;
+
+      const deepLink = `stayguided://series/${seriesId}`;
+      const title = `New Episode: ${episodeTitle}`;
+      const body = seriesTitle
+        ? `${seriesTitle} · A new episode is available`
+        : "A new episode has been added. Check it out now.";
+
+      const validTokens = profiles
+        .filter((p: { push_token: unknown }) => typeof p.push_token === "string" && (p.push_token as string).startsWith("ExponentPushToken"))
+        .map((p: { push_token: string }) => p.push_token);
+
+      if (validTokens.length > 0) {
+        const CHUNK = 100;
+        for (let i = 0; i < validTokens.length; i += CHUNK) {
+          const chunk = validTokens.slice(i, i + CHUNK);
+          await fetch(EXPO_PUSH_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify(
+              chunk.map((token: string) => ({
+                to: token, title, body, sound: "default",
+                data: { url: deepLink, ...(imageUrl ? { image_url: imageUrl } : {}) },
+              }))
+            ),
+          });
+        }
+      }
+
+      const userIds = profiles.map((p: { id: string }) => p.id);
+      for (let i = 0; i < userIds.length; i += 500) {
+        await supabase.from("notifications").insert(
+          userIds.slice(i, i + 500).map((uid: string) => ({
+            user_id: uid, title, body,
+            type: "new_episode", is_read: false,
+            action_type: "deeplink",
+            action_payload: { url: deepLink, ...(imageUrl ? { image_url: imageUrl } : {}) },
+          }))
+        );
+      }
+
+      toast.success(`Notification sent to ${profiles.length} users`);
+    } catch (err) {
+      console.warn("Episode notification failed:", err);
+    }
   }
 
   async function deleteEpisode(ep: Episode) {
@@ -357,6 +425,18 @@ export default function Episodes() {
                     </SelectContent>
                   </Select>
                 </div>
+                {!editing && (
+                  <label className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={notifyOnCreate}
+                      onChange={e => setNotifyOnCreate(e.target.checked)}
+                      className="rounded border-border h-4 w-4 accent-blue-500"
+                    />
+                    <Bell className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
+                    <span className="text-sm text-blue-300">Notify all users about this new episode</span>
+                  </label>
+                )}
                 <div className="flex gap-3 pt-2">
                   <Button className="flex-1" onClick={save} disabled={saving}>{saving ? "Saving…" : editing ? "Save Changes" : "Create Episode"}</Button>
                   <Button variant="outline" onClick={() => setSheetOpen(false)}>Cancel</Button>
