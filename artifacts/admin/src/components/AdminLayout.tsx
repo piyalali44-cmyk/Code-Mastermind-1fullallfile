@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import MigrationBanner from "./MigrationBanner";
 import {
   Sun,
   Moon,
@@ -392,6 +393,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <main className="flex-1 overflow-auto scroll-smooth">
           <div className="p-3 md:p-6 lg:p-8 max-w-[1600px] animate-fade-in">
+            <MigrationBanner />
             {children}
           </div>
         </main>
